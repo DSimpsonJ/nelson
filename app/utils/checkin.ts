@@ -9,6 +9,7 @@ export interface Checkin {
   proteinHit: string;        // "yes" | "almost" | "no"
   hydrationHit: string;      // "yes" | "no"
   movedToday?: string;       // <-- NEW: "yes" | "no"
+  nutritionAlignment?: number;
   note?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -34,4 +35,27 @@ export async function getCheckin(
   const ref = doc(db, "users", email, "checkins", date);
   const snap = await getDoc(ref);
   return snap.exists() ? (snap.data() as Checkin) : null;
+}
+// 🧪 DEV ONLY: Seed fake check-ins for testing coach logic
+export async function seedFakeCheckins(email: string) {
+  const today = new Date();
+
+  for (let i = 0; i < 14; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - i);
+    const dateStr = date.toISOString().split("T")[0];
+
+    const fake: Checkin = {
+      date: dateStr,
+      mood: i % 3 === 0 ? "tired" : i % 2 === 0 ? "okay" : "energized",
+      proteinHit: i % 4 === 0 ? "no" : "yes",
+      hydrationHit: i % 5 === 0 ? "no" : "yes",
+      movedToday: i % 3 === 0 ? "no" : "yes",
+      nutritionAlignment: Math.floor(Math.random() * 40 + 60), // 60–100%
+    };
+
+    await saveCheckin(email, fake);
+  }
+
+  console.log("✅ Seeded 14 fake check-ins for", email);
 }
