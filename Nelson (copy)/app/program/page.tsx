@@ -247,7 +247,7 @@ export default function ProgramPage() {
     weekId: getISOWeekId(new Date()),
     sessions: 0,
   });
-  const [saving, setSaving] = useState(false);
+
   const [plan, setPlan] = useState<SessionPlan | null>(null);
   const [todayExercises, setTodayExercises] = useState<Exercise[]>([]);
   const [checks, setChecks] = useState<boolean[][]>([]);
@@ -731,35 +731,7 @@ setTimeout(() => setHighlightedIndex(null), 1000);
       // --- Save session to Firestore ---
       const sessionsRef = doc(db, "users", email, "sessions", newSession.id);
       await setDoc(sessionsRef, newSession, { merge: true });
-  // ✅ Update user workout status for dashboard sync
-try {
-  const statusRef = doc(db, "users", email, "metadata", "status");
-  const planRef = doc(db, "users", email, "profile", "intake");
-  const planSnap = await getDoc(planRef);
-
-  let nextWorkoutIndex = 0;
-  if (planSnap.exists()) {
-    const plan = planSnap.data();
-    const schedule = plan.schedule || [];
-    const currentIdx = schedule.findIndex(
-      (s: any) => s.name === newSession.dayType
-    );
-    nextWorkoutIndex =
-      currentIdx >= 0 ? (currentIdx + 1) % schedule.length : 0;
-  }
-
-  await setDoc(
-    statusRef,
-    {
-      lastCompleted: new Date().toISOString(),
-      nextWorkoutIndex,
-      lastDayType: newSession.dayType,
-    },
-    { merge: true }
-  );
-} catch (err) {
-  console.error("Failed to update workout status:", err);
-}
+  
       // --- Update personal records ---
       try {
         const stored = localStorage.getItem("personalRecords");
@@ -783,17 +755,8 @@ try {
       localStorage.removeItem("nelsonRepsData");
       localStorage.removeItem("nelsonWeightData");
   
-      // --- Cleanup + navigation ---
-localStorage.removeItem("nelsonRepsData");
-localStorage.removeItem("nelsonWeightData");
-
-// ✅ Lifecycle flag for summary → dashboard refresh
-localStorage.setItem("sessionComplete", "true");
-
-showToast({ message: "Session saved successfully!", type: "success" });
-
-// Short delay so toast appears before routing
-setTimeout(() => router.push("/summary"), 800);
+      showToast({ message: "Session saved successfully!", type: "success" });
+      setTimeout(() => router.replace("/dashboard"), 800);
   
       setIsResting(false);
       setActiveRestIndex(null);
@@ -1016,48 +979,66 @@ setTimeout(() => router.push("/summary"), 800);
           </div>
 
           <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-  <p className="text-sm text-gray-600">
-    Check off every set to complete today’s session.
-  </p>
+            <p className="text-sm text-gray-600">
+              Check off every set to complete today’s session.
+            </p>
 
-  <div className="flex gap-3">
-    <button
-      onClick={handleResetSession}
-      type="button"
-      className="px-4 py-2 rounded-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
-    >
-      Reset Session
-    </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleResetSession}
+                type="button"
+                className="px-4 py-2 rounded-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
+              >
+                Reset Session
+              </button>
 
-    <button
-      onClick={async () => {
-        if (!allChecked) return;
-
-        setSaving(true); // NEW
-        try {
-          await handleComplete();
-        } catch (err) {
-          console.error("Error completing session:", err);
-        } finally {
-          setSaving(false); // NEW
-        }
-      }}
-      type="button"
-      disabled={!allChecked || saving} // NEW
-      className={`px-5 py-3 rounded-lg font-semibold transition ${
-        saving
-          ? "bg-blue-400 text-white cursor-wait"
-          : allChecked
-          ? "bg-blue-600 hover:bg-blue-700 text-white"
-          : "bg-gray-200 text-gray-500 cursor-not-allowed"
-      }`}
-    >
-      {saving ? "Saving..." : "Mark Session Complete"}
-    </button>
-  </div>
-</div>
+              <button
+                onClick={handleComplete}
+                type="button"
+                disabled={!allChecked}
+                className={`px-5 py-3 rounded-lg font-semibold ${
+                  allChecked
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                Mark Session Complete
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+{/* Only show Finish Workout once all sets are complete */}
+{allChecked && (
+  <button
+    onClick={async () => {
+      try {
+        const email = getEmail();
+        if (!email) {
+          showToast({ message: "No user email found", type: "error" });
+          return;
+        }
+
+        // Count completed sets safely (works for nested or flat arrays)
+        const totalSetsCompleted = Array.isArray(checks[0])
+          ? checks.flat().filter(Boolean).length
+          : checks.filter(Boolean).length;
+
+        await endSession(email, today, totalSetsCompleted);
+
+        showToast({ message: "Workout saved!", type: "success" });
+        router.push("/dashboard");
+      } catch (err) {
+        console.error("Error ending workout:", err);
+        showToast({ message: "Error saving workout", type: "error" });
+      }
+    }}
+    className="w-full bg-green-600 text-white py-2 rounded-md font-semibold mt-4 hover:bg-green-700 transition"
+  >
+    Finish Workout
+  </button>
+)}
 
     </main>
   );

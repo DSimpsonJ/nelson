@@ -32,7 +32,7 @@ import {
 } from "recharts";
 import { saveSession } from "../utils/session";
 import { onSnapshot } from "firebase/firestore";
-import { format, subDays, formatDistanceToNow } from "date-fns";
+import { format, subDays } from "date-fns";
 import { updateWeeklyStats } from "../utils/updateWeeklyStats";
 import { refreshCoachNote, saveCoachNoteToWeeklyStats } from "../utils/refreshCoachNote";
 import { seedFakeCheckins } from "../utils/seedFakeCheckins";
@@ -41,8 +41,6 @@ import { TrendStats, CheckinTrend } from "../types/trends";
 import { generateCoachInsight } from "../utils/generateCoachInsight";
 import { logInsight } from "../utils/logInsight";
 import { generateWeeklySummary } from "../utils/generateWeeklySummary";
-import { getStreakMessage } from "../utils/getStreakMessage";
-import { withFirestoreError } from "../utils/withFirestoreError";
 
 /** ---------- Types ---------- */
 
@@ -58,32 +56,9 @@ type Plan = {
 type UserProfile = {
   firstName: string;
   email: string;
-  plan?: Plan | any; // allows plan to include schedule from intake
+  plan?: Plan;
 };
 
-// put this near your other types in page.tsx
-type WorkoutDetails = {
-  name: string;
-  type?: string;
-  focus?: string;
-  duration?: number;
-  sets?: number;
-  reps?: string;
-};
-function EmptyState({
-  message,
-  subtext,
-}: {
-  message: string;
-  subtext?: string;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center bg-gray-50 border border-dashed border-gray-200 rounded-lg p-6 text-center text-gray-500">
-      <p className="font-medium">{message}</p>
-      {subtext && <p className="text-xs text-gray-400 mt-1">{subtext}</p>}
-    </div>
-  );
-}
 /** ✅ Compute workout stats from sessions in Firestore (top-level, not nested) */
 async function loadSessionTrends(email: string): Promise<{
   workoutsThisWeek: number;
@@ -113,14 +88,7 @@ async function loadSessionTrends(email: string): Promise<{
     avgDuration,
   };
 }
-function safeGetSchedule(profile: any) {
-  try {
-    const schedule = profile?.plan?.schedule;
-    return Array.isArray(schedule) && schedule.length ? schedule : null;
-  } catch {
-    return null;
-  }
-}
+
 /** ✅ Compute 7-day check-in trend averages (recent-weighted and responsive) */
 function calculateTrends(checkins: any[]): CheckinTrend {
   const last7 = checkins
@@ -136,6 +104,7 @@ function calculateTrends(checkins: any[]): CheckinTrend {
       checkinsCompleted: 0,
     };
   }
+
   const proteinDays = last7.filter(
     (c) => c.proteinHit?.toLowerCase() === "yes"
   ).length;
@@ -202,72 +171,7 @@ async function loadWeeklyStats(email: string) {
   const snap = await getDoc(ref);
   return snap.exists() ? (snap.data() as TrendStats) : null;
 }
-/** ✅ Calculate current check-in streak */
-function calculateCheckinStreak(checkins: { date: string }[]): number {
-  if (!checkins?.length) return 0;
 
-  // Sort by newest first
-  const sorted = [...checkins].sort((a, b) =>
-    a.date < b.date ? 1 : -1
-  );
-
-  let streak = 0;
-  let current = new Date();
-
-  for (const c of sorted) {
-    const checkinDate = new Date(c.date);
-    const diffDays = Math.floor(
-      (current.getTime() - checkinDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays === 0 || diffDays === 1) {
-      streak++;
-      current = checkinDate; // move the window back
-    } else {
-      break; // streak broken
-    }
-  }
-
-  return streak;
-}
-/** ✅ Utility: get today's training name from intake data (Firestore layout fix) */
-function getTodaysTrainingName(intake: any): string {
-  if (!intake || !Array.isArray(intake.schedule) || intake.schedule.length === 0) {
-    return "Rest Day";
-  }
-
-  const schedule = intake.schedule;
-  const dayIdx = new Date().getDay(); // 0 = Sunday, 6 = Saturday
-  const todaysEntry = schedule[dayIdx % schedule.length];
-
-  return todaysEntry?.name || "Rest Day";
-}
-/** Utility: get today’s workout from the user’s plan */
-function getTodaysWorkout(plan: any): WorkoutDetails | null {
-  if (!plan || !Array.isArray(plan.schedule) || plan.schedule.length === 0) return null;
-
-  const schedule = plan.schedule as WorkoutDetails[];
-  const idx = new Date().getDay(); // 0..6
-  return schedule[idx % schedule.length] ?? null;
-}
-/** Utility: format workout metadata */
-function getWorkoutDetails(plan: any) {
-  if (!plan?.schedule) return null;
-
-  const dayIndex = new Date().getDay();
-  const todayWorkout = plan.schedule[dayIndex];
-
-  if (!todayWorkout) return null;
-
-  return {
-    name: todayWorkout.name || "Rest Day",
-    type: todayWorkout.type || "General",
-    focus: todayWorkout.focus || "Full Body",
-    duration: todayWorkout.duration || 45,
-    sets: todayWorkout.sets || null,
-    reps: todayWorkout.reps || null,
-  };
-}
 /** ---------- Component ---------- */
 export default function DashboardPage() {
   const router = useRouter();
@@ -314,52 +218,37 @@ const [weeklyReflection, setWeeklyReflection] = useState<{
     nutritionAlignment: 0, //
     note: "",
   });
-  // 🧩 Real-time workout status (from Firestore)
-const [status, setStatus] = useState<{
-  lastCompleted?: string;
-  nextWorkoutIndex?: number;
-  lastDayType?: string;
-} | null>(null);
   const [checkinSubmitted, setCheckinSubmitted] = useState(false);
-  const [checkinStreak, setCheckinStreak] = useState<number>(0);
   const [trends, setTrends] = useState<TrendStats | null>(null);
   const [recentCheckins, setRecentCheckins] = useState<Checkin[]>([]); // ✅ move this here
 
   const today = new Date().toISOString().split("T")[0];
   const [hasSessionToday, setHasSessionToday] = useState(false);
 
- /** ✅ Fetch the last 14 days of check-ins */
-const loadRecentCheckins = async (email: string) => {
-  const colRef = collection(db, "users", email, "checkins");
+  /** ✅ Fetch the last 14 days of check-ins */
+  const loadRecentCheckins = async (email: string) => {
+    const colRef = collection(db, "users", email, "checkins");
+    const snaps = await getDocs(colRef);
+    const all = snaps.docs.map((d) => d.data() as Checkin);
 
-  // ✅ Use the Firestore wrapper to handle any errors gracefully
-  const snaps = await withFirestoreError(getDocs(colRef), "check-ins", showToast);
-  if (!snaps) return; // Stop if Firestore failed
+    const cutoff = subDays(new Date(), 14); // ✅ correct capitalization
+    const recent = all
+      .filter((c) => new Date(c.date) >= cutoff)
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
 
-  const all = snaps.docs.map((d) => d.data() as Checkin);
+    setRecentCheckins(recent);
+  };
 
-  const cutoff = subDays(new Date(), 14);
-  const recent = all
-    .filter((c) => new Date(c.date) >= cutoff)
-    .sort((a, b) => (a.date < b.date ? -1 : 1));
-
-  setRecentCheckins(recent);
-};
-
- /** ✅ Check if user has logged a session today */
-async function getTodaySession(email: string): Promise<boolean> {
-  const sessionsCol = collection(db, "users", email, "sessions");
-
-  // ✅ Use the Firestore error handler
-  const snaps = await withFirestoreError(getDocs(sessionsCol), "today’s session", showToast);
-  if (!snaps) return false; // Stop gracefully if Firestore failed
-
-  const today = new Date().toISOString().split("T")[0];
-  return snaps.docs.some((d) => {
-    const data = d.data();
-    return data.date?.startsWith(today);
-  });
-}
+  /** ✅ Check if user has logged a session today */
+  async function getTodaySession(email: string): Promise<boolean> {
+    const sessionsCol = collection(db, "users", email, "sessions");
+    const snaps = await getDocs(sessionsCol);
+    const today = new Date().toISOString().split("T")[0];
+    return snaps.docs.some((d) => {
+      const data = d.data();
+      return data.date?.startsWith(today);
+    });
+  }
 
   /** Load profile, plan, check-ins, coach note, and trends */
   const loadDashboardData = async () => {
@@ -382,31 +271,16 @@ async function getTodaySession(email: string): Promise<boolean> {
         firstName = auth.currentUser.displayName.split(" ")[0];
       }
 
-     // ---- Plan
-const planRef = doc(db, "users", email, "profile", "intake");
-const planSnap = await getDoc(planRef);
-let plan = null;
+      // ---- Plan
+      const planRef = doc(db, "users", email, "profile", "intake");
+      const planSnap = await getDoc(planRef);
+      const plan = planSnap.exists() ? planSnap.data().plan : null;
 
-if (planSnap.exists()) {
-  const data = planSnap.data();
-  plan = data.schedule ? data : data.plan || null; // <-- reads schedule directly
-}
+      setProfile({ firstName, email, plan });
 
-setProfile({ firstName, email, plan });
-console.log("🔥 DEBUG PLAN SNAPSHOT:", JSON.stringify(plan, null, 2));
-console.log("🔥 TYPE OF PLAN:", typeof plan);
-console.log("Loaded Plan:", plan);
-      console.log("Loaded Plan:", plan);
       // ---- Today’s check-in
       const todayData = await getCheckin(email, today);
       await loadRecentCheckins(email);
-      // ✅ Calculate streak based on all check-ins
-const checkinColRef = collection(db, "users", email, "checkins");
-const checkinSnaps = await getDocs(checkinColRef);
-const allCheckins = checkinSnaps.docs.map((d) => d.data() as { date: string });
-const streakValue = calculateCheckinStreak(allCheckins);
-console.log("[DEBUG] Current check-in streak:", streakValue);
-setCheckinStreak(streakValue);
       if (todayData) setTodayCheckin(todayData);
 
       // ---- Coach note
@@ -582,32 +456,17 @@ await saveCoachNoteToWeeklyStats(email, note);
   useEffect(() => {
     loadDashboardData();
   }, []);
-// 🪞 Weekly Reflection loader
+  // 🪞 Weekly Reflection loader
 useEffect(() => {
   const fetchWeeklyReflection = async () => {
-    try {
-      const email = getEmail();
-      if (!email) return;
+    const email = getEmail();
+    if (!email) return;
 
-      const weekId = getISOWeekId(new Date());
-      const ref = doc(db, "users", email, "weeklyStats", weekId);
-
-      // ✅ Safely wrap the Firestore call
-      const snap = await withFirestoreError(
-        getDoc(ref),
-        "weekly reflection",
-        showToast
-      );
-
-      // Stop here if wrapper returned null (Firestore failed)
-      if (!snap) return;
-
-      // Normal logic continues
-      if (snap.exists()) {
-        setWeeklyReflection(snap.data() as any);
-      }
-    } catch (err) {
-      console.error("[Dashboard] Error fetching weekly reflection:", err);
+    const weekId = getISOWeekId(new Date());
+    const ref = doc(db, "users", email, "weeklyStats", weekId);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      setWeeklyReflection(snap.data() as any);
     }
   };
 
@@ -621,17 +480,9 @@ useEffect(() => {
 
     // 🧪 Uncomment one at a time for development
     // devClearCheckins(email);
+    // devSeedCheckins(email);
   }, []);
-  // 🌀 Auto-refresh dashboard after workout completion
-useEffect(() => {
-  const sessionDone = localStorage.getItem("sessionComplete");
-  if (sessionDone) {
-    console.log("[Lifecycle] Detected completed session → refreshing dashboard");
-    localStorage.removeItem("sessionComplete");
-    loadDashboardData(); // already defined in your file
-  }
-}, []);
- // ✅ Real-time listener (read-only, no Firestore write loop)
+  // ✅ Real-time listener (read-only, no Firestore write loop)
 useEffect(() => {
   const email = getEmail();
   if (!email) return;
@@ -640,114 +491,103 @@ useEffect(() => {
 
   const checkinRef = collection(db, "users", email, "checkins");
   const sessionsRef = collection(db, "users", email, "sessions");
-  const statusRef = doc(db, "users", email, "metadata", "status");
 
-  // 🔹 Check-in listener: updates recentCheckins and refreshes coach insight
-  const unsubCheckins = onSnapshot(checkinRef, async (snapshot) => {
-    if (snapshot.metadata.hasPendingWrites) return;
+ // 🔹 Check-in listener: updates recentCheckins and refreshes coach insight
+const unsubCheckins = onSnapshot(checkinRef, async (snapshot) => {
+  if (snapshot.metadata.hasPendingWrites) return;
 
-    console.log("[Realtime] Check-in updated");
-    const checkins = snapshot.docs.map((d) => d.data() as Checkin);
-    setRecentCheckins(checkins);
+  console.log("[Realtime] Check-in updated");
+  const checkins = snapshot.docs.map((d) => d.data() as Checkin);
+  setRecentCheckins(checkins);
 
-    // 💬 Auto-refresh the coach insight dynamically
-    const latestTrends = trends || null;
-    if (latestTrends) {
-      const style =
-        (trends as any)?.coachingStyle ||
-        (globalThis as any)?.coachingStyle ||
-        "encouraging";
+  // 💬 Auto-refresh the coach insight dynamically
+  const latestTrends = trends || null;
+  if (latestTrends) {
+    const style =
+      (trends as any)?.coachingStyle ||
+      (globalThis as any)?.coachingStyle ||
+      "encouraging";
 
-      const newInsight = generateCoachInsight(latestTrends, checkins, style);
-      setCoachNote(newInsight);
-
-      // email is available from the parent scope of this effect
-      await saveCoachNoteToWeeklyStats(email, newInsight);
-      await logInsight(email, newInsight, {
-        source: "checkin_update",
-        stats: latestTrends,
-      });
-    }
-  });
-
-  // 🔹 Workout listener: updates workout stats and refreshes insight
-  const unsubSessions = onSnapshot(sessionsRef, async (snapshot) => {
-    if (snapshot.metadata.hasPendingWrites) return;
-
-    console.log("[Realtime] Workout updated");
-    const sessions = snapshot.docs.map((d) => d.data());
-
-    // Update the trend for workouts this week (keep your other fields intact)
-    const updatedStats: TrendStats = {
-      ...(trends ?? {
-        proteinConsistency: 0,
-        hydrationConsistency: 0,
-        movementConsistency: 0,
-        checkinsCompleted: 0,
-        moodTrend: "",
-        totalSets: 0,
-        avgDuration: 0,
-        workoutsThisWeek: 0,
-      }),
-      workoutsThisWeek: sessions.length,
-    };
-
-    setTrends(updatedStats);
-
-    // 💬 Generate updated insight whenever workouts change
-    const checkins = recentCheckins ?? [];
-    const style = profile?.plan?.coachingStyle ?? "encouraging";
-    const newInsight = generateCoachInsight(updatedStats, checkins, style);
+    const newInsight = generateCoachInsight(latestTrends, checkins, style);
     setCoachNote(newInsight);
 
+    // email is available from the parent scope of this effect
     await saveCoachNoteToWeeklyStats(email, newInsight);
     await logInsight(email, newInsight, {
-      source: "workout_update",
-      stats: updatedStats,
+      source: "checkin_update",
+      stats: latestTrends,
     });
-  });
+  }
+});
 
-  // 🔹 NEW: Status listener (for dashboard sync)
-  const unsubStatus = onSnapshot(statusRef, (snap) => {
-    if (snap.exists()) {
-      console.log("[Realtime] Status updated:", snap.data());
-      setStatus(snap.data()); // ✅ updates state when Firestore doc changes
-    }
-  });
+// 🔹 Workout listener: updates workout stats and refreshes insight
+const unsubSessions = onSnapshot(sessionsRef, async (snapshot) => {
+  if (snapshot.metadata.hasPendingWrites) return;
 
-  // ✅ Cleanup all listeners when component unmounts
+  console.log("[Realtime] Workout updated");
+  const sessions = snapshot.docs.map((d) => d.data());
+
+  // Update the trend for workouts this week (keep your other fields intact)
+  const updatedStats: TrendStats = {
+    ...(trends ?? {
+      proteinConsistency: 0,
+      hydrationConsistency: 0,
+      movementConsistency: 0,
+      checkinsCompleted: 0,
+      moodTrend: "",
+      totalSets: 0,
+      avgDuration: 0,
+      workoutsThisWeek: 0,
+    }),
+    workoutsThisWeek: sessions.length,
+  };
+
+  setTrends(updatedStats);
+
+  // 💬 Generate updated insight whenever workouts change
+  const checkins = recentCheckins ?? [];
+  const style = profile?.plan?.coachingStyle ?? "encouraging";
+  const newInsight = generateCoachInsight(updatedStats, checkins, style);
+  setCoachNote(newInsight);
+
+  await saveCoachNoteToWeeklyStats(email, newInsight);
+  await logInsight(email, newInsight, {
+    source: "workout_update",
+    stats: updatedStats,
+  });
+});
+
   return () => {
     unsubCheckins();
     unsubSessions();
-    unsubStatus(); // ✅ added cleanup for new listener
   };
 }, []);
   // ✅ Recent Check-ins for Mood History (Last 14 Days)
-  useEffect(() => {
-    const loadRecentCheckins = async () => {
+useEffect(() => {
+  const loadRecentCheckins = async () => {
+    try {
       const email = getEmail();
       if (!email) return;
-  
+
       const colRef = collection(db, "users", email, "checkins");
-  
-      // ✅ Firestore wrapper for safety and toast feedback
-      const snaps = await withFirestoreError(getDocs(colRef), "recent check-ins", showToast);
-      if (!snaps) return; // stop if Firestore failed
-  
+      const snaps = await getDocs(colRef);
       const all = snaps.docs.map((d) => d.data() as Checkin);
-  
+
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 14);
-  
+
       const recent = all
         .filter((c) => new Date(c.date) >= cutoff)
         .sort((a, b) => (a.date < b.date ? -1 : 1));
-  
+
       setRecentCheckins(recent);
-    };
-  
-    loadRecentCheckins();
-  }, [todayCheckin]);
+    } catch (err) {
+      console.error("Failed to load recent check-ins:", err);
+    }
+  };
+
+  loadRecentCheckins();
+}, [todayCheckin]);
   // ✅ Mood history for the line chart (last 7 days)
  // Keeping placeholder state for compatibility with coach insight generation
 const [moodHistory] = useState<{ day: string; mood: number }[]>([]);
@@ -814,32 +654,20 @@ if (loading || !profile) {
         <div className="max-w-3xl mx-auto space-y-6">
           
           {/* 1. Welcome Header */}
-<div className="bg-white rounded-2xl p-6 shadow-sm flex items-center justify-between">
-  <div>
-    <h1 className="text-2xl font-bold text-gray-900">
-      Hey {profile?.firstName || "there"}.
-    </h1>
-
-    {todayCheckin ? (
-      <p className="text-gray-600 mt-1">
-        You’ve already checked in today.
-      </p>
-    ) : (
-      <p className="text-gray-600 mt-1">{greeting}</p>
-    )}
-
-    {/* 🔥 Check-in Streak Display */}
-    {checkinStreak > 0 && (() => {
-      const { icon, message } = getStreakMessage(checkinStreak);
-      return (
-        <div className="flex items-center gap-2 text-sm font-medium text-orange-600 mt-2">
-          <span>{icon}</span>
-          <span>{message}</span>
-        </div>
-      );
-    })()}
-  </div>
-
+          <div className="bg-white rounded-2xl p-6 shadow-sm flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Hey {profile?.firstName || "there"}.
+              </h1>
+              {todayCheckin ? (
+                <p className="text-gray-600 mt-1">
+                  You’ve already checked in today.
+                </p>
+              ) : (
+                <p className="text-gray-600 mt-1">{greeting}</p>
+              )}
+            </div>
+    
   {/* Tagline */}
   <div className="hidden sm:flex flex-col items-end text-right">
     <p className="text-xs tracking-widest uppercase text-gray-400 font-semibold">
@@ -994,203 +822,112 @@ if (loading || !profile) {
           </div>
         )}
 
-       {/* 3. Daily Results */}
+       {/* 3. Trend Summary */}
 <div className="bg-white rounded-2xl shadow-sm p-6">
   <h2 className="text-xl font-semibold text-gray-900 mb-3">
-    Daily Results
-  </h2>
-    
-  {!todayCheckin ? (
-  <EmptyState
-    message="No check-in yet today."
-    subtext="Tap your check-in to get started."
-  />
-) : (
-  <div className="grid grid-cols-2 gap-4">
-      {/* Nutrition Alignment */}
-      <div className="flex flex-col bg-gray-50 rounded-lg p-4 shadow-inner">
-        <span className="text-sm font-medium text-gray-700 mb-1">Nutrition Alignment</span>
-        <span className="text-lg font-bold text-blue-700">
-          {todayCheckin.nutritionAlignment ?? 0}%
-        </span>
-        <p className="text-xs text-gray-500 mt-1">How closely you followed your plan.</p>
-      </div>
-
-      {/* Protein Target */}
-      <div className="flex flex-col bg-gray-50 rounded-lg p-4 shadow-inner">
-        <span className="text-sm font-medium text-gray-700 mb-1">Protein Target</span>
-        <span
-          className={`text-lg font-bold ${
-            todayCheckin.proteinHit === "yes"
-              ? "text-green-600"
-              : todayCheckin.proteinHit === "almost"
-              ? "text-yellow-500"
-              : "text-red-500"
-          }`}
-        >
-          {todayCheckin.proteinHit
-            ? todayCheckin.proteinHit.charAt(0).toUpperCase() +
-              todayCheckin.proteinHit.slice(1)
-            : "—"}
-        </span>
-        <p className="text-xs text-gray-500 mt-1">Hit your protein minimum today?</p>
-      </div>
-
-      {/* 🏋️ Workout Status (real-time) */}
-<div className="flex flex-col bg-gray-50 rounded-lg p-4 shadow-inner">
-  <span className="text-sm font-medium text-gray-700 mb-1">Workout</span>
-
-  <span
-    className={`text-lg font-bold ${
-      status?.lastCompleted ? "text-green-600" : "text-gray-400"
-    }`}
-  >
-    {status?.lastCompleted ? "Complete ✅" : "Pending"}
-  </span>
-
-  <p className="text-xs text-gray-500 mt-1">
-  {(() => {
-    const schedule = safeGetSchedule(profile);
-    if (status?.nextWorkoutIndex !== undefined && schedule) {
-      const nextName =
-        schedule[
-          status.nextWorkoutIndex % schedule.length
-        ]?.name || "Rest Day";
-      return `Next: ${nextName}`;
-    }
-    return "Next: —";
-  })()}
-</p>
-  {/* ✅ NEW: last completed timestamp */}
-  {status?.lastCompleted && (
-    <p className="text-[11px] text-gray-400 mt-1 italic">
-      Completed{" "}
-      {formatDistanceToNow(new Date(status.lastCompleted), {
-        addSuffix: true,
-      })}
-    </p>
-  )}
-</div>
-
-      {/* Non-Exercise Activity */}
-      <div className="flex flex-col bg-gray-50 rounded-lg p-4 shadow-inner">
-        <span className="text-sm font-medium text-gray-700 mb-1">Non-Exercise Activity</span>
-        <span
-          className={`text-lg font-bold ${
-            todayCheckin.movedToday === "yes" ? "text-green-600" : "text-gray-400"
-          }`}
-        >
-          {todayCheckin.movedToday === "yes" ? "Yes" : "No"}
-        </span>
-        <p className="text-xs text-gray-500 mt-1">Intentional daily movement.</p>
-      </div>
-    </div>
-  )}
-
-  <p className="text-xs text-gray-500 text-center mt-4">
-    Small wins compound, step forward every day.
-  </p>
-</div>
-
-{/* 💬 Dynamic Coach Card */}
-<div className="bg-white rounded-2xl shadow-sm p-6 mt-6">
-  <h2 className="text-lg font-semibold text-gray-900 mb-2">
-    Coaching Reflection & Focus
+    Weekly Trend Summary
   </h2>
 
-  {!weeklyReflection ? (
-    <EmptyState
-      message="No weekly reflection yet."
-      subtext="Complete a full week of check-ins to unlock your coaching summary."
-    />
+  {!trends ? (
+    <p className="text-gray-500">Loading trend data...</p>
   ) : (
     <>
-      <p className="text-sm text-gray-700 mb-2">
-        Week {weeklyReflection.weekId?.split("-")[1] || ""} Review
-      </p>
-
-      <ul className="text-sm text-gray-600 mb-4 space-y-1">
-        <li>Check-ins: {weeklyReflection.checkinsCompleted ?? 0} / 7</li>
-        <li>Workouts: {weeklyReflection.workoutsThisWeek ?? 0}</li>
-        {weeklyReflection.momentumScore && (
-          <li>
-            Momentum Score:
-            <span className="font-semibold text-blue-700">
-              {" "}
-              {weeklyReflection.momentumScore}%
-            </span>
-          </li>
-        )}
+      {/* Compact list readout */}
+      <ul className="divide-y divide-gray-100">
+        <li className="py-2 flex justify-between items-center">
+          <span className="text-gray-700">Protein Consistency</span>
+          <span className="font-semibold text-blue-700">
+            {trends.proteinConsistency ?? 0}%
+          </span>
+        </li>
+        <li className="py-2 flex justify-between items-center">
+          <span className="text-gray-700">Hydration Consistency</span>
+          <span className="font-semibold text-blue-700">
+            {trends.hydrationConsistency ?? 0}%
+          </span>
+        </li>
+        <li className="py-2 flex justify-between items-center">
+          <span className="text-gray-700">Movement Consistency</span>
+          <span className="font-semibold text-blue-700">
+            {trends.movementConsistency ?? 0}%
+          </span>
+        </li>
+        <li className="py-2 flex justify-between items-center">
+          <span className="text-gray-700">Nutrition Alignment (today)</span>
+          <span className="font-semibold text-blue-700">
+            {todayCheckin?.nutritionAlignment ?? 0}%
+          </span>
+        </li>
       </ul>
 
-      {/* Main coach message */}
-      <p className="text-gray-800 font-medium italic border-t border-gray-100 pt-3">
-        “
-        {weeklyReflection.coachNote ||
-          "Stay consistent — small wins compound into big results."}
-        ”
-      </p>
-
-      {/* Present-focused action cue */}
-      {trends && (
-        <p className="text-sm text-gray-600 mt-4 border-t border-gray-100 pt-3">
-          {getNextFocus(trends)}
-        </p>
-      )}
+      {/* Bar chart */}
+      <div className="mt-6 mb-4">
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart
+            data={[
+              { name: "Protein", value: trends.proteinConsistency ?? 0 },
+              { name: "Hydration", value: trends.hydrationConsistency ?? 0 },
+              { name: "Movement", value: trends.movementConsistency ?? 0 },
+              { name: "Nutrition", value: todayCheckin?.nutritionAlignment ?? 0 },
+            ]}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="name" tick={{ fill: "#374151", fontSize: 12 }} />
+            <YAxis domain={[0, 100]} tick={{ fill: "#374151", fontSize: 12 }} />
+            <Tooltip formatter={(v: number) => `${v}%`} />
+            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+              <Cell fill="#3B82F6" /> {/* Protein - Blue */}
+              <Cell fill="#10B981" /> {/* Hydration - Green */}
+              <Cell fill="#F59E0B" /> {/* Movement - Amber */}
+              <Cell fill="#8B5CF6" /> {/* Nutrition - Violet */}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </>
   )}
 </div>
-{/* 4. Today's Training */}
-<div className="bg-white rounded-2xl shadow-sm p-6">
-  <h2 className="text-xl font-semibold text-gray-900 mb-3">
-    Today’s Training
-  </h2>
 
-  {hasSessionToday ? (
-    // ✅ Completed session view
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-gray-50 rounded-lg p-4 shadow-inner">
-      <div>
-        <p className="text-sm text-gray-800 font-semibold">
-          Training Complete
-        </p>
-        <p className="text-xs text-gray-500 mt-1">
-          Great job completing your scheduled session, momentum is compounding.
-        </p>
-      </div>
+{/* 💬 Dynamic Coach Card */}
+{weeklyReflection && (
+  <div className="bg-white rounded-2xl shadow-sm p-6 mt-6">
+    <h2 className="text-lg font-semibold text-gray-900 mb-2">
+      Coaching Reflection & Focus
+    </h2>
 
-      <button
-        onClick={() => router.push("/summary")}
-        className="mt-3 sm:mt-0 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition"
-      >
-        View Summary
-      </button>
-    </div>
-  ) : (
-    // 🔹 Scheduled view (before completion)
-    <div className="text-gray-600 text-sm">
-      <p className="text-gray-800 font-medium">
-        Scheduled Training:{" "}
-        <span className="font-semibold text-blue-700">
-          {(() => {
-            const schedule = profile?.plan?.schedule;
-            if (!schedule || schedule.length === 0) return "No plan found";
-            const todayIdx = new Date().getDay(); // 0..6
-            const today = schedule[todayIdx % schedule.length];
-            return today?.name || "Rest Day";
-          })()}
-        </span>
+    <p className="text-sm text-gray-700 mb-2">
+      Week {weeklyReflection.weekId?.split("-")[1] || ""} Review
+    </p>
+
+    <ul className="text-sm text-gray-600 mb-4 space-y-1">
+      <li>Check-ins: {weeklyReflection.checkinsCompleted ?? 0} / 7</li>
+      <li>Workouts: {weeklyReflection.workoutsThisWeek ?? 0}</li>
+      {weeklyReflection.momentumScore && (
+        <li>
+          Momentum Score:
+          <span className="font-semibold text-blue-700">
+            {" "}{weeklyReflection.momentumScore}%
+          </span>
+        </li>
+      )}
+    </ul>
+
+    {/* Main coach message */}
+    <p className="text-gray-800 font-medium italic border-t border-gray-100 pt-3">
+      “{weeklyReflection.coachNote ||
+        "Stay consistent — small wins compound into big results."}”
+    </p>
+
+    {/* Present-focused action cue */}
+    {trends && (
+      <p className="text-sm text-gray-600 mt-4 border-t border-gray-100 pt-3">
+        {getNextFocus(trends)}
       </p>
+    )}
+  </div>
+)}
 
-      <button
-        onClick={() => router.push("/program")}
-        className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition"
-      >
-        View Program
-      </button>
-    </div>
-  )}
-</div>
-{/* 5. Consistency Tracker */}
+{/* 4. Consistency Tracker */}
 <div className="bg-white rounded-2xl shadow-sm p-6">
   <h2 className="text-lg font-semibold text-gray-900 mb-3">
     Consistency Tracker (Last 14 Days)
@@ -1208,35 +945,7 @@ if (loading || !profile) {
           month: "numeric",
           day: "numeric",
         });
-        if (loading) {
-          return (
-            <main className="min-h-screen flex items-center justify-center bg-gray-50">
-              <p className="text-gray-600 font-semibold animate-pulse">
-                Loading your dashboard…
-              </p>
-            </main>
-          );
-        }
-      
-        if (!profile) {
-          return (
-            <main className="min-h-screen flex items-center justify-center bg-gray-50">
-              <div className="text-center">
-                <p className="text-gray-600 mb-4">
-                  No profile found. Let’s set you up first.
-                </p>
-                <button
-                  onClick={() => router.push("/signup")}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
-                >
-                  Complete Setup
-                </button>
-              </div>
-            </main>
-          );
-        }
-      
-        // ✅ Only reached if loading === false and profile exists
+
         return (
           <div
             key={c.date}
@@ -1301,15 +1010,14 @@ if (loading || !profile) {
           ) : (
             <>
               {!todayCheckin ? (
-  <EmptyState
-    message="No workout logged yet."
-    subtext="Your next training session will appear here once you complete it."
-  />
-) : (
-  <div className="mb-3 text-center text-gray-600">
-    <p>You completed your last check-in — keep that momentum.</p>
-  </div>
-)}
+                <p className="text-gray-600 mb-3">
+                  No session logged yet today. Ready to train?
+                </p>
+              ) : (
+                <p className="text-gray-600 mb-3">
+                  You completed your last check-in — keep that momentum.
+                </p>
+              )}
 
               <button
                 onClick={async () => {
