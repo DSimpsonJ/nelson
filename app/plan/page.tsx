@@ -83,28 +83,63 @@ export default function PlanPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-      <div className="bg-white rounded-xl shadow-md p-8 max-w-md w-full text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
-          Your Plan Is Ready
+      <div className="bg-white rounded-2xl shadow-md p-8 max-w-lg w-full text-center animate-fade-up">
+  
+        {/* Title */}
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          Your Personalized Plan Is Ready
         </h1>
-        <p className="text-gray-700 mb-6">
-          Based on your intake, here’s your starting focus:
+  
+        <p className="text-gray-600 mb-6">
+          Based on your intake, here’s where we’ll start.
         </p>
-        <ul className="text-left text-gray-800 space-y-2">
-          <li><strong>Goal:</strong> {plan.goal}</li>
-          <li><strong>Training Days:</strong> {plan.trainingDays}</li>
-          <li><strong>Equipment:</strong> {plan.equipment}</li>
-          <li><strong>Hydration:</strong> {plan.hydrationTarget} L/day</li>
-          <li><strong>Sleep:</strong> {plan.sleepTarget} hrs/night</li>
-          <li><strong>Coaching Style:</strong> {plan.coachingStyle}</li>
-        </ul>
+  
+        {/* Week One Focus */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6 text-left">
+          <h2 className="text-lg font-semibold text-blue-800 mb-1">
+            Week One Focus
+          </h2>
+          <p className="text-blue-900">{plan.weekOneFocus}</p>
+        </div>
+  
+        {/* Daily Habits */}
+        {plan.dailyHabits && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6 text-left">
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">
+              Your Daily Habits
+            </h2>
+            <ul className="list-disc list-inside text-gray-700 space-y-1">
+              {plan.dailyHabits.map((h: string, i: number) => (
+                <li key={i}>{h}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+  
+        {/* Weekly Schedule */}
+        {plan.schedule && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 text-left shadow-inner">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              Your Weekly Structure
+            </h2>
+            <ul className="space-y-1 text-gray-700">
+              {plan.schedule.map((d: any, i: number) => (
+                <li key={i}>
+                  <strong>{d.day}:</strong> {d.focus}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+  
+        {/* Start Button */}
         <button
           onClick={() => router.push("/dashboard")}
-          className="mt-6 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition"
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all w-full font-semibold"
         >
-          Continue to Dashboard
+          Let’s Begin
         </button>
       </div>
     </main>
   );
-}
+  }

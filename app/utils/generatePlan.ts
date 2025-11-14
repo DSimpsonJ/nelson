@@ -14,14 +14,30 @@ export type IntakeAnswers = {
   };
   
   export type NelsonPlan = {
-    planType: "hypertrophy" | "strength" | "recomp" | "health";
-    trainingDays: 2 | 3 | 4 | 5;
-    equipment: "full" | "home" | "minimal";
+    planType: "hypertrophy" | "strength" | "recomp" | "fatLoss" | "health";
     goal: string;
+  
+    trainingDays: number;
+    experience: "beginner" | "intermediate" | "advanced";
+  
+    equipment: "full" | "home" | "minimal";
+  
     hydrationTarget: number;   // liters per day
     sleepTarget: number;       // hours per night
+  
     coachingStyle: "encouraging" | "direct" | "analytical";
-    startDate: string;         // ISO
+  
+    startDate: string;         // ISO timestamp
+  
+    // 🔹 New, important personalization fields
+    weekOneFocus: string;
+    dailyHabits: string[];
+  
+    schedule: {
+      day: string;
+      focus: string;
+      task: string;
+    }[];
   };
   
   function toNumber(v: unknown): number | undefined {
@@ -72,26 +88,106 @@ export type IntakeAnswers = {
     return Math.max(2.5, Math.min(5.0, Number(liters.toFixed(1))));
   }
   
-  export function generatePlan(answers: IntakeAnswers): NelsonPlan {
-    const planType = pickPlanType(answers.goal);
-    const trainingDays = pickTrainingDays(answers.activity, answers.commitment);
-    const equipment = answers.equipment ?? "full";
-    const sleepTarget = pickSleepTarget(answers.sleep);
-    const currentWeight = toNumber(answers.currentWeight);
-    const hydrationTarget = calcHydrationLiters(currentWeight);
+  // utils/generatePlan.ts
+
+  export function generatePlan(answers: any): NelsonPlan {
+    const rawGoal = (answers.goal ?? "").toString();
+  
+    // 🔹 Plan type based on goal
+    let planType: NelsonPlan["planType"] = "health";
+    if (rawGoal === "muscle") planType = "hypertrophy";
+    else if (rawGoal === "strength") planType = "strength";
+    else if (rawGoal === "fatloss") planType = "fatLoss";
+    else if (rawGoal === "recomp") planType = "recomp";
+  
+    // 🔹 Training days and experience level
+    const trainingDays = Number(answers.trainingDays ?? 3);
+    let experience: NelsonPlan["experience"] = "beginner";
+    if (trainingDays >= 4) experience = "intermediate";
+    if (trainingDays >= 5) experience = "advanced";
+  
+    // 🔹 Equipment
+    const equipment = (answers.equipment ?? "full") as NelsonPlan["equipment"];
+  
+    // 🔹 Hydration and sleep
+    const hydrationTarget = Number(answers.hydrationTarget ?? 3); // liters
+    const sleepTarget = Number(answers.sleepTarget ?? 7);          // hours
+  
+    // 🔹 Coaching style
+    const coachingStyle = (answers.coaching ?? "encouraging") as NelsonPlan["coachingStyle"];
+  
+    // 🔹 Human-readable goal text
+    const goal =
+      rawGoal === "muscle"
+        ? "Build muscle"
+        : rawGoal === "strength"
+        ? "Get stronger"
+        : rawGoal === "fatloss"
+        ? "Lose fat"
+        : "Improve overall health";
+  
+    // 🔹 Week one focus by plan type
+    const focusByGoal: Record<NelsonPlan["planType"], string> = {
+      hypertrophy: "Build consistency with progressive overload (add 1–2 reps each session).",
+      strength: "Master form and log every major lift to establish baselines.",
+      fatLoss: "Lock in daily consistency: protein, hydration, and movement every day.",
+      health: "Establish daily movement, sleep rhythm, and hydration as non-negotiables.",
+      recomp: "Balance lifting intensity with tight nutrition and recovery.",
+    };
+  
+    const weekOneFocus = focusByGoal[planType];
+  
+    // 🔹 Base daily habits
+    const dailyHabits: string[] = [
+      "Log a daily check-in in Nelson before 9 PM.",
+      "Hit your protein minimum for the day.",
+      "Drink at least 100 oz of water.",
+    ];
+  
+    if (planType === "fatLoss") {
+      dailyHabits.push("Take a 10-minute walk after one meal.");
+    }
+    if (planType === "hypertrophy" || planType === "strength") {
+      dailyHabits.push("Do a 5-minute warm-up before each session.");
+    }
+  
+    // 🔹 Weekly schedule
+    const allDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const schedule: NelsonPlan["schedule"] = [];
+  
+    for (let i = 0; i < trainingDays && i < allDays.length; i++) {
+      const dayName = allDays[i];
+  
+      let focusLabel = "Full Body Foundation";
+      if (trainingDays >= 4) {
+        focusLabel = i % 2 === 0 ? "Upper Body" : "Lower Body";
+      }
+      if (planType === "fatLoss") {
+        focusLabel = "Conditioning & Steps";
+      }
+      if (planType === "health") {
+        focusLabel = "Movement & Mobility";
+      }
+  
+      schedule.push({
+        day: dayName,
+        focus: focusLabel,
+        task: "Complete your planned session and log it in Nelson.",
+      });
+    }
   
     return {
       planType,
+      goal,
       trainingDays,
+      experience,
       equipment,
-      goal:
-        answers.goal === "muscle" ? "Build muscle" :
-        answers.goal === "strength" ? "Get stronger" :
-        answers.goal === "fatloss" ? "Lose fat" :
-        "Improve overall health",
       hydrationTarget,
       sleepTarget,
-      coachingStyle: answers.coaching ?? "encouraging",
+      coachingStyle,
       startDate: new Date().toISOString(),
+      weekOneFocus,
+      dailyHabits,
+      schedule,
     };
   }

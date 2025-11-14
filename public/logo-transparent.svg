@@ -1,0 +1,8 @@
+import Image from "next/image";
+
+<Image
+  src="/logo-transparent.svg"
+  alt="Nelson"
+  width={80}
+  height={20}
+/>

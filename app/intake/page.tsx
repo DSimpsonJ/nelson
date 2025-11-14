@@ -5,6 +5,8 @@ import { doc, setDoc, getDoc } from "firebase/firestore";
 import { getEmail } from "../utils/getEmail";
 import { generatePlan, type NelsonPlan } from "../utils/generatePlan";
 import { TypeAnimation } from "react-type-animation";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 
 type Question = {
   id: string;
@@ -17,12 +19,13 @@ type Question = {
 };
 
 export default function IntakePage() {
+  const router = useRouter();
   const [flow, setFlow] = useState<Question[]>([]);
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [typedText, setTypedText] = useState("");
   const [isTypingDone, setIsTypingDone] = useState(false);
-
+  const [showAnswers, setShowAnswers] = useState(false);
 // Resolve first name from several sources
 async function resolveFirstName(): Promise<string> {
   try {
@@ -131,24 +134,42 @@ useEffect(() => {
         const nextChar = text[i];
         setTypedText((prev) => (prev ?? "") + nextChar);
 
-        let delay = 55; // base speed
-        if (nextChar === ",") delay += 180;
-        if (nextChar === "." || nextChar === "!" || nextChar === "?") delay += 400;
+        let delay = 24; // base speed
+        if (nextChar === ",") delay += 80;
+        if (nextChar === "." || nextChar === "!" || nextChar === "?") delay += 160;
 
         i++;
         setTimeout(typeChar, delay);
       } else {
         setIsTypingDone(true);
+        setTimeout(() => setShowAnswers(true), 40);
       }
     };
-
+    
     typeChar();
     return () => {
       setTypedText("");
       setIsTypingDone(false);
+      setShowAnswers(false);     // ← THIS ONE
     };
   }, [current?.id]);
-
+  function generatePlanFromIntake(intake: any) {
+    // Basic defaults
+    const plan: any = {
+      goal: intake.goal || "fatloss",
+      trainingDays: intake.commitment ? Number(intake.commitment) : 3,
+      equipment: intake.equipment || "bodyweight",
+      hydrationTarget: intake.hydration ? Number(intake.hydration) : 3,
+      sleepTarget: intake.sleep ? Number(intake.sleep) : 7,
+      coachingStyle: intake.coachingStyle || "encouraging",
+    };
+  
+    // Adjust hydration target for goal type
+    if (plan.goal === "muscle") plan.hydrationTarget += 0.5;
+    if (plan.goal === "fatloss") plan.hydrationTarget = Math.max(plan.hydrationTarget, 3);
+  
+    return plan;
+  }
   // ✅ Save intake + plan to Firestore
   const finalizeIntake = async () => {
     try {
@@ -164,6 +185,7 @@ useEffect(() => {
       });
 
       console.log("✅ Intake and plan saved:", plan);
+      router.push("/plan");
     } catch (err) {
       console.error("❌ Failed to save plan:", err);
     }
@@ -201,40 +223,65 @@ useEffect(() => {
   };
 
   // ✅ Render
-  if (!current) {
-    return (
-      <main className="flex flex-col items-center justify-center h-screen bg-gray-50">
-        <h1 className="text-2xl font-semibold mb-4">You’re all set!</h1>
-        <button
-          onClick={finalizeIntake}
-          className="bg-blue-600 text-white px-6 py-2 rounded-md"
-        >
-          Continue to Dashboard
-        </button>
-      </main>
-    );
-  }
-
+if (!current) {
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-6">
-      <div className="max-w-lg w-full bg-white text-gray-900 p-6 rounded-xl shadow-md transition-all duration-300">
-        <p className="text-lg font-medium mb-4 text-gray-900">
-          {typedText}
-          {!isTypingDone && <span className="animate-pulse">|</span>}
-        </p>
+    <main className="flex flex-col items-center justify-center h-screen bg-gray-50">
+      <h1 className="text-2xl font-semibold mb-4">You’re all set!</h1>
+      <button
+        onClick={finalizeIntake}
+        className="bg-blue-600 text-white px-6 py-2 rounded-md"
+      >
+        Continue to Dashboard
+      </button>
+    </main>
+  );
+}
 
-        {current.id === "welcome" && isTypingDone && (
-          <button
-            onClick={() => handleNext("welcome")}
-            className="bg-blue-600 text-white px-5 py-2 mt-3 rounded-md hover:bg-blue-700 transition-all"
-          >
-            Continue
-          </button>
-        )}
+return (
+  <main className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-6">
+   <div
+  className="
+    w-full
+    max-w-md
+    bg-white text-gray-900
+    p-5
+    rounded-xl shadow-md
+    transition-all duration-300 ease-out
+    min-h-[420px]
+    flex flex-col justify-between
+  "
+>
 
-        {/* ✅ Single choice questions */}
-{current.type === "singleChoice" && isTypingDone && (
-  <div className="space-y-2 mt-4">
+             {/* TOP SECTION */}
+      <div className="flex-1 flex flex-col">
+
+{/* Nelson’s message */}
+<p key={current?.id} className="text-lg font-medium mb-4 text-gray-900">
+  {typedText}
+  {!isTypingDone && <span className="animate-pulse">|</span>}
+</p>
+
+{/* Welcome screen */}
+{current.id === "welcome" && isTypingDone && (
+  <motion.button
+    initial={{ opacity: 0, y: 6 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.25 }}
+    onClick={() => handleNext("welcome")}
+    className="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition-all"
+  >
+    Continue
+  </motion.button>
+)}
+
+{/* Single choice questions */}
+{isTypingDone && current.type === "singleChoice" && (
+  <motion.div
+    initial={{ opacity: 0, y: 6 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.25 }}
+    className="space-y-2 mt-4"
+  >
     {current.options?.map((opt: any) => (
       <button
         key={opt.value}
@@ -244,11 +291,11 @@ useEffect(() => {
         {opt.label}
       </button>
     ))}
-  </div>
+  </motion.div>
 )}
 
-{/* ✅ Number input questions (like weight) */}
-{current.type === "numberInput" && isTypingDone && (
+{/* Number input questions */}
+{isTypingDone && current.type === "numberInput" && (
   <div className="mt-4 space-y-3">
     {current.fields?.map((field: any) => (
       <div key={field.name}>
@@ -273,21 +320,39 @@ useEffect(() => {
   </div>
 )}
 
-{/* ✅ Final action directly on summary */}
-{current.actions &&
-  isTypingDone &&
-  current.actions.some((a: any) => a.action === "finalizeIntake") && (
+{/* Final summary action */}
+{isTypingDone &&
+  current.actions?.some((a: any) => a.action === "finalizeIntake") && (
     <button
       onClick={async () => {
+        setIsTypingDone(false);
+        setTypedText("I'm designing your plan... This usually takes just a few seconds...");
         await finalizeIntake();
-        window.location.href = "/plan";
+        setTimeout(() => window.location.href = "/plan", 2000);
       }}
       className="bg-green-600 text-white px-5 py-2 mt-4 rounded-md hover:bg-green-700 transition-all w-full"
     >
       Let’s Do This!
     </button>
   )}
-      </div>
-    </main>
-  );
+</div>
+
+{/* BOTTOM SECTION */}
+<div className="mt-4 flex justify-center">
+  <p
+    className="
+      text-gray-400 text-center text-[11px]
+      cursor-pointer
+      transition-transform transition-colors duration-150 ease-out
+      hover:text-gray-700 hover:scale-[1.15]
+      origin-bottom
+    "
+    onClick={() => (window.location.href = '/intake')}
+  >
+    Start Over
+  </p>
+</div>
+</div>
+</main>
+);
 }

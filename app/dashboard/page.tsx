@@ -31,7 +31,7 @@ import {
   Line,
 } from "recharts";
 import { saveSession } from "../utils/session";
-import { onSnapshot } from "firebase/firestore";
+import { onSnapshot, } from "firebase/firestore";
 import { format, subDays, formatDistanceToNow } from "date-fns";
 import { updateWeeklyStats } from "../utils/updateWeeklyStats";
 import { refreshCoachNote, saveCoachNoteToWeeklyStats } from "../utils/refreshCoachNote";
@@ -43,6 +43,8 @@ import { logInsight } from "../utils/logInsight";
 import { generateWeeklySummary } from "../utils/generateWeeklySummary";
 import { getStreakMessage } from "../utils/getStreakMessage";
 import { withFirestoreError } from "../utils/withFirestoreError";
+import Image from "next/image";
+import { motion } from "framer-motion";
 
 /** ---------- Types ---------- */
 
@@ -327,7 +329,28 @@ const [status, setStatus] = useState<{
 
   const today = new Date().toISOString().split("T")[0];
   const [hasSessionToday, setHasSessionToday] = useState(false);
+// ✅ Load full user profile (including generated plan)
+useEffect(() => {
+  const loadProfile = async () => {
+    try {
+      const email = getEmail();
+      if (!email) return;
 
+      const profileRef = doc(db, "users", email, "profile", "intake");
+      const snap = await getDoc(profileRef);
+
+      if (snap.exists()) {
+        setProfile(snap.data() as UserProfile);
+      } else {
+        console.warn("[Dashboard] No intake/profile found.");
+      }
+    } catch (err) {
+      console.error("[Dashboard] Failed to load profile:", err);
+    }
+  };
+
+  loadProfile();
+}, []);
  /** ✅ Fetch the last 14 days of check-ins */
 const loadRecentCheckins = async (email: string) => {
   const colRef = collection(db, "users", email, "checkins");
@@ -799,7 +822,28 @@ useEffect(() => {
     seedFakeCheckins(email);
   }
 }, []);
+// ✅ Framer Motion variants for staggered fade-in
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.2,
+    },
+  },
+};
 
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: "easeOut" as const,
+    },
+  },
+};
 // ✅ Single early-return. No hooks below this line.
 if (loading || !profile) {
   console.log("[Dashboard] loading or missing profile");
@@ -810,20 +854,30 @@ if (loading || !profile) {
   );
 }
     return (
-      <main className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-3xl mx-auto space-y-6">
+      <motion.main
+  variants={containerVariants}
+  initial="hidden"
+  animate="visible"
+  className="min-h-screen bg-gray-50 p-6"
+>
+  <motion.div
+    variants={containerVariants}
+    className="max-w-3xl mx-auto space-y-6"
+  >
           
           {/* 1. Welcome Header */}
-<div className="bg-white rounded-2xl p-6 shadow-sm flex items-center justify-between">
-  <div>
+          <motion.div
+  variants={itemVariants}
+  className="bg-white rounded-2xl shadow-sm p-4 mb-3 transition-shadow hover:shadow flex items-start justify-between"
+>
+  {/* Left side: greeting, streak, tagline */}
+  <div className="flex flex-col">
     <h1 className="text-2xl font-bold text-gray-900">
       Hey {profile?.firstName || "there"}.
     </h1>
 
     {todayCheckin ? (
-      <p className="text-gray-600 mt-1">
-        You’ve already checked in today.
-      </p>
+      <p className="text-gray-600 mt-1">You’ve already checked in today.</p>
     ) : (
       <p className="text-gray-600 mt-1">{greeting}</p>
     )}
@@ -838,164 +892,192 @@ if (loading || !profile) {
         </div>
       );
     })()}
-  </div>
 
-  {/* Tagline */}
-  <div className="hidden sm:flex flex-col items-end text-right">
-    <p className="text-xs tracking-widest uppercase text-gray-400 font-semibold">
-      Patience
-    </p>
-    <p className="text-xs tracking-widest uppercase text-gray-400 font-semibold">
-      Perseverance
-    </p>
-    <p className="text-xs tracking-widest uppercase text-gray-400 font-semibold">
-      Progress
+    {/* Tagline */}
+    <p className="text-[11px] tracking-widest uppercase text-gray-400 font-semibold mt-2">
+      Patience • Perseverance • Progress
     </p>
   </div>
-</div>
 
-        {/* 2. Daily Check-in */}
-        {!todayCheckin && !checkinSubmitted && (
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">
-              Daily Check-In
-            </h2>
+  {/* Right side: Nelson logo */}
+  <div className="mt-1 mr-2 w-32 sm:w-36 md:w-40">
+    <Image
+      src="/logo.png"
+      alt="Nelson Logo"
+      width={160}
+      height={90}
+      className="w-full h-auto"
+      priority
+    />
+  </div>
+</motion.div>
+{/* 1.5 Weekly Focus Card */}
+{profile?.plan?.weekOneFocus && (
+  <div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+    <h2 className="text-lg font-semibold text-gray-900 mb-1">
+      This Week’s Focus
+    </h2>
 
-            <p className="text-gray-600 mb-2">How are you feeling today?</p>
-            <div className="flex gap-2 mb-4">
-              {["Energized", "Okay", "Tired"].map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setCheckin((prev) => ({ ...prev, mood: m }))}
-                  className={`flex-1 border rounded-lg py-2 ${checkin.mood === m
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
+    <p className="text-gray-700 mb-3">
+      {profile.plan.weekOneFocus}
+    </p>
 
-            <p className="text-gray-600 mb-2">
-              Did you hit your protein target yesterday?
-            </p>
-            <div className="flex gap-2 mb-4">
-              {["Yes", "Almost", "No"].map((p) => (
-                <button
-                  key={p}
-                  onClick={() =>
-                    setCheckin((prev) => ({
-                      ...prev,
-                      proteinHit: p.toLowerCase(),
-                    }))
-                  }
-                  className={`flex-1 border rounded-lg py-2 ${checkin.proteinHit === p.toLowerCase()
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
+    {profile.plan.dailyHabits?.length > 0 && (
+      <div>
+        <p className="text-sm font-medium text-gray-800 mb-2">Daily habits:</p>
+        <ul className="list-disc list-inside text-gray-700 space-y-1">
+        {profile.plan.dailyHabits.map((h: string, i: number) => (
+            <li key={i}>{h}</li>
+          ))}
+        </ul>
+      </div>
+    )}
+  </div>
+)}
+       {/* 2. Daily Check-in */}
+{!todayCheckin && !checkinSubmitted && (
+  <motion.div
+    variants={itemVariants}
+    className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
+  >
+    <h2 className="text-lg font-semibold text-gray-900 mb-3">
+      Daily Check-In
+    </h2>
 
-            <p className="text-gray-600 mb-2">
-              Did you drink at least {profile?.plan?.hydrationTarget ?? 100} oz
-              of water yesterday?
-            </p>
-            <div className="flex gap-2 mb-4">
-              {["Yes", "No"].map((h) => (
-                <button
-                  key={h}
-                  onClick={() =>
-                    setCheckin((prev) => ({
-                      ...prev,
-                      hydrationHit: h.toLowerCase(),
-                    }))
-                  }
-                  className={`flex-1 border rounded-lg py-2 ${checkin.hydrationHit === h.toLowerCase()
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                >
-                  {h}
-                </button>
-              ))}
-            </div>
+    <p className="text-xs text-gray-500 mt-1">How are you feeling?</p>
+    <div className="flex gap-2 mb-4">
+      {["Pumped!", "Good Enough", "Meh"].map((m) => (
+        <button
+          key={m}
+          onClick={() => setCheckin((prev) => ({ ...prev, mood: m }))}
+          className={`flex-1 border rounded-lg py-2 ${
+            checkin.mood === m
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-blue-50"
+          }`}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
 
-            {/* Movement Habit */}
-            <p className="text-gray-600 mb-2">Did you move today?</p>
-            <div className="flex gap-2 mb-4">
-              {["Yes", "No"].map((m) => (
-                <button
-                  key={m}
-                  onClick={() =>
-                    setCheckin((prev) => ({ ...prev, movedToday: m.toLowerCase() }))
-                  }
-                  className={`flex-1 border rounded-lg py-2 ${checkin.movedToday === m.toLowerCase()
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-{/* Nutrition Alignment Slider */}
-<p className="text-gray-600 mb-2 mt-4">
-  How closely did your eating today match your intentions?
-</p>
+    <p className="text-xs text-gray-500 mt-1">
+      Did you hit your protein target yesterday?
+    </p>
+    <div className="flex gap-2 mb-4">
+      {["Yes", "Almost", "No"].map((p) => (
+        <button
+          key={p}
+          onClick={() =>
+            setCheckin((prev) => ({
+              ...prev,
+              proteinHit: p.toLowerCase(),
+            }))
+          }
+          className={`flex-1 border rounded-lg py-2 ${
+            checkin.proteinHit === p.toLowerCase()
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-blue-50"
+          }`}
+        >
+          {p}
+        </button>
+      ))}
+    </div>
 
-<input
-  type="range"
-  min={0}
-  max={100}
-  step={5}
-  value={checkin.nutritionAlignment ?? 0}
-  onChange={(e) =>
-    setCheckin((prev) => ({
-      ...prev,
-      nutritionAlignment: Number(e.target.value),
-    }))
-  }
-  className="w-full accent-blue-600"
-/>
+    <p className="text-xs text-gray-500 mt-1">
+      Did you down at least {profile?.plan?.hydrationTarget ?? 100} oz of water?
+    </p>
+    <div className="flex gap-2 mb-4">
+      {["Yes", "No"].map((h) => (
+        <button
+          key={h}
+          onClick={() =>
+            setCheckin((prev) => ({
+              ...prev,
+              hydrationHit: h.toLowerCase(),
+            }))
+          }
+          className={`flex-1 border rounded-lg py-2 ${
+            checkin.hydrationHit === h.toLowerCase()
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-blue-50"
+          }`}
+        >
+          {h}
+        </button>
+      ))}
+    </div>
 
-<p className="text-sm text-gray-700 text-center mt-1">
-  {checkin.nutritionAlignment ?? 0}%
-</p>
+    <p className="text-xs text-gray-500 mt-1">
+      Did you get some intentional extra steps?
+    </p>
+    <div className="flex gap-2 mb-4">
+      {["Yes", "No"].map((m) => (
+        <button
+          key={m}
+          onClick={() =>
+            setCheckin((prev) => ({ ...prev, movedToday: m.toLowerCase() }))
+          }
+          className={`flex-1 border rounded-lg py-2 ${
+            checkin.movedToday === m.toLowerCase()
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-blue-50"
+          }`}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
 
-<p className="text-xs text-gray-500 mt-1">
-  No guilt. Just awareness. Aim for direction, not perfection.
-</p>
-            <p className="text-gray-600 mb-2">
-              Anything else you’d like Nelson to know?
-            </p>
-            <textarea
-              value={checkin.note || ""}
-              onChange={(e) =>
-                setCheckin((prev) => ({ ...prev, note: e.target.value }))
-              }
-              placeholder="Optional note about your day..."
-              className="w-full border border-gray-300 rounded-md p-2 text-gray-900 mb-4"
-              rows={3}
-            />
+    <p className="text-xs text-gray-500 mt-1">
+      How closely did your eating match your intentions?
+    </p>
+    <input
+      type="range"
+      min={0}
+      max={100}
+      step={5}
+      value={checkin.nutritionAlignment ?? 0}
+      onChange={(e) =>
+        setCheckin((prev) => ({
+          ...prev,
+          nutritionAlignment: Number(e.target.value),
+        }))
+      }
+      className="w-full accent-blue-600"
+    />
+    <p className="text-sm text-gray-700 text-center mt-1">
+      {checkin.nutritionAlignment ?? 0}%
+    </p>
 
-            <button
-              onClick={handleCheckinSubmit}
-              disabled={
-                !checkin.mood || !checkin.proteinHit || !checkin.hydrationHit
-              }
-              className="w-full bg-green-600 text-white py-2 rounded-md font-semibold hover:bg-green-700 transition disabled:opacity-60"
-            >
-              Save Check-In
-            </button>
-          </div>
-        )}
+    <p className="text-gray-600 mb-2">
+      Anything else you’d like to jot down?
+    </p>
+    <textarea
+      value={checkin.note || ""}
+      onChange={(e) =>
+        setCheckin((prev) => ({ ...prev, note: e.target.value }))
+      }
+      placeholder="Optional note about your day..."
+      className="w-full border border-gray-300 rounded-md p-2 text-gray-900 mb-4"
+      rows={3}
+    />
+
+    <button
+      onClick={handleCheckinSubmit}
+      disabled={
+        !checkin.mood || !checkin.proteinHit || !checkin.hydrationHit
+      }
+      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
+    >
+      Save Check-In
+    </button>
+  </motion.div>
+)}
 
        {/* 3. Daily Results */}
-<div className="bg-white rounded-2xl shadow-sm p-6">
+       <div className="fade-in delay-400 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
   <h2 className="text-xl font-semibold text-gray-900 mb-3">
     Daily Results
   </h2>
@@ -1093,8 +1175,8 @@ if (loading || !profile) {
 </div>
 
 {/* 💬 Dynamic Coach Card */}
-<div className="bg-white rounded-2xl shadow-sm p-6 mt-6">
-  <h2 className="text-lg font-semibold text-gray-900 mb-2">
+<div className="fade-in delay-600 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+<h2 className="text-lg font-semibold text-gray-900 mb-3">
     Coaching Reflection & Focus
   </h2>
 
@@ -1141,8 +1223,8 @@ if (loading || !profile) {
   )}
 </div>
 {/* 4. Today's Training */}
-<div className="bg-white rounded-2xl shadow-sm p-6">
-  <h2 className="text-xl font-semibold text-gray-900 mb-3">
+<div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow fade-in [animation-delay:0.8s]">
+<h2 className="text-lg font-semibold text-gray-900 mb-3">
     Today’s Training
   </h2>
 
@@ -1160,7 +1242,7 @@ if (loading || !profile) {
 
       <button
         onClick={() => router.push("/summary")}
-        className="mt-3 sm:mt-0 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition"
+        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
       >
         View Summary
       </button>
@@ -1183,7 +1265,7 @@ if (loading || !profile) {
 
       <button
         onClick={() => router.push("/program")}
-        className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition"
+        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
       >
         View Program
       </button>
@@ -1191,7 +1273,7 @@ if (loading || !profile) {
   )}
 </div>
 {/* 5. Consistency Tracker */}
-<div className="bg-white rounded-2xl shadow-sm p-6">
+<div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
   <h2 className="text-lg font-semibold text-gray-900 mb-3">
     Consistency Tracker (Last 14 Days)
   </h2>
@@ -1256,8 +1338,8 @@ if (loading || !profile) {
 </div>
 
         {/* 5. Workout Summary */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-3">
+        <div className="fade-in delay-800 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">
             Workout Summary
           </h2>
 
@@ -1292,8 +1374,8 @@ if (loading || !profile) {
         </div>
 
         {/* 6. Today’s Workout */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">
+        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">
             Today’s Workout
           </h2>
           {loading ? (
@@ -1419,7 +1501,7 @@ if (loading || !profile) {
             </details>
           </div>
         )}
-      </div> {/* Close max-w-3xl wrapper */}
-    </main>
+      </motion.div> {/* Close max-w-3xl wrapper */}
+      </motion.main>
   );
 }

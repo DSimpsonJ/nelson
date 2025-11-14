@@ -8,7 +8,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Outfit", "sans-serif"], // ✅ Global Outfit font
+        sans: ["Outfit", "sans-serif"],
       },
       keyframes: {
         "fade-in-out": {
@@ -23,5 +23,15 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    function ({ addUtilities }) {
+      addUtilities({
+        ".delay-0": { "animation-delay": "0s" },
+        ".delay-200": { "animation-delay": "0.2s" },
+        ".delay-400": { "animation-delay": "0.4s" },
+        ".delay-600": { "animation-delay": "0.6s" },
+        ".delay-800": { "animation-delay": "0.8s" },
+      });
+    },
+  ],
 };
