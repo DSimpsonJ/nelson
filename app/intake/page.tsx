@@ -175,7 +175,7 @@ useEffect(() => {
     try {
       const email = getEmail();
       if (!email) return;
-
+      console.log("📌 Saving answers:", answers);
       const plan: NelsonPlan = generatePlan(answers);
 
       await setDoc(doc(db, "users", email, "profile", "intake"), {
@@ -203,23 +203,30 @@ useEffect(() => {
   };
 
   const handleNext = (id: string, value?: string) => {
+    // Save answer if provided
     if (value !== undefined) {
       setAnswers((prev) => ({ ...prev, [id]: value }));
     }
-
-    // Handle final step
-    if (id === "complete") {
-      finalizeIntake();
+  
+    const currentQ = flow.find((q) => q.id === id);
+    if (!currentQ) return;
+  
+    // 🔥 If this question has a finalizeIntake action, stop navigation
+    if (currentQ.actions?.some(a => a.action === "finalizeIntake")) {
       return;
     }
-
-    const currentQ = flow.find((q) => q.id === id);
-    if (currentQ?.next && goToById(currentQ.next)) return;
-
+  
+    // Continue to next ID in the JSON flow
+    if (currentQ.next && goToById(currentQ.next)) return;
+  
+    // Special case for welcome → activity
     if (id === "welcome" && goToById("activity")) return;
-
+  
+    // Default: go to next step
     const idx = indexById[id.trim()];
-    if (idx + 1 < flow.length) setStep(idx + 1);
+    if (idx + 1 < flow.length) {
+      setStep(idx + 1);
+    }
   };
 
   // ✅ Render

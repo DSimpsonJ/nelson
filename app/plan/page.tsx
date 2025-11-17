@@ -4,12 +4,25 @@ import { useRouter } from "next/navigation";
 import { db } from "../firebase/config";
 import { doc, getDoc } from "firebase/firestore";
 import { getEmail } from "../utils/getEmail";
-
+import {
+  CalendarIcon,
+  CheckCircleIcon,
+  ChatBubbleLeftRightIcon,
+  BoltIcon,
+} from "@heroicons/react/24/solid";
+const habitReasons: Record<string, string> = {
+  "Hit your protein target": "Protein makes it easier to control hunger and preserves lean mass while you're losing fat.",
+  "Drink 100 oz of water": "Hydration improves energy, appetite control, and training performance.",
+  "Take a 10-minute walk after dinner": "Post-meal walking improves blood sugar control and digestion.",
+  "Sleep 7+ hours": "Solid sleep improves recovery, cravings, and your ability to stick to the plan.",
+  "Log your check-in": "Daily reflection builds consistency. Most people fail because they never track their behavior.",
+};
 export default function PlanPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState<any>(null);
   const [generating, setGenerating] = useState(true);
+  
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -68,7 +81,7 @@ export default function PlanPage() {
         <div className="bg-white rounded-xl shadow-md p-8 text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">No Plan Found</h1>
           <p className="text-gray-600 mb-4">
-            It looks like we couldn’t load your plan. Please return to the dashboard.
+            It looks like I couldn’t load your plan. Please return to the dashboard.
           </p>
           <button
             onClick={() => router.push("/dashboard")}
@@ -95,42 +108,89 @@ export default function PlanPage() {
         </p>
   
         {/* Week One Focus */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6 text-left">
-          <h2 className="text-lg font-semibold text-blue-800 mb-1">
-            Week One Focus
-          </h2>
-          <p className="text-blue-900">{plan.weekOneFocus}</p>
-        </div>
+<div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6 text-left">
+  <h2 className="flex items-center gap-2 text-lg font-semibold text-blue-800 mb-2">
+  <BoltIcon className="w-5 h-5 text-amber-500" />
+    Week One Focus
+  </h2>
+
+  <p className="text-blue-900 leading-relaxed">
+    {plan.weekOneFocus}
+  </p>
+</div>
   
-        {/* Daily Habits */}
-        {plan.dailyHabits && (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6 text-left">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">
-              Your Daily Habits
-            </h2>
-            <ul className="list-disc list-inside text-gray-700 space-y-1">
-              {plan.dailyHabits.map((h: string, i: number) => (
-                <li key={i}>{h}</li>
-              ))}
-            </ul>
+       {/* Daily Habits */}
+<div className="mb-6 text-left">
+  <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-2">
+    <CheckCircleIcon className="w-5 h-5 text-amber-500" />
+    Daily Habits
+  </h2>
+
+  <ul className="space-y-3">
+    {plan.dailyHabits.map((h: string, idx: number) => (
+      <li
+        key={idx}
+        className="p-4 rounded-xl bg-blue-50 border border-blue-100 shadow-sm"
+      >
+        <div className="flex items-start gap-3">
+          <CheckCircleIcon className="w-5 h-5 text-green-600 mt-1" />
+          <div>
+            <p className="font-medium text-gray-900">{h}</p>
+
+            {habitReasons[h] && (
+              <p className="text-sm text-gray-600 mt-1">
+                {habitReasons[h]}
+              </p>
+            )}
           </div>
-        )}
+        </div>
+      </li>
+    ))}
+  </ul>
+</div>
   
         {/* Weekly Schedule */}
-        {plan.schedule && (
-          <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 text-left shadow-inner">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Your Weekly Structure
-            </h2>
-            <ul className="space-y-1 text-gray-700">
-              {plan.schedule.map((d: any, i: number) => (
-                <li key={i}>
-                  <strong>{d.day}:</strong> {d.focus}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+<div className="mb-6">
+  <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-2">
+    <CalendarIcon className="w-5 h-5 text-blue-600" />
+    Weekly Schedule
+  </h2>
+
+  <ul className="space-y-3">
+    {plan.schedule.map((day: any, idx: number) => (
+      <li
+        key={idx}
+        className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 border-l-4 border-l-amber-400"
+      >
+        {/* Day bubble */}
+        <span className="
+          inline-flex 
+          items-center 
+          justify-center 
+          px-3 
+          py-1.5 
+          rounded-full 
+          text-xs 
+          font-semibold 
+          bg-blue-600 
+          text-white 
+          whitespace-nowrap
+        ">
+          {day.day}
+        </span>
+
+        {/* Right side */}
+        <div className="flex-1">
+          <p className="font-semibold text-amber-700">{day.focus}</p>
+
+          <p className="text-gray-600 text-sm mt-1">
+            {day.task}
+          </p>
+        </div>
+      </li>
+    ))}
+  </ul>
+</div>
   
         {/* Start Button */}
         <button

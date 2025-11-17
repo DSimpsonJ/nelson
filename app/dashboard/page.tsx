@@ -152,14 +152,6 @@ function calculateTrends(checkins: any[]): CheckinTrend {
     return moved === "yes" ? count + 1 : count;
   }, 0);
 
-  // Temporary debug: log movement data to verify
-  console.log(
-    "Movement data (last7):",
-    last7.map((c) => c.movedToday),
-    "Count:",
-    movementDays
-  );
-
   const count = last7.length;
   const [weeklyReflection, setWeeklyReflection] = useState<{
     coachNote?: string;
@@ -283,7 +275,6 @@ const greetings = [
   "One small win at a time.",
   "Show up for yourself today."
 ];
-
 const [greeting, setGreeting] = useState(greetings[0]);
 
 useEffect(() => {
@@ -304,28 +295,36 @@ const [weeklyReflection, setWeeklyReflection] = useState<{
   workoutsThisWeek?: number;
   checkinsCompleted?: number;
 } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [coachNote, setCoachNote] = useState("");
-  const [todayCheckin, setTodayCheckin] = useState<Checkin | null>(null);
-  const [checkin, setCheckin] = useState({
-    mood: "",
-    proteinHit: "",
-    hydrationHit: "",
-    movedToday: "", // optional field
-    nutritionAlignment: 0, //
-    note: "",
-  });
-  // 🧩 Real-time workout status (from Firestore)
+const [loading, setLoading] = useState(true);
+const [profile, setProfile] = useState<UserProfile | null>(null);
+const [coachNote, setCoachNote] = useState("");
+const [todayCheckin, setTodayCheckin] = useState<Checkin | null>(null);
+const [checkin, setCheckin] = useState({
+  mood: "",
+  proteinHit: "",
+  hydrationHit: "",
+  movedToday: "",
+  nutritionAlignment: 0,
+  note: "",
+});
+
+// 🧩 Real-time workout status
 const [status, setStatus] = useState<{
   lastCompleted?: string;
   nextWorkoutIndex?: number;
   lastDayType?: string;
 } | null>(null);
-  const [checkinSubmitted, setCheckinSubmitted] = useState(false);
-  const [checkinStreak, setCheckinStreak] = useState<number>(0);
-  const [trends, setTrends] = useState<TrendStats | null>(null);
-  const [recentCheckins, setRecentCheckins] = useState<Checkin[]>([]); // ✅ move this here
+
+const [checkinSubmitted, setCheckinSubmitted] = useState(false);
+const [checkinStreak, setCheckinStreak] = useState<number>(0);
+const [trends, setTrends] = useState<TrendStats | null>(null);
+const [recentCheckins, setRecentCheckins] = useState<Checkin[]>([]);
+
+  console.log("🔥 Dashboard render:", {
+    loading,
+    profile,
+    plan: profile?.plan,
+  });
 
   const today = new Date().toISOString().split("T")[0];
   const [hasSessionToday, setHasSessionToday] = useState(false);
@@ -368,7 +367,20 @@ const loadRecentCheckins = async (email: string) => {
 
   setRecentCheckins(recent);
 };
+function normalizeTodayCheckin(raw: any, today: string): Checkin | null {
+  if (!raw || typeof raw !== "object") return null;
 
+  // If a date exists and it is NOT today, ignore it
+  if (raw.date && raw.date !== today) return null;
+
+  // If it has no meaningful fields, treat it as empty
+  const { mood, proteinHit, hydrationHit } = raw;
+  const hasCoreFields = !!(mood || proteinHit || hydrationHit);
+
+  if (!hasCoreFields) return null;
+
+  return raw as Checkin;
+}
  /** ✅ Check if user has logged a session today */
 async function getTodaySession(email: string): Promise<boolean> {
   const sessionsCol = collection(db, "users", email, "sessions");
@@ -384,217 +396,352 @@ async function getTodaySession(email: string): Promise<boolean> {
   });
 }
 
-  /** Load profile, plan, check-ins, coach note, and trends */
-  const loadDashboardData = async () => {
-    try {
-      const email = getEmail();
-      if (!email) {
-        router.replace("/signup");
-        return;
-      }
-
-      // ---- Profile
-      const userRef = doc(db, "users", email);
-      const userSnap = await getDoc(userRef);
-
-      let firstName = "there";
-      if (userSnap.exists()) {
-        const data = userSnap.data() as UserProfile;
-        firstName = data.firstName ?? firstName;
-      } else if (auth.currentUser?.displayName) {
-        firstName = auth.currentUser.displayName.split(" ")[0];
-      }
-
-     // ---- Plan
-const planRef = doc(db, "users", email, "profile", "intake");
-const planSnap = await getDoc(planRef);
-let plan = null;
-
-if (planSnap.exists()) {
-  const data = planSnap.data();
-  plan = data.schedule ? data : data.plan || null; // <-- reads schedule directly
-}
-
-setProfile({ firstName, email, plan });
-console.log("🔥 DEBUG PLAN SNAPSHOT:", JSON.stringify(plan, null, 2));
-console.log("🔥 TYPE OF PLAN:", typeof plan);
-console.log("Loaded Plan:", plan);
-      console.log("Loaded Plan:", plan);
-      // ---- Today’s check-in
-      const todayData = await getCheckin(email, today);
-      await loadRecentCheckins(email);
-      // ✅ Calculate streak based on all check-ins
-const checkinColRef = collection(db, "users", email, "checkins");
-const checkinSnaps = await getDocs(checkinColRef);
-const allCheckins = checkinSnaps.docs.map((d) => d.data() as { date: string });
-const streakValue = calculateCheckinStreak(allCheckins);
-console.log("[DEBUG] Current check-in streak:", streakValue);
-setCheckinStreak(streakValue);
-      if (todayData) setTodayCheckin(todayData);
-
-      // ---- Coach note
-      const note = await refreshCoachNote(email, plan);
-      setCoachNote(note);
-
-      // ---- Session stats (workouts)
-      const sessionStats = await loadSessionTrends(email);
-      const hasSession = await getTodaySession(email);
-      setHasSessionToday(hasSession);
-      // ---- Prefer stored weekly stats if present
-      const existingStats = await loadWeeklyStats(email);
-
-      if (existingStats) {
-        // Overlay latest session stats so card is fresh
-        setTrends({
-          proteinConsistency: existingStats.proteinConsistency ?? 0,
-          hydrationConsistency: existingStats.hydrationConsistency ?? 0,
-          movementConsistency: existingStats.movementConsistency ?? 0,
-          moodTrend: existingStats.moodTrend ?? "No Data",
-          checkinsCompleted: existingStats.checkinsCompleted ?? 0,
-          workoutsThisWeek: sessionStats.workoutsThisWeek,
-          totalSets: sessionStats.totalSets,
-          avgDuration: sessionStats.avgDuration,
-        });
-      } else {
-        // ---- Recompute check-in trends from raw check-ins
-        const checkinColRef = collection(db, "users", email, "checkins");
-        const checkinSnaps = await getDocs(checkinColRef);
-        const checkins = checkinSnaps.docs.map((d) => {
-          const data = d.data();
-          return {
-            ...data,
-            // normalize movedToday for trend calc
-            movedToday: data.movedToday?.toLowerCase?.() || "no",
-          };
-        });
-        const checkinTrend = calculateTrends(checkins);
-
-        const merged: TrendStats = {
-          proteinConsistency: checkinTrend.proteinConsistency,
-          hydrationConsistency: checkinTrend.hydrationConsistency,
-          movementConsistency: checkinTrend.movementConsistency,
-          moodTrend: checkinTrend.moodTrend,
-          checkinsCompleted: checkinTrend.checkinsCompleted,
-          workoutsThisWeek: sessionStats.workoutsThisWeek ?? 0,
-          totalSets: sessionStats.totalSets ?? 0,
-          avgDuration: sessionStats.avgDuration ?? 0,
-        };
-
-        setTrends(merged);
-
-// ---- Persist weekly stats by ISO week id
-const weekId = getISOWeekId(new Date());
-await setDoc(
-  doc(db, "users", email, "weeklyStats", weekId),
-  {
-    ...merged,
-    weekId,
-    updatedAt: new Date().toISOString(),
-  },
-  { merge: true }
-);
-// 🪞 Generate and save a weekly summary (Monday only)
-try {
-  const isMonday = new Date().getDay() === 1; // 0=Sun, 1=Mon
-  if (isMonday) {
-    // Use a local id so scope never breaks
-    const summaryWeekId = getISOWeekId(new Date());
-
-    // Pull recent coach insights
-    const insightsSnap = await getDocs(collection(db, "users", email, "insights"));
-    const insights = insightsSnap.docs.map(
-      (d) => d.data() as { note: string; createdAt: string }
-    );
-
-    // Use your existing recentCheckins if available
-    const recent = recentCheckins ?? [];
-
-    // Build summary text
-    const summaryText = generateWeeklySummary(summaryWeekId, merged, insights, recent);
-
-    // Persist weekly summary
-    await setDoc(
-      doc(db, "users", email, "weeklySummaries", summaryWeekId),
-      {
-        summary: summaryText,
-        weekId: summaryWeekId,
-        createdAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
-  }
-} catch (err) {
-  console.error("Weekly summary write failed:", err);
-  // Quiet failure on purpose, no toast
-}
-// ---- Generate and store the coach insight (single source)
-const insight = generateCoachInsight(merged, recentCheckins);
-setCoachNote(insight);
-await saveCoachNoteToWeeklyStats(email, insight);
-      }
-      
-    } catch (err) {
-      console.error("Dashboard load error:", err);
-      showToast({ message: "Error loading dashboard", type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
-  /** Save check-in */
-  const handleCheckinSubmit = async () => {
-    if (!checkin.mood || !checkin.proteinHit || !checkin.hydrationHit) {
-      showToast({ message: "Please answer all questions.", type: "error" });
+ /** Load profile, plan, check-ins, coach note, and trends */
+const loadDashboardData = async () => {
+  try {
+    const email = getEmail();
+    if (!email) {
+      router.replace("/signup");
       return;
     }
 
-    try {
-      const email = getEmail();
-      if (!email) return;
+    // ---- Load intake + plan as profile ----
+    const intakeRef = doc(db, "users", email, "profile", "intake");
+    const intakeSnap = await getDoc(intakeRef);
 
-      // ✅ Save today’s check-in
-      const data = {
-        date: today,
-        mood: checkin.mood,
-        proteinHit: checkin.proteinHit,
-        hydrationHit: checkin.hydrationHit,
-        movedToday: checkin.movedToday, // safe even if optional in your Checkin type
-        nutritionAlignment: checkin.nutritionAlignment,
-        note: checkin.note,
-      } as Checkin;
+    let profile: any = null;
+    let firstName = "there";
 
-      await saveCheckin(email, data);
-
-      // ✅ NEW: auto-update weekly stats after saving the check-in
-      await updateWeeklyStats(email);
-
-      setTodayCheckin(data);
-      setCheckinSubmitted(true);
-
-      // 🔁 Dynamic coach update + save to Firestore
-const note = await refreshCoachNote(email, profile?.plan);
-setCoachNote(note);
-await saveCoachNoteToWeeklyStats(email, note);
-
-      showToast({ message: "Check-in saved!", type: "success" });
-    } catch (err) {
-      console.error("handleCheckinSubmit error:", err);
-      showToast({ message: "Failed to save check-in", type: "error" });
+    if (intakeSnap.exists()) {
+      profile = intakeSnap.data();
+      firstName = profile.firstName ?? "there";
+    } else {
+      console.warn("[Dashboard] No intake profile found");
     }
-  };
 
-   /** Dev reset */
-   const handleResetCheckin = async () => {
+    // ---- Plan (intake-based) ----
+    const planRef = doc(db, "users", email, "profile", "intake");
+    const planSnap = await getDoc(planRef);
+
+    let plan: any = null;
+
+    if (planSnap.exists()) {
+      const data = planSnap.data() as any;
+
+      // Newer structure: plan nested
+      if (data.plan) {
+        plan = data.plan;
+      }
+      // Older structure: schedule/dailyHabits/weekOneFocus at top level
+      else if (data.schedule || data.weekOneFocus || data.dailyHabits) {
+        plan = {
+          planType:         data.planType ?? "health",
+          goal:             data.goal ?? "Improve overall health",
+          trainingDays:     data.trainingDays ?? 3,
+          experience:       data.experience ?? "beginner",
+          equipment:        data.equipment ?? "full",
+          hydrationTarget:  data.hydrationTarget ?? 3,
+          sleepTarget:      data.sleepTarget ?? 7.5,
+          coachingStyle:    data.coachingStyle ?? "encouraging",
+          startDate:        data.startDate ?? new Date().toISOString(),
+          weekOneFocus:     data.weekOneFocus ?? "",
+          dailyHabits:      data.dailyHabits ?? [],
+          schedule:         data.schedule ?? [],
+        };
+      }
+    }
+
+    // Attach plan so profile.plan.* keeps working everywhere
+    setProfile({
+      firstName,
+      email,
+      plan,
+    });
+   // ---- Today’s check-in ----
+const rawToday = await getCheckin(email, today);
+
+// A valid check-in must:
+// 1) exist
+// 2) be an object
+// 3) have a "date" field that matches TODAY
+let todayData = null;
+
+if (
+  rawToday &&
+  typeof rawToday === "object" &&
+  rawToday.date === today
+) {
+  todayData = rawToday;
+}
+
+setTodayCheckin(todayData);
+setCheckinSubmitted(!!todayData);
+
+console.log("CHECK-IN VISIBILITY TEST (fixed):", {
+  rawToday,
+  todayData,
+  checkinSubmitted: !!todayData,
+});
+
+    // Load recent check-ins AFTER the normalization
+    await loadRecentCheckins(email);
+
+    // ✅ Calculate streak based on all check-ins
+    const streakColRef = collection(db, "users", email, "checkins");
+    const streakSnaps = await getDocs(streakColRef);
+    const allCheckins = streakSnaps.docs.map(
+      (d) => d.data() as { date: string }
+    );
+
+    const streakValue = calculateCheckinStreak(allCheckins);
+    setCheckinStreak(streakValue);
+
+    // ---- Coach note ----
+    const note = await refreshCoachNote(email, plan);
+    setCoachNote(note);
+
+    // ---- Session stats (workouts) ----
+    const sessionStats = await loadSessionTrends(email);
+    const hasSession = await getTodaySession(email);
+    setHasSessionToday(hasSession);
+
+    // ---- Prefer stored weekly stats if present ----
+    const existingStats = await loadWeeklyStats(email);
+
+    if (existingStats) {
+      // Overlay latest session stats so card is fresh
+      setTrends({
+        proteinConsistency: existingStats.proteinConsistency ?? 0,
+        hydrationConsistency: existingStats.hydrationConsistency ?? 0,
+        movementConsistency: existingStats.movementConsistency ?? 0,
+        moodTrend: existingStats.moodTrend ?? "No Data",
+        checkinsCompleted: existingStats.checkinsCompleted ?? 0,
+        workoutsThisWeek: sessionStats.workoutsThisWeek,
+        totalSets: sessionStats.totalSets,
+        avgDuration: sessionStats.avgDuration,
+      });
+    } else {
+      // ---- Recompute check-in trends from raw check-ins ----
+      const trendColRef = collection(db, "users", email, "checkins");
+      const trendSnaps = await getDocs(trendColRef);
+      const checkins = trendSnaps.docs.map((d) => {
+        const data = d.data();
+        return {
+          ...data,
+          // normalize movedToday for trend calc
+          movedToday: data.movedToday?.toLowerCase?.() || "no",
+        };
+      });
+
+      const checkinTrend = calculateTrends(checkins);
+
+      const merged: TrendStats = {
+        proteinConsistency: checkinTrend.proteinConsistency,
+        hydrationConsistency: checkinTrend.hydrationConsistency,
+        movementConsistency: checkinTrend.movementConsistency,
+        moodTrend: checkinTrend.moodTrend,
+        checkinsCompleted: checkinTrend.checkinsCompleted,
+        workoutsThisWeek: sessionStats.workoutsThisWeek ?? 0,
+        totalSets: sessionStats.totalSets ?? 0,
+        avgDuration: sessionStats.avgDuration ?? 0,
+      };
+
+      setTrends(merged);
+
+      // ---- Persist weekly stats by ISO week id ----
+      const weekId = getISOWeekId(new Date());
+      await setDoc(
+        doc(db, "users", email, "weeklyStats", weekId),
+        {
+          ...merged,
+          weekId,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+
+      // 🪞 Generate and save a weekly summary (Monday only)
+      try {
+        const isMonday = new Date().getDay() === 1; // 0=Sun, 1=Mon
+        if (isMonday) {
+          const summaryWeekId = getISOWeekId(new Date());
+
+          // Pull recent coach insights
+          const insightsSnap = await getDocs(
+            collection(db, "users", email, "insights")
+          );
+          const insights = insightsSnap.docs.map(
+            (d) => d.data() as { note: string; createdAt: string }
+          );
+
+          const recent = recentCheckins ?? [];
+
+          const summaryText = generateWeeklySummary(
+            summaryWeekId,
+            merged,
+            insights,
+            recent
+          );
+
+          await setDoc(
+            doc(db, "users", email, "weeklySummaries", summaryWeekId),
+            {
+              summary: summaryText,
+              weekId: summaryWeekId,
+              createdAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        }
+      } catch (err) {
+        console.error("Weekly summary write failed:", err);
+        // Quiet failure on purpose
+      }
+
+      // ---- Generate and store the coach insight (single source) ----
+      const insight = generateCoachInsight(merged, recentCheckins);
+      setCoachNote(insight);
+      await saveCoachNoteToWeeklyStats(email, insight);
+    }
+  } catch (err) {
+    console.error("Dashboard load error:", err);
+    showToast({ message: "Error loading dashboard", type: "error" });
+  } finally {
+    setLoading(false);
+  }
+};
+
+/** Save check-in */
+const handleCheckinSubmit = async () => {
+  if (!checkin.mood || !checkin.proteinHit || !checkin.hydrationHit) {
+    showToast({ message: "Please answer all questions.", type: "error" });
+    return;
+  }
+
+  try {
+    const email = getEmail();
+    if (!email) return;
+
+    // ✅ Save today’s check-in
+    const data: Checkin = {
+      date: today,
+      mood: checkin.mood,
+      proteinHit: checkin.proteinHit,
+      hydrationHit: checkin.hydrationHit,
+      movedToday: checkin.movedToday,
+      nutritionAlignment: checkin.nutritionAlignment,
+      note: checkin.note,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await saveCheckin(email, data);
+
+    // ✅ Auto-update weekly stats after saving the check-in
+    await updateWeeklyStats(email);
+
+    setTodayCheckin(data);
+    setCheckinSubmitted(true);
+
+    // --- MOMENTUM ENGINE v1 -------------------------
+    const moved = checkin.movedToday === "yes";
+    const hydrated = checkin.hydrationHit === "yes";
+    const nutritionScore = checkin.nutritionAlignment ?? 0;
+    const ateWell = nutritionScore >= 80;
+
+    const slept = (checkin as any).sleepHit === "yes";
+
+    const behaviors = [moved, hydrated, slept, ateWell];
+    const wins = behaviors.filter(Boolean).length;
+
+    const momentumScore = Math.round((wins / 4) * 100);
+
+    // Look up yesterday's momentum to continue streaks
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = yesterday.toISOString().split("T")[0];
+
+    const prevSnap = await getDoc(
+      doc(db, "users", email, "momentum", yesterdayKey)
+    );
+
+    let currentStreak = 0;
+    let lifetimeStreak = 0;
+    let streakSavers = 0;
+
+    if (prevSnap.exists()) {
+      const prev = prevSnap.data() as any;
+      currentStreak = prev.currentStreak ?? 0;
+      lifetimeStreak = prev.lifetimeStreak ?? 0;
+      streakSavers = prev.streakSavers ?? 0;
+    }
+
+    const passed = wins === 4;
+
+    if (passed) {
+      currentStreak += 1;
+    } else {
+      if (streakSavers > 0) {
+        streakSavers -= 1;
+      } else {
+        currentStreak = 0;
+      }
+    }
+
+    lifetimeStreak += 1;
+
+    if (passed && currentStreak % 7 === 0) {
+      streakSavers += 1;
+    }
+
+    await setDoc(doc(db, "users", email, "momentum", today), {
+      date: today,
+      moved,
+      hydrated,
+      slept,
+      nutritionScore,
+      momentumScore,
+      passed,
+      currentStreak,
+      lifetimeStreak,
+      streakSavers,
+      createdAt: new Date().toISOString(),
+    });
+
+    // 🔁 Dynamic coach update + save to Firestore
+    const note = await refreshCoachNote(email, profile?.plan);
+    setCoachNote(note);
+    await saveCoachNoteToWeeklyStats(email, note);
+
+    showToast({ message: "Check-in saved!", type: "success" });
+  } catch (err) {
+    console.error("handleCheckinSubmit error:", err);
+    showToast({ message: "Failed to save check-in", type: "error" });
+  }
+};
+
+  /** Dev reset */
+  const handleResetCheckin = async () => {
     try {
       const email = getEmail();
       if (!email) return;
-      const todayDoc = doc(db, "users", email, "checkins", today);
-      await deleteDoc(todayDoc);
+  
+      await deleteDoc(doc(db, "users", email, "checkins", today));
+  
+      // Immediately clear local state
       setTodayCheckin(null);
       setCheckinSubmitted(false);
+  
+      // IMPORTANT: delay reload slightly so Firestore listeners settle
+      setTimeout(() => {
+        loadDashboardData();
+      }, 150);
+  
       showToast({
-        message: "Today's check-in reset (dev mode)",
+        message: "Today's check-in reset",
         type: "success",
       });
+  
     } catch (err) {
       console.error("Reset failed:", err);
       showToast({ message: "Failed to reset check-in", type: "error" });
@@ -845,14 +992,21 @@ const itemVariants = {
   },
 };
 // ✅ Single early-return. No hooks below this line.
-if (loading || !profile) {
-  console.log("[Dashboard] loading or missing profile");
+// Only block while actually loading
+if (loading) {
   return (
     <main className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
       <p className="text-gray-500">Loading dashboard…</p>
     </main>
   );
 }
+console.log("🔍 CHECK-IN VISIBILITY TEST:", {
+  todayCheckin,
+  checkinSubmitted,
+  type: typeof todayCheckin,
+  keys: todayCheckin ? Object.keys(todayCheckin) : null
+});
+
     return (
       <motion.main
   variants={containerVariants}
@@ -876,41 +1030,42 @@ if (loading || !profile) {
       Hey {profile?.firstName || "there"}.
     </h1>
 
-    {todayCheckin ? (
+    {checkinSubmitted ? (
       <p className="text-gray-600 mt-1">You’ve already checked in today.</p>
     ) : (
       <p className="text-gray-600 mt-1">{greeting}</p>
     )}
 
-    {/* 🔥 Check-in Streak Display */}
-    {checkinStreak > 0 && (() => {
-      const { icon, message } = getStreakMessage(checkinStreak);
-      return (
-        <div className="flex items-center gap-2 text-sm font-medium text-orange-600 mt-2">
-          <span>{icon}</span>
-          <span>{message}</span>
-        </div>
-      );
-    })()}
+   {/* 🔥 Check-in Streak Display */}
+{checkinStreak > 0 && (() => {
+  const { icon, message } = getStreakMessage(checkinStreak);
+  return (
+    <div className="flex items-center gap-2 text-sm font-medium text-amber-600 mt-2">
+      <span>{icon}</span>
+      <span>{message}</span>
+    </div>
+  );
+})()}
 
-    {/* Tagline */}
-    <p className="text-[11px] tracking-widest uppercase text-gray-400 font-semibold mt-2">
-      Patience • Perseverance • Progress
-    </p>
-  </div>
+{/* Tagline */}
+<p className="text-[11px] tracking-widest uppercase text-gray-400 font-semibold mt-2">
+  Patience • Perseverance • Progress
+</p>
+</div>
 
-  {/* Right side: Nelson logo */}
-  <div className="mt-1 mr-2 w-32 sm:w-36 md:w-40">
-    <Image
-      src="/logo.png"
-      alt="Nelson Logo"
-      width={160}
-      height={90}
-      className="w-full h-auto"
-      priority
-    />
-  </div>
+{/* Right side: Nelson logo */}
+<div className="mt-1 mr-2 w-32 sm:w-36 md:w-40">
+  <Image
+    src="/logo.png"
+    alt="Nelson Logo"
+    width={160}
+    height={90}
+    className="w-full h-auto"
+    priority
+  />
+</div>
 </motion.div>
+
 {/* 1.5 Weekly Focus Card */}
 {profile?.plan?.weekOneFocus && (
   <div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
@@ -926,7 +1081,7 @@ if (loading || !profile) {
       <div>
         <p className="text-sm font-medium text-gray-800 mb-2">Daily habits:</p>
         <ul className="list-disc list-inside text-gray-700 space-y-1">
-        {profile.plan.dailyHabits.map((h: string, i: number) => (
+          {profile.plan.dailyHabits.map((h: string, i: number) => (
             <li key={i}>{h}</li>
           ))}
         </ul>
@@ -934,16 +1089,19 @@ if (loading || !profile) {
     )}
   </div>
 )}
-       {/* 2. Daily Check-in */}
-{!todayCheckin && !checkinSubmitted && (
+
+       {/* 2. Daily Check-In */}
+{(!todayCheckin && !checkinSubmitted) && (
   <motion.div
     variants={itemVariants}
+    initial="visible"
     className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
   >
     <h2 className="text-lg font-semibold text-gray-900 mb-3">
       Daily Check-In
     </h2>
 
+    {/* Mood */}
     <p className="text-xs text-gray-500 mt-1">How are you feeling?</p>
     <div className="flex gap-2 mb-4">
       {["Pumped!", "Good Enough", "Meh"].map((m) => (
@@ -961,6 +1119,7 @@ if (loading || !profile) {
       ))}
     </div>
 
+    {/* Protein */}
     <p className="text-xs text-gray-500 mt-1">
       Did you hit your protein target yesterday?
     </p>
@@ -985,6 +1144,7 @@ if (loading || !profile) {
       ))}
     </div>
 
+    {/* Hydration */}
     <p className="text-xs text-gray-500 mt-1">
       Did you down at least {profile?.plan?.hydrationTarget ?? 100} oz of water?
     </p>
@@ -1009,6 +1169,7 @@ if (loading || !profile) {
       ))}
     </div>
 
+    {/* Steps */}
     <p className="text-xs text-gray-500 mt-1">
       Did you get some intentional extra steps?
     </p>
@@ -1030,6 +1191,7 @@ if (loading || !profile) {
       ))}
     </div>
 
+    {/* Nutrition Slider */}
     <p className="text-xs text-gray-500 mt-1">
       How closely did your eating match your intentions?
     </p>
@@ -1051,9 +1213,7 @@ if (loading || !profile) {
       {checkin.nutritionAlignment ?? 0}%
     </p>
 
-    <p className="text-gray-600 mb-2">
-      Anything else you’d like to jot down?
-    </p>
+    {/* Note */}
     <textarea
       value={checkin.note || ""}
       onChange={(e) =>
@@ -1064,6 +1224,7 @@ if (loading || !profile) {
       rows={3}
     />
 
+    {/* Save */}
     <button
       onClick={handleCheckinSubmit}
       disabled={
@@ -1077,7 +1238,8 @@ if (loading || !profile) {
 )}
 
        {/* 3. Daily Results */}
-       <div className="fade-in delay-400 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+       <motion.div
+    variants={itemVariants} className="fade-in delay-400 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
   <h2 className="text-xl font-semibold text-gray-900 mb-3">
     Daily Results
   </h2>
@@ -1172,10 +1334,11 @@ if (loading || !profile) {
   <p className="text-xs text-gray-500 text-center mt-4">
     Small wins compound, step forward every day.
   </p>
-</div>
+</motion.div>
 
 {/* 💬 Dynamic Coach Card */}
-<div className="fade-in delay-600 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+<motion.div
+    variants={itemVariants} className="fade-in delay-600 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
 <h2 className="text-lg font-semibold text-gray-900 mb-3">
     Coaching Reflection & Focus
   </h2>
@@ -1221,9 +1384,10 @@ if (loading || !profile) {
       )}
     </>
   )}
-</div>
+</motion.div>
 {/* 4. Today's Training */}
-<div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow fade-in [animation-delay:0.8s]">
+<motion.div
+    variants={itemVariants} className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow fade-in [animation-delay:0.8s]">
 <h2 className="text-lg font-semibold text-gray-900 mb-3">
     Today’s Training
   </h2>
@@ -1271,12 +1435,14 @@ if (loading || !profile) {
       </button>
     </div>
   )}
-</div>
+</motion.div>
 {/* 5. Consistency Tracker */}
-<div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+<motion.div
+    variants={itemVariants} className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
   <h2 className="text-lg font-semibold text-gray-900 mb-3">
     Consistency Tracker (Last 14 Days)
   </h2>
+
   {recentCheckins.length === 0 ? (
     <p className="text-gray-500 text-sm">No check-ins yet.</p>
   ) : (
@@ -1290,35 +1456,7 @@ if (loading || !profile) {
           month: "numeric",
           day: "numeric",
         });
-        if (loading) {
-          return (
-            <main className="min-h-screen flex items-center justify-center bg-gray-50">
-              <p className="text-gray-600 font-semibold animate-pulse">
-                Loading your dashboard…
-              </p>
-            </main>
-          );
-        }
-      
-        if (!profile) {
-          return (
-            <main className="min-h-screen flex items-center justify-center bg-gray-50">
-              <div className="text-center">
-                <p className="text-gray-600 mb-4">
-                  No profile found. Let’s set you up first.
-                </p>
-                <button
-                  onClick={() => router.push("/signup")}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
-                >
-                  Complete Setup
-                </button>
-              </div>
-            </main>
-          );
-        }
-      
-        // ✅ Only reached if loading === false and profile exists
+
         return (
           <div
             key={c.date}
@@ -1327,7 +1465,7 @@ if (loading || !profile) {
             <div className="flex gap-1">
               <span title="Moved" className={moved ? "text-green-500" : "text-gray-300"}>⬤</span>
               <span title="Hydration" className={hydrated ? "text-blue-500" : "text-gray-300"}>⬤</span>
-              <span title="Protein" className={protein ? "text-orange-500" : "text-gray-300"}>⬤</span>
+              <span title="Protein" className={protein ? "text-amber-500" : "text-gray-300"}>⬤</span>
             </div>
             <span className="text-gray-500 text-xs">{shortDate}</span>
           </div>
@@ -1335,10 +1473,11 @@ if (loading || !profile) {
       })}
     </div>
   )}
-</div>
+</motion.div>
 
         {/* 5. Workout Summary */}
-        <div className="fade-in delay-800 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+        <motion.div
+    variants={itemVariants} className="fade-in delay-800 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
         <h2 className="text-lg font-semibold text-gray-900 mb-3">
             Workout Summary
           </h2>
@@ -1371,7 +1510,7 @@ if (loading || !profile) {
           <p className="mt-4 text-sm text-gray-500">
             *Stats update automatically after you complete a workout.
           </p>
-        </div>
+        </motion.div>
 
         {/* 6. Today’s Workout */}
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
@@ -1418,8 +1557,8 @@ if (loading || !profile) {
                   !todayCheckin
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : hasSessionToday
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-green-600 text-white hover:bg-green-700"
+                    ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow-md"
+                    : "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow-md"
                 }`}
               >
                 {!todayCheckin
@@ -1493,7 +1632,7 @@ if (loading || !profile) {
                       type: "info",
                     });
                   }}
-                  className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-md py-1 text-sm"
                 >
                   Recalculate Stats
                 </button>
