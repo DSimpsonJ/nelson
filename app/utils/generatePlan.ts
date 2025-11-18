@@ -155,11 +155,11 @@ export function generatePlan(answers: any): NelsonPlan {
   // 🔹 Week one focus by plan type
   const focusByGoal: Record<NelsonPlan["planType"], string> = {
     hypertrophy:
-      "We’ll build consistency with progressive overload. Your only job this week is to show up and add 1–2 reps when you can.",
+      "Overnight successes are built over time.  Let's lock in your baseline and progressively build from there.",
     strength:
-      "This week is about mastering form and logging your main lifts so we have clear baselines to build from.",
+      "Increase your power one brick at a time.  Master form, log your lifts, and show up consistently.",
     fatLoss:
-      "We’ll lock in your daily anchors: protein, hydration, and movement. Fat loss comes from boring consistency.",
+      "Let’s lock in your daily anchors: nutrition, movement, and hydration. The optimal diet is the one you can adhere to.",
     health:
       "This week is about creating non-negotiables: daily movement, better sleep, and steady hydration.",
     recomp:
@@ -173,7 +173,7 @@ export function generatePlan(answers: any): NelsonPlan {
     checkin: "Log your check-in",
     protein: "Hit your protein target",
     water: "Drink 100 oz of water",
-    walk: "Take a 10-minute walk after dinner",
+    walk: "Go for a 10-minute walk",
     sleep: "Sleep 7+ hours",
   } as const;
 

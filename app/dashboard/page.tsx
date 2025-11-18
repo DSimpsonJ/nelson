@@ -267,26 +267,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { showToast } = useToast();
   // Rotating greeting messages
-const greetings = [
-  "Ready to check in?",
-  "Nothing dramatic. Just direction.",
-  "You don’t need perfect days. You need present ones.",
-  "Momentum over motivation.",
-  "One small win at a time.",
-  "Show up for yourself today."
-];
-const [greeting, setGreeting] = useState(greetings[0]);
 
-useEffect(() => {
-  // Rotate message every 15 seconds
-  const interval = setInterval(() => {
-    setGreeting((prev) => {
-      const idx = greetings.indexOf(prev);
-      return greetings[(idx + 1) % greetings.length];
-    });
-  }, 15000);
-  return () => clearInterval(interval);
-}, []);
 // 🪞 Weekly reflection data
 const [weeklyReflection, setWeeklyReflection] = useState<{
   coachNote?: string;
@@ -300,10 +281,11 @@ const [profile, setProfile] = useState<UserProfile | null>(null);
 const [coachNote, setCoachNote] = useState("");
 const [todayCheckin, setTodayCheckin] = useState<Checkin | null>(null);
 const [checkin, setCheckin] = useState({
-  mood: "",
+  headspace: "",
   proteinHit: "",
   hydrationHit: "",
   movedToday: "",
+  sleepHit: "",  // ADD THIS LINE
   nutritionAlignment: 0,
   note: "",
 });
@@ -319,15 +301,65 @@ const [checkinSubmitted, setCheckinSubmitted] = useState(false);
 const [checkinStreak, setCheckinStreak] = useState<number>(0);
 const [trends, setTrends] = useState<TrendStats | null>(null);
 const [recentCheckins, setRecentCheckins] = useState<Checkin[]>([]);
+const [currentFocus, setCurrentFocus] = useState<any>(null);
+const [todayMomentum, setTodayMomentum] = useState<any>(null);
+console.log("🔥 Dashboard render:", {
+  loading,
+  profile,
+  plan: profile?.plan,
+});
 
-  console.log("🔥 Dashboard render:", {
-    loading,
-    profile,
-    plan: profile?.plan,
-  });
+console.log("👤 Profile check:", {
+  profile,
+  firstName: profile?.firstName,
+  email: profile?.email
+});
 
   const today = new Date().toISOString().split("T")[0];
   const [hasSessionToday, setHasSessionToday] = useState(false);
+  // ✅ Single source of truth for check-in visibility
+const hasCompletedCheckin = (): boolean => {
+  if (!todayCheckin) return false;
+  
+  // Must have at least the core required fields
+  const hasRequiredFields = !!(
+    todayCheckin.headspace &&
+    todayCheckin.proteinHit &&
+    todayCheckin.hydrationHit
+  );
+  
+  // Must be for TODAY (not a stale document)
+  const isToday = todayCheckin.date === today;
+  
+  return hasRequiredFields && isToday;
+};
+// ✅ Determine primary habit based on intake assessment
+// ✅ Determine primary habit based on intake assessment
+const getPrimaryHabit = (intake?: any): { habit: string; habitKey: string } => {
+  const activity = intake?.activity;
+  
+  // Default for sedentary/rare activity: build movement habit
+  if (activity === "none" || activity === "rare") {
+    return {
+      habit: "Walk 10 minutes daily",
+      habitKey: "walk_10min"
+    };
+  }
+  
+  // For people with some activity: hydration focus
+  if (activity === "some") {
+    return {
+      habit: "Drink 100 oz of water daily",
+      habitKey: "hydration_100oz"
+    };
+  }
+  
+  // For regular/daily: protein focus (they're already moving)
+  return {
+    habit: "Hit your protein target daily",
+    habitKey: "protein_daily"
+  };
+};
 // ✅ Load full user profile (including generated plan)
 useEffect(() => {
   const loadProfile = async () => {
@@ -405,19 +437,26 @@ const loadDashboardData = async () => {
       return;
     }
 
-    // ---- Load intake + plan as profile ----
-    const intakeRef = doc(db, "users", email, "profile", "intake");
-    const intakeSnap = await getDoc(intakeRef);
+ // ---- Load user's first name from root doc ----
+const userRef = doc(db, "users", email);
+const userSnap = await getDoc(userRef);
 
-    let profile: any = null;
-    let firstName = "there";
+let firstName = "there";
+if (userSnap.exists()) {
+  const userData = userSnap.data();
+  firstName = userData.firstName ?? "there";
+}
 
-    if (intakeSnap.exists()) {
-      profile = intakeSnap.data();
-      firstName = profile.firstName ?? "there";
-    } else {
-      console.warn("[Dashboard] No intake profile found");
-    }
+// ---- Load intake + plan ----
+const intakeRef = doc(db, "users", email, "profile", "intake");
+const intakeSnap = await getDoc(intakeRef);
+
+let profile: any = null;
+if (intakeSnap.exists()) {
+  profile = intakeSnap.data();
+} else {
+  console.warn("[Dashboard] No intake profile found");
+}
 
     // ---- Plan (intake-based) ----
     const planRef = doc(db, "users", email, "profile", "intake");
@@ -457,6 +496,18 @@ const loadDashboardData = async () => {
       email,
       plan,
     });
+    // ---- Load momentum data ----
+const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+const focusSnap = await getDoc(focusRef);
+if (focusSnap.exists()) {
+  setCurrentFocus(focusSnap.data());
+}
+
+const todayMomentumRef = doc(db, "users", email, "momentum", today);
+const todayMomentumSnap = await getDoc(todayMomentumRef);
+if (todayMomentumSnap.exists()) {
+  setTodayMomentum(todayMomentumSnap.data());
+}
    // ---- Today’s check-in ----
 const rawToday = await getCheckin(email, today);
 
@@ -613,7 +664,7 @@ console.log("CHECK-IN VISIBILITY TEST (fixed):", {
 
 /** Save check-in */
 const handleCheckinSubmit = async () => {
-  if (!checkin.mood || !checkin.proteinHit || !checkin.hydrationHit) {
+  if (!checkin.headspace || !checkin.proteinHit || !checkin.hydrationHit) {
     showToast({ message: "Please answer all questions.", type: "error" });
     return;
   }
@@ -625,12 +676,13 @@ const handleCheckinSubmit = async () => {
     // ✅ Save today’s check-in
     const data: Checkin = {
       date: today,
-      mood: checkin.mood,
+      headspace: checkin.headspace,
       proteinHit: checkin.proteinHit,
       hydrationHit: checkin.hydrationHit,
       movedToday: checkin.movedToday,
+      sleepHit: checkin.sleepHit,
       nutritionAlignment: checkin.nutritionAlignment,
-      note: checkin.note,
+      note: checkin.note || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -643,71 +695,133 @@ const handleCheckinSubmit = async () => {
     setTodayCheckin(data);
     setCheckinSubmitted(true);
 
-    // --- MOMENTUM ENGINE v1 -------------------------
-    const moved = checkin.movedToday === "yes";
-    const hydrated = checkin.hydrationHit === "yes";
-    const nutritionScore = checkin.nutritionAlignment ?? 0;
-    const ateWell = nutritionScore >= 80;
+   // --- MOMENTUM ENGINE v2 (Weighted Scoring) -------------------------
+const moved = checkin.movedToday === "yes";
+const hydrated = checkin.hydrationHit === "yes";
+const nutritionScore = checkin.nutritionAlignment ?? 0;
+const ateWell = nutritionScore >= 80;
+const slept = checkin.sleepHit === "yes";
 
-    const slept = (checkin as any).sleepHit === "yes";
+// Load current focus to determine primary habit
+const currentFocusRef = doc(db, "users", email, "momentum", "currentFocus");
+const currentFocusSnap = await getDoc(currentFocusRef);
+const currentHabit = currentFocusSnap.exists() ? currentFocusSnap.data().habitKey : "walk_10min";
 
-    const behaviors = [moved, hydrated, slept, ateWell];
-    const wins = behaviors.filter(Boolean).length;
+// Determine if primary habit was hit
+let primaryHabitHit = false;
+switch (currentHabit) {
+  case "walk_10min":
+  case "walk_15min":
+    primaryHabitHit = moved;
+    break;
+  case "hydration_100oz":
+    primaryHabitHit = hydrated;
+    break;
+  case "protein_daily":
+    primaryHabitHit = checkin.proteinHit === "yes";
+    break;
+  case "sleep_7plus":
+    primaryHabitHit = slept;
+    break;
+  default:
+    primaryHabitHit = moved; // fallback
+}
 
-    const momentumScore = Math.round((wins / 4) * 100);
+// Calculate weighted score
+const primaryScore = primaryHabitHit ? 70 : 0;
 
-    // Look up yesterday's momentum to continue streaks
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayKey = yesterday.toISOString().split("T")[0];
+// Secondary behaviors (30 points split across remaining behaviors)
+const secondaryBehaviors = [];
+if (currentHabit !== "hydration_100oz") secondaryBehaviors.push(hydrated);
+if (currentHabit !== "walk_10min" && currentHabit !== "walk_15min") secondaryBehaviors.push(moved);
+if (currentHabit !== "protein_daily") secondaryBehaviors.push(checkin.proteinHit === "yes");
+if (currentHabit !== "sleep_7plus") secondaryBehaviors.push(slept);
 
-    const prevSnap = await getDoc(
-      doc(db, "users", email, "momentum", yesterdayKey)
-    );
+const secondaryHits = secondaryBehaviors.filter(Boolean).length;
+const secondaryScore = secondaryBehaviors.length > 0 
+  ? Math.round((secondaryHits / secondaryBehaviors.length) * 30)
+  : 0;
 
-    let currentStreak = 0;
-    let lifetimeStreak = 0;
-    let streakSavers = 0;
+const momentumScore = primaryScore + secondaryScore;
 
-    if (prevSnap.exists()) {
-      const prev = prevSnap.data() as any;
-      currentStreak = prev.currentStreak ?? 0;
-      lifetimeStreak = prev.lifetimeStreak ?? 0;
-      streakSavers = prev.streakSavers ?? 0;
-    }
+// Pass threshold: must hit primary habit (≥70 score)
+const passed = momentumScore >= 70;
 
-    const passed = wins === 4;
+// Look up yesterday's momentum to continue streaks
+const yesterday = new Date();
+yesterday.setDate(yesterday.getDate() - 1);
+const yesterdayKey = yesterday.toISOString().split("T")[0];
 
-    if (passed) {
-      currentStreak += 1;
-    } else {
-      if (streakSavers > 0) {
-        streakSavers -= 1;
-      } else {
-        currentStreak = 0;
-      }
-    }
+const prevSnap = await getDoc(
+  doc(db, "users", email, "momentum", yesterdayKey)
+);
 
-    lifetimeStreak += 1;
+let currentStreak = 0;
+let lifetimeStreak = 0;
+let streakSavers = 0;
 
-    if (passed && currentStreak % 7 === 0) {
-      streakSavers += 1;
-    }
+if (prevSnap.exists()) {
+  const prev = prevSnap.data() as any;
+  currentStreak = prev.currentStreak ?? 0;
+  lifetimeStreak = prev.lifetimeStreak ?? 0;
+  streakSavers = prev.streakSavers ?? 0;
+}
 
-    await setDoc(doc(db, "users", email, "momentum", today), {
-      date: today,
-      moved,
-      hydrated,
-      slept,
-      nutritionScore,
-      momentumScore,
-      passed,
-      currentStreak,
-      lifetimeStreak,
-      streakSavers,
-      createdAt: new Date().toISOString(),
-    });
+if (passed) {
+  currentStreak += 1;
+} else {
+  if (streakSavers > 0) {
+    streakSavers -= 1;
+  } else {
+    currentStreak = 0;
+  }
+}
 
+lifetimeStreak += 1;
+
+if (passed && currentStreak % 7 === 0) {
+  streakSavers += 1;
+}
+
+await setDoc(doc(db, "users", email, "momentum", today), {
+  date: today,
+  moved,
+  hydrated,
+  slept,
+  nutritionScore,
+  momentumScore,
+  passed,
+  currentStreak,
+  lifetimeStreak,
+  streakSavers,
+  createdAt: new Date().toISOString(),
+});
+
+// ✅ Initialize or update currentFocus
+if (!currentFocusSnap.exists()) {
+  // First time - create focus doc
+  const primaryHabit = getPrimaryHabit(profile?.plan);
+  
+  await setDoc(currentFocusRef, {
+    habit: primaryHabit.habit,
+    habitKey: primaryHabit.habitKey,
+    startedAt: today,
+    consecutiveDays: passed ? 1 : 0,
+    eligibleForLevelUp: false,
+    createdAt: new Date().toISOString(),
+  });
+} else {
+  // Update consecutive days
+  const focusData = currentFocusSnap.data();
+  const newConsecutive = passed ? (focusData.consecutiveDays || 0) + 1 : 0;
+  
+  await setDoc(currentFocusRef, {
+    ...focusData,
+    consecutiveDays: newConsecutive,
+    eligibleForLevelUp: newConsecutive >= 7,
+    updatedAt: new Date().toISOString(),
+  }, { merge: true });
+}
     // 🔁 Dynamic coach update + save to Firestore
     const note = await refreshCoachNote(email, profile?.plan);
     setCoachNote(note);
@@ -1020,7 +1134,7 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
   >
           
           {/* 1. Welcome Header */}
-          <motion.div
+<motion.div
   variants={itemVariants}
   className="bg-white rounded-2xl shadow-sm p-4 mb-3 transition-shadow hover:shadow flex items-start justify-between"
 >
@@ -1030,10 +1144,10 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
       Hey {profile?.firstName || "there"}.
     </h1>
 
-    {checkinSubmitted ? (
-      <p className="text-gray-600 mt-1">You’ve already checked in today.</p>
+    {hasCompletedCheckin() ? (
+      <p className="text-gray-600 mt-1">You checked in today. That's the kind of consistency that compounds.</p>
     ) : (
-      <p className="text-gray-600 mt-1">{greeting}</p>
+      <p className="text-gray-600 mt-1">Welcome back. Ready to build?</p>
     )}
 
    {/* 🔥 Check-in Streak Display */}
@@ -1091,33 +1205,37 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
 )}
 
        {/* 2. Daily Check-In */}
-{(!todayCheckin && !checkinSubmitted) && (
+       {!hasCompletedCheckin() && (
   <motion.div
     variants={itemVariants}
     initial="visible"
     className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
   >
+    <p className="text-xs text-gray-500 mb-4 pb-3 border-b border-gray-100">
+      Before we move forward today, let's look back at how you showed up yesterday.
+    </p>
+    
     <h2 className="text-lg font-semibold text-gray-900 mb-3">
       Daily Check-In
     </h2>
 
-    {/* Mood */}
-    <p className="text-xs text-gray-500 mt-1">How are you feeling?</p>
-    <div className="flex gap-2 mb-4">
-      {["Pumped!", "Good Enough", "Meh"].map((m) => (
-        <button
-          key={m}
-          onClick={() => setCheckin((prev) => ({ ...prev, mood: m }))}
-          className={`flex-1 border rounded-lg py-2 ${
-            checkin.mood === m
-              ? "bg-blue-600 text-white border-blue-600"
-              : "border-gray-300 text-gray-700 hover:bg-blue-50"
-          }`}
-        >
-          {m}
-        </button>
-      ))}
-    </div>
+    {/* Headspace */}
+<p className="text-xs text-gray-500 mt-1">How's your headspace today?</p>
+<div className="flex gap-2 mb-4">
+  {["Clear", "Steady", "Off"].map((m) => (
+    <button
+      key={m}
+      onClick={() => setCheckin((prev) => ({ ...prev, headspace: m.toLowerCase() }))}
+      className={`flex-1 border rounded-lg py-2 ${
+        checkin.headspace === m.toLowerCase()
+          ? "bg-blue-600 text-white border-blue-600"
+          : "border-gray-300 text-gray-700 hover:bg-blue-50"
+      }`}
+    >
+      {m}
+    </button>
+  ))}
+</div>
 
     {/* Protein */}
     <p className="text-xs text-gray-500 mt-1">
@@ -1190,7 +1308,30 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
         </button>
       ))}
     </div>
-
+{/* Sleep */}
+<p className="text-xs text-gray-500 mt-1">
+      Did you prioritize sleep last night?
+    </p>
+    <div className="flex gap-2 mb-4">
+      {["Yes", "No"].map((s) => (
+        <button
+          key={s}
+          onClick={() =>
+            setCheckin((prev) => ({
+              ...prev,
+              sleepHit: s.toLowerCase(),
+            }))
+          }
+          className={`flex-1 border rounded-lg py-2 ${
+            checkin.sleepHit === s.toLowerCase()
+              ? "bg-blue-600 text-white border-blue-600"
+              : "border-gray-300 text-gray-700 hover:bg-blue-50"
+          }`}
+        >
+          {s}
+        </button>
+      ))}
+    </div>
     {/* Nutrition Slider */}
     <p className="text-xs text-gray-500 mt-1">
       How closely did your eating match your intentions?
@@ -1228,7 +1369,7 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
     <button
       onClick={handleCheckinSubmit}
       disabled={
-        !checkin.mood || !checkin.proteinHit || !checkin.hydrationHit
+        !checkin.headspace || !checkin.proteinHit || !checkin.hydrationHit
       }
       className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
     >
@@ -1238,109 +1379,173 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
 )}
 
        {/* 3. Daily Results */}
-       <motion.div
-    variants={itemVariants} className="fade-in delay-400 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+<motion.div
+  variants={itemVariants}
+  className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
+>
   <h2 className="text-xl font-semibold text-gray-900 mb-3">
-    Daily Results
+    Yesterday's Accountability
   </h2>
     
   {!todayCheckin ? (
-  <EmptyState
-    message="No check-in yet today."
-    subtext="Tap your check-in to get started."
-  />
-) : (
-  <div className="grid grid-cols-2 gap-4">
-      {/* Nutrition Alignment */}
-      <div className="flex flex-col bg-gray-50 rounded-lg p-4 shadow-inner">
-        <span className="text-sm font-medium text-gray-700 mb-1">Nutrition Alignment</span>
-        <span className="text-lg font-bold text-blue-700">
-          {todayCheckin.nutritionAlignment ?? 0}%
+    <EmptyState
+      message="No check-in yet today."
+      subtext="Complete your check-in to see today's results."
+    />
+  ) : (
+    <div className="space-y-3">
+      {/* Headspace */}
+      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+        <span className="text-sm text-gray-600">Headspace</span>
+        <span className={`text-sm font-semibold ${
+          todayCheckin.headspace === "clear" ? "text-green-600" :
+          todayCheckin.headspace === "steady" ? "text-blue-600" :
+          "text-gray-500"
+        }`}>
+          {todayCheckin.headspace?.charAt(0).toUpperCase() + todayCheckin.headspace?.slice(1) || "—"}
         </span>
-        <p className="text-xs text-gray-500 mt-1">How closely you followed your plan.</p>
       </div>
 
-      {/* Protein Target */}
-      <div className="flex flex-col bg-gray-50 rounded-lg p-4 shadow-inner">
-        <span className="text-sm font-medium text-gray-700 mb-1">Protein Target</span>
-        <span
-          className={`text-lg font-bold ${
-            todayCheckin.proteinHit === "yes"
-              ? "text-green-600"
-              : todayCheckin.proteinHit === "almost"
-              ? "text-yellow-500"
-              : "text-red-500"
-          }`}
-        >
-          {todayCheckin.proteinHit
-            ? todayCheckin.proteinHit.charAt(0).toUpperCase() +
-              todayCheckin.proteinHit.slice(1)
-            : "—"}
+      {/* Protein */}
+      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+        <span className="text-sm text-gray-600">Protein Target</span>
+        <span className={`text-sm font-semibold ${
+          todayCheckin.proteinHit === "yes" ? "text-green-600" :
+          todayCheckin.proteinHit === "almost" ? "text-yellow-500" :
+          "text-red-500"
+        }`}>
+          {todayCheckin.proteinHit?.charAt(0).toUpperCase() + todayCheckin.proteinHit?.slice(1) || "—"}
         </span>
-        <p className="text-xs text-gray-500 mt-1">Hit your protein minimum today?</p>
       </div>
 
-      {/* 🏋️ Workout Status (real-time) */}
-<div className="flex flex-col bg-gray-50 rounded-lg p-4 shadow-inner">
-  <span className="text-sm font-medium text-gray-700 mb-1">Workout</span>
+      {/* Hydration */}
+      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+        <span className="text-sm text-gray-600">Hydration</span>
+        <span className={`text-sm font-semibold ${
+          todayCheckin.hydrationHit === "yes" ? "text-green-600" : "text-gray-400"
+        }`}>
+          {todayCheckin.hydrationHit === "yes" ? "Hit" : "Missed"}
+        </span>
+      </div>
 
-  <span
-    className={`text-lg font-bold ${
-      status?.lastCompleted ? "text-green-600" : "text-gray-400"
-    }`}
-  >
-    {status?.lastCompleted ? "Complete ✅" : "Pending"}
-  </span>
+      {/* Sleep */}
+      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+        <span className="text-sm text-gray-600">Sleep Priority</span>
+        <span className={`text-sm font-semibold ${
+          todayCheckin.sleepHit === "yes" ? "text-green-600" : "text-gray-400"
+        }`}>
+          {todayCheckin.sleepHit === "yes" ? "Yes" : "No"}
+        </span>
+      </div>
 
-  <p className="text-xs text-gray-500 mt-1">
-  {(() => {
-    const schedule = safeGetSchedule(profile);
-    if (status?.nextWorkoutIndex !== undefined && schedule) {
-      const nextName =
-        schedule[
-          status.nextWorkoutIndex % schedule.length
-        ]?.name || "Rest Day";
-      return `Next: ${nextName}`;
-    }
-    return "Next: —";
-  })()}
-</p>
-  {/* ✅ NEW: last completed timestamp */}
-  {status?.lastCompleted && (
-    <p className="text-[11px] text-gray-400 mt-1 italic">
-      Completed{" "}
-      {formatDistanceToNow(new Date(status.lastCompleted), {
-        addSuffix: true,
-      })}
-    </p>
-  )}
-</div>
-
-      {/* Non-Exercise Activity */}
-      <div className="flex flex-col bg-gray-50 rounded-lg p-4 shadow-inner">
-        <span className="text-sm font-medium text-gray-700 mb-1">Non-Exercise Activity</span>
-        <span
-          className={`text-lg font-bold ${
-            todayCheckin.movedToday === "yes" ? "text-green-600" : "text-gray-400"
-          }`}
-        >
+      {/* Movement */}
+      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+        <span className="text-sm text-gray-600">Extra Movement</span>
+        <span className={`text-sm font-semibold ${
+          todayCheckin.movedToday === "yes" ? "text-green-600" : "text-gray-400"
+        }`}>
           {todayCheckin.movedToday === "yes" ? "Yes" : "No"}
         </span>
-        <p className="text-xs text-gray-500 mt-1">Intentional daily movement.</p>
       </div>
+
+      {/* Nutrition Alignment */}
+      <div className="flex items-center justify-between py-2">
+        <span className="text-sm text-gray-600">Nutrition Alignment</span>
+        <span className="text-sm font-semibold text-blue-700">
+          {todayCheckin.nutritionAlignment ?? 0}%
+        </span>
+      </div>
+
+      {/* Optional note preview */}
+      {todayCheckin.note && (
+        <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+          <p className="text-xs text-gray-500 mb-1">Your note:</p>
+          <p className="text-sm text-gray-700 italic">"{todayCheckin.note}"</p>
+        </div>
+      )}
     </div>
   )}
 
   <p className="text-xs text-gray-500 text-center mt-4">
-    Small wins compound, step forward every day.
+    Yesterday's actions, today's accountability.
   </p>
 </motion.div>
+{/* Momentum Engine */}
+<motion.div
+  variants={itemVariants}
+  className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-sm p-6 mb-6 text-white"
+>
+  <h2 className="text-xl font-semibold mb-4">
+    Momentum
+  </h2>
 
+  {currentFocus ? (
+    <div className="space-y-4">
+      {/* Primary Habit */}
+      <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+        <p className="text-sm text-blue-100 mb-1">Your focus this week:</p>
+        <p className="text-lg font-semibold">{currentFocus.habit}</p>
+        
+        {currentFocus.consecutiveDays > 0 && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-2xl">🔥</span>
+            <span className="text-sm">
+              {currentFocus.consecutiveDays} day{currentFocus.consecutiveDays !== 1 ? 's' : ''} in a row
+            </span>
+          </div>
+        )}
+
+        {currentFocus.eligibleForLevelUp && (
+          <div className="mt-3 bg-amber-500 text-gray-900 rounded-lg p-3">
+            <p className="text-sm font-semibold">🎯 Ready to level up</p>
+            <p className="text-xs mt-1">You've proven consistency. Time to add the next brick.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Streak Stats */}
+      {todayMomentum && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="text-center">
+            <p className="text-3xl font-bold">{todayMomentum.currentStreak}</p>
+            <p className="text-xs text-blue-100 mt-1">Current Streak</p>
+          </div>
+          
+          <div className="text-center">
+            <p className="text-3xl font-bold">{todayMomentum.lifetimeStreak}</p>
+            <p className="text-xs text-blue-100 mt-1">Total Days</p>
+          </div>
+          
+          <div className="text-center">
+            <p className="text-3xl font-bold">{todayMomentum.streakSavers}</p>
+            <p className="text-xs text-blue-100 mt-1">Savers</p>
+          </div>
+        </div>
+      )}
+
+      {/* Today's Score */}
+      {todayMomentum && (
+        <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Today's Momentum</span>
+            <span className={`text-2xl font-bold ${
+              todayMomentum.passed ? 'text-green-300' : 'text-amber-300'
+            }`}>
+              {todayMomentum.momentumScore}%
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  ) : (
+    <p className="text-blue-100">Complete your first check-in to start building momentum.</p>
+  )}
+</motion.div>
 {/* 💬 Dynamic Coach Card */}
 <motion.div
     variants={itemVariants} className="fade-in delay-600 bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
 <h2 className="text-lg font-semibold text-gray-900 mb-3">
-    Coaching Reflection & Focus
+    Here's what I'm seeing
   </h2>
 
   {!weeklyReflection ? (
@@ -1372,7 +1577,7 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
       <p className="text-gray-800 font-medium italic border-t border-gray-100 pt-3">
         “
         {weeklyReflection.coachNote ||
-          "Stay consistent — small wins compound into big results."}
+          "Stay consistent, small wins compound into big results."}
         ”
       </p>
 
@@ -1387,40 +1592,40 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
 </motion.div>
 {/* 4. Today's Training */}
 <motion.div
-    variants={itemVariants} className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow fade-in [animation-delay:0.8s]">
-<h2 className="text-lg font-semibold text-gray-900 mb-3">
-    Today’s Training
+  variants={itemVariants} 
+  className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
+>
+  <h2 className="text-lg font-semibold text-gray-900 mb-3">
+    What's Next
   </h2>
 
   {hasSessionToday ? (
-    // ✅ Completed session view
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-gray-50 rounded-lg p-4 shadow-inner">
       <div>
         <p className="text-sm text-gray-800 font-semibold">
-          Training Complete
+          You trained today.
         </p>
         <p className="text-xs text-gray-500 mt-1">
-          Great job completing your scheduled session, momentum is compounding.
+          That's another brick in the foundation.
         </p>
       </div>
 
       <button
         onClick={() => router.push("/summary")}
-        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
+        className="mt-3 sm:mt-0 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
       >
-        View Summary
+        View Session
       </button>
     </div>
   ) : (
-    // 🔹 Scheduled view (before completion)
-    <div className="text-gray-600 text-sm">
-      <p className="text-gray-800 font-medium">
-        Scheduled Training:{" "}
+    <div className="space-y-3">
+      <p className="text-gray-700">
+        Today's scheduled training:{" "}
         <span className="font-semibold text-blue-700">
           {(() => {
             const schedule = profile?.plan?.schedule;
-            if (!schedule || schedule.length === 0) return "No plan found";
-            const todayIdx = new Date().getDay(); // 0..6
+            if (!schedule || schedule.length === 0) return "Rest Day";
+            const todayIdx = new Date().getDay();
             const today = schedule[todayIdx % schedule.length];
             return today?.name || "Rest Day";
           })()}
@@ -1429,9 +1634,9 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
 
       <button
         onClick={() => router.push("/program")}
-        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
       >
-        View Program
+        Start Training
       </button>
     </div>
   )}

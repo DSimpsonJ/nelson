@@ -2,13 +2,13 @@
 import { doc, setDoc, getDoc, collection } from "firebase/firestore";
 import { db } from "../firebase/config";
 
-/** Single daily check-in, keyed by ISO date (YYYY-MM-DD) */
 export interface Checkin {
-  date: string;              // "2025-11-02"
-  mood: string;              // "energized" | "okay" | "tired" (free text ok)
-  proteinHit: string;        // "yes" | "almost" | "no"
-  hydrationHit: string;      // "yes" | "no"
-  movedToday?: string;       // <-- NEW: "yes" | "no"
+  date: string;
+  mood: string;
+  proteinHit: string;
+  hydrationHit: string;
+  movedToday?: string;
+  sleepHit?: string;  // ADD THIS LINE
   nutritionAlignment?: number;
   note?: string;
   createdAt?: string;
