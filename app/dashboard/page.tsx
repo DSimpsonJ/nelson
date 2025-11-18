@@ -303,6 +303,7 @@ const [trends, setTrends] = useState<TrendStats | null>(null);
 const [recentCheckins, setRecentCheckins] = useState<Checkin[]>([]);
 const [currentFocus, setCurrentFocus] = useState<any>(null);
 const [todayMomentum, setTodayMomentum] = useState<any>(null);
+const [recentMomentum, setRecentMomentum] = useState<any[]>([]);
 console.log("🔥 Dashboard render:", {
   loading,
   profile,
@@ -508,6 +509,15 @@ const todayMomentumSnap = await getDoc(todayMomentumRef);
 if (todayMomentumSnap.exists()) {
   setTodayMomentum(todayMomentumSnap.data());
 }
+// Load last 14 days of momentum
+const momentumColRef = collection(db, "users", email, "momentum");
+const momentumSnaps = await getDocs(momentumColRef);
+const allMomentum = momentumSnaps.docs
+  .map(d => d.data())
+  .filter(m => m.date) // exclude currentFocus doc
+  .sort((a, b) => a.date < b.date ? 1 : -1)
+  .slice(0, 14);
+setRecentMomentum(allMomentum);
    // ---- Today’s check-in ----
 const rawToday = await getCheckin(email, today);
 
@@ -695,7 +705,9 @@ const handleCheckinSubmit = async () => {
     setTodayCheckin(data);
     setCheckinSubmitted(true);
 
-   // --- MOMENTUM ENGINE v2 (Weighted Scoring) -------------------------
+   // --- MOMENTUM ENGINE v3 (3-Day Rolling Average) -------------------------
+
+// Calculate today's weighted score
 const moved = checkin.movedToday === "yes";
 const hydrated = checkin.hydrationHit === "yes";
 const nutritionScore = checkin.nutritionAlignment ?? 0;
@@ -724,30 +736,57 @@ switch (currentHabit) {
     primaryHabitHit = slept;
     break;
   default:
-    primaryHabitHit = moved; // fallback
+    primaryHabitHit = moved;
 }
 
-// Calculate weighted score
-const primaryScore = primaryHabitHit ? 70 : 0;
+// Today's daily score (primary = 60%, secondary = 40%)
+const primaryScore = primaryHabitHit ? 60 : 0;
 
-// Secondary behaviors (30 points split across remaining behaviors)
+// Secondary behaviors
 const secondaryBehaviors = [];
 if (currentHabit !== "hydration_100oz") secondaryBehaviors.push(hydrated);
 if (currentHabit !== "walk_10min" && currentHabit !== "walk_15min") secondaryBehaviors.push(moved);
 if (currentHabit !== "protein_daily") secondaryBehaviors.push(checkin.proteinHit === "yes");
 if (currentHabit !== "sleep_7plus") secondaryBehaviors.push(slept);
+secondaryBehaviors.push(ateWell); // nutrition always counts
 
 const secondaryHits = secondaryBehaviors.filter(Boolean).length;
 const secondaryScore = secondaryBehaviors.length > 0 
-  ? Math.round((secondaryHits / secondaryBehaviors.length) * 30)
+  ? Math.round((secondaryHits / secondaryBehaviors.length) * 40)
   : 0;
 
-const momentumScore = primaryScore + secondaryScore;
+const todayScore = primaryScore + secondaryScore;
 
-// Pass threshold: must hit primary habit (≥70 score)
-const passed = momentumScore >= 70;
+// Get last 3 days (including today) for rolling average
+const last3Days = [];
+for (let i = 0; i < 3; i++) {
+  const d = new Date();
+  d.setDate(d.getDate() - i);
+  const dateKey = d.toISOString().split("T")[0];
+  
+  if (dateKey === today) {
+    // Use today's fresh score (not in Firestore yet)
+    last3Days.push(todayScore);
+  } else {
+    // Load from Firestore
+    const dayRef = doc(db, "users", email, "momentum", dateKey);
+    const daySnap = await getDoc(dayRef);
+    
+    if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
+      last3Days.push(daySnap.data().dailyScore);
+    } else {
+      // Missing day = 0
+      last3Days.push(0);
+    }
+  }
+}
 
-// Look up yesterday's momentum to continue streaks
+// Calculate 3-day weighted average (most recent day weighted highest)
+const weights = [0.5, 0.3, 0.2]; // Today 50%, Yesterday 30%, 2 days ago 20%
+const weightedSum = last3Days.reduce((sum, score, i) => sum + (score * weights[i]), 0);
+const momentumScore = Math.round(weightedSum);
+
+// Streak logic (separate from momentum)
 const yesterday = new Date();
 yesterday.setDate(yesterday.getDate() - 1);
 const yesterdayKey = yesterday.toISOString().split("T")[0];
@@ -767,53 +806,56 @@ if (prevSnap.exists()) {
   streakSavers = prev.streakSavers ?? 0;
 }
 
-if (passed) {
-  currentStreak += 1;
-} else {
-  if (streakSavers > 0) {
-    streakSavers -= 1;
-  } else {
-    currentStreak = 0;
-  }
-}
-
+// Streak increases just for checking in (regardless of score)
+currentStreak += 1;
 lifetimeStreak += 1;
 
-if (passed && currentStreak % 7 === 0) {
+// Earn streak saver every 7 days
+if (currentStreak % 7 === 0) {
   streakSavers += 1;
 }
 
+// Save today's momentum data
 await setDoc(doc(db, "users", email, "momentum", today), {
   date: today,
+  dailyScore: todayScore,
+  momentumScore: momentumScore,
+  primaryHabitHit,
   moved,
   hydrated,
   slept,
   nutritionScore,
-  momentumScore,
-  passed,
   currentStreak,
   lifetimeStreak,
   streakSavers,
   createdAt: new Date().toISOString(),
 });
 
-// ✅ Initialize or update currentFocus
+// ✅ Update local state immediately
+setTodayMomentum({
+  dailyScore: todayScore,
+  momentumScore: momentumScore,
+  currentStreak,
+  lifetimeStreak,
+  streakSavers,
+  primaryHabitHit,
+});
+
+// Update currentFocus
 if (!currentFocusSnap.exists()) {
-  // First time - create focus doc
   const primaryHabit = getPrimaryHabit(profile?.plan);
   
   await setDoc(currentFocusRef, {
     habit: primaryHabit.habit,
     habitKey: primaryHabit.habitKey,
     startedAt: today,
-    consecutiveDays: passed ? 1 : 0,
+    consecutiveDays: primaryHabitHit ? 1 : 0,
     eligibleForLevelUp: false,
     createdAt: new Date().toISOString(),
   });
 } else {
-  // Update consecutive days
   const focusData = currentFocusSnap.data();
-  const newConsecutive = passed ? (focusData.consecutiveDays || 0) + 1 : 0;
+  const newConsecutive = primaryHabitHit ? (focusData.consecutiveDays || 0) + 1 : 0;
   
   await setDoc(currentFocusRef, {
     ...focusData,
@@ -1180,28 +1222,25 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
 </div>
 </motion.div>
 
-{/* 1.5 Weekly Focus Card */}
-{profile?.plan?.weekOneFocus && (
-  <div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
-    <h2 className="text-lg font-semibold text-gray-900 mb-1">
-      This Week’s Focus
+{/* Weekly Focus Card */}
+{currentFocus && (
+  <motion.div
+    variants={itemVariants}
+    className="bg-white rounded-2xl shadow-sm p-5 mb-6"
+  >
+    <h2 className="text-lg font-semibold text-gray-900 mb-3">
+      Your Focus This Week
     </h2>
 
-    <p className="text-gray-700 mb-3">
-      {profile.plan.weekOneFocus}
-    </p>
-
-    {profile.plan.dailyHabits?.length > 0 && (
-      <div>
-        <p className="text-sm font-medium text-gray-800 mb-2">Daily habits:</p>
-        <ul className="list-disc list-inside text-gray-700 space-y-1">
-          {profile.plan.dailyHabits.map((h: string, i: number) => (
-            <li key={i}>{h}</li>
-          ))}
-        </ul>
-      </div>
-    )}
-  </div>
+    <div className="bg-gray-50 rounded-lg p-4">
+      <p className="text-base font-semibold text-gray-900 mb-2">
+        {currentFocus.habit}
+      </p>
+      <p className="text-sm text-gray-600">
+        One brick at a time. Show up for this, and momentum builds itself.
+      </p>
+    </div>
+  </motion.div>
 )}
 
        {/* 2. Daily Check-In */}
@@ -1333,26 +1372,29 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
       ))}
     </div>
     {/* Nutrition Slider */}
-    <p className="text-xs text-gray-500 mt-1">
-      How closely did your eating match your intentions?
-    </p>
-    <input
-      type="range"
-      min={0}
-      max={100}
-      step={5}
-      value={checkin.nutritionAlignment ?? 0}
-      onChange={(e) =>
-        setCheckin((prev) => ({
-          ...prev,
-          nutritionAlignment: Number(e.target.value),
-        }))
-      }
-      className="w-full accent-blue-600"
-    />
-    <p className="text-sm text-gray-700 text-center mt-1">
-      {checkin.nutritionAlignment ?? 0}%
-    </p>
+<p className="text-xs text-gray-500 mt-1">
+  How closely did your eating match your intentions?
+</p>
+<input
+  type="range"
+  min={0}
+  max={100}
+  step={5}
+  value={checkin.nutritionAlignment ?? 0}
+  onChange={(e) =>
+    setCheckin((prev) => ({
+      ...prev,
+      nutritionAlignment: Number(e.target.value),
+    }))
+  }
+  className="w-full accent-blue-600"
+/>
+<p className="text-sm text-gray-700 text-center mt-1">
+  {checkin.nutritionAlignment ?? 0}%
+</p>
+<p className="text-xs text-gray-500 text-center mt-1 italic">
+  Anything above 80 is a win — perfection is not the goal.
+</p>
 
     {/* Note */}
     <textarea
@@ -1378,167 +1420,188 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
   </motion.div>
 )}
 
-       {/* 3. Daily Results */}
+       {/* Yesterday's Accountability */}
 <motion.div
   variants={itemVariants}
-  className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
+  className="bg-white rounded-2xl shadow-sm p-5 mb-6"
 >
-  <h2 className="text-xl font-semibold text-gray-900 mb-3">
-    Yesterday's Accountability
+  <h2 className="text-lg font-semibold text-gray-900 mb-4">
+    Yesterday's actions, today's accountability
   </h2>
     
   {!todayCheckin ? (
     <EmptyState
       message="No check-in yet today."
-      subtext="Complete your check-in to see today's results."
+      subtext="Complete your check-in to see yesterday's results."
     />
   ) : (
-    <div className="space-y-3">
-      {/* Headspace */}
-      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-        <span className="text-sm text-gray-600">Headspace</span>
-        <span className={`text-sm font-semibold ${
-          todayCheckin.headspace === "clear" ? "text-green-600" :
-          todayCheckin.headspace === "steady" ? "text-blue-600" :
-          "text-gray-500"
-        }`}>
-          {todayCheckin.headspace?.charAt(0).toUpperCase() + todayCheckin.headspace?.slice(1) || "—"}
-        </span>
+    <div className="space-y-4">
+      {/* Results Grid - 2 columns, 6 items */}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+        {/* Headspace */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Headspace</span>
+          <span className={`text-sm font-semibold ${
+            todayCheckin.headspace === "clear" ? "text-green-600" :
+            todayCheckin.headspace === "steady" ? "text-blue-600" :
+            "text-gray-500"
+          }`}>
+            {todayCheckin.headspace?.charAt(0).toUpperCase() + todayCheckin.headspace?.slice(1) || "—"}
+          </span>
+        </div>
+
+        {/* Protein */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Protein</span>
+          <span className={`text-sm font-semibold ${
+            todayCheckin.proteinHit === "yes" ? "text-green-600" :
+            todayCheckin.proteinHit === "almost" ? "text-yellow-500" :
+            "text-red-500"
+          }`}>
+            {todayCheckin.proteinHit?.charAt(0).toUpperCase() + todayCheckin.proteinHit?.slice(1) || "—"}
+          </span>
+        </div>
+
+        {/* Hydration */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Hydration</span>
+          <span className={`text-sm font-semibold ${
+            todayCheckin.hydrationHit === "yes" ? "text-green-600" : "text-gray-400"
+          }`}>
+            {todayCheckin.hydrationHit === "yes" ? "Hit" : "Missed"}
+          </span>
+        </div>
+
+        {/* Sleep */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Sleep</span>
+          <span className={`text-sm font-semibold ${
+            todayCheckin.sleepHit === "yes" ? "text-green-600" : "text-gray-400"
+          }`}>
+            {todayCheckin.sleepHit === "yes" ? "Yes" : "No"}
+          </span>
+        </div>
+
+        {/* Movement */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Movement</span>
+          <span className={`text-sm font-semibold ${
+            todayCheckin.movedToday === "yes" ? "text-green-600" : "text-gray-400"
+          }`}>
+            {todayCheckin.movedToday === "yes" ? "Yes" : "No"}
+          </span>
+        </div>
+
+        {/* Nutrition */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Nutrition</span>
+          <span className="text-sm font-semibold text-blue-700">
+            {todayCheckin.nutritionAlignment ?? 0}%
+          </span>
+        </div>
       </div>
 
-      {/* Protein */}
-      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-        <span className="text-sm text-gray-600">Protein Target</span>
-        <span className={`text-sm font-semibold ${
-          todayCheckin.proteinHit === "yes" ? "text-green-600" :
-          todayCheckin.proteinHit === "almost" ? "text-yellow-500" :
-          "text-red-500"
-        }`}>
-          {todayCheckin.proteinHit?.charAt(0).toUpperCase() + todayCheckin.proteinHit?.slice(1) || "—"}
-        </span>
-      </div>
-
-      {/* Hydration */}
-      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-        <span className="text-sm text-gray-600">Hydration</span>
-        <span className={`text-sm font-semibold ${
-          todayCheckin.hydrationHit === "yes" ? "text-green-600" : "text-gray-400"
-        }`}>
-          {todayCheckin.hydrationHit === "yes" ? "Hit" : "Missed"}
-        </span>
-      </div>
-
-      {/* Sleep */}
-      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-        <span className="text-sm text-gray-600">Sleep Priority</span>
-        <span className={`text-sm font-semibold ${
-          todayCheckin.sleepHit === "yes" ? "text-green-600" : "text-gray-400"
-        }`}>
-          {todayCheckin.sleepHit === "yes" ? "Yes" : "No"}
-        </span>
-      </div>
-
-      {/* Movement */}
-      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-        <span className="text-sm text-gray-600">Extra Movement</span>
-        <span className={`text-sm font-semibold ${
-          todayCheckin.movedToday === "yes" ? "text-green-600" : "text-gray-400"
-        }`}>
-          {todayCheckin.movedToday === "yes" ? "Yes" : "No"}
-        </span>
-      </div>
-
-      {/* Nutrition Alignment */}
-      <div className="flex items-center justify-between py-2">
-        <span className="text-sm text-gray-600">Nutrition Alignment</span>
-        <span className="text-sm font-semibold text-blue-700">
-          {todayCheckin.nutritionAlignment ?? 0}%
-        </span>
-      </div>
-
-      {/* Optional note preview */}
+      {/* Note (if exists) */}
       {todayCheckin.note && (
-        <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-500 mb-1">Your note:</p>
+        <div className="pt-3 border-t border-gray-100">
+          <p className="text-xs text-gray-500 mb-1">Note to Self:</p>
           <p className="text-sm text-gray-700 italic">"{todayCheckin.note}"</p>
         </div>
       )}
     </div>
   )}
-
-  <p className="text-xs text-gray-500 text-center mt-4">
-    Yesterday's actions, today's accountability.
-  </p>
 </motion.div>
 {/* Momentum Engine */}
 <motion.div
   variants={itemVariants}
-  className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-sm p-6 mb-6 text-white"
+  className={`rounded-2xl shadow-sm p-5 mb-6 transition-all duration-500 ${
+    !todayMomentum 
+      ? 'bg-white'
+      : todayMomentum.momentumScore >= 80
+      ? 'bg-gradient-to-br from-red-50 to-amber-50 border-2 border-red-400'
+      : todayMomentum.momentumScore >= 60
+      ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-400'
+      : 'bg-white border-2 border-gray-200'
+  }`}
 >
-  <h2 className="text-xl font-semibold mb-4">
-    Momentum
-  </h2>
+  <div className="flex items-start justify-between mb-4">
+    <div>
+      <h2 className="text-lg font-semibold text-gray-900">Your Momentum</h2>
+      {currentFocus && (
+        <p className="text-xs text-gray-500 mt-1">Focus: {currentFocus.habit}</p>
+      )}
+    </div>
+    
+    {todayMomentum && (
+      <div className="text-right">
+        <p className={`text-3xl font-bold ${
+          todayMomentum.momentumScore >= 80 ? 'text-red-600' :
+          todayMomentum.momentumScore >= 60 ? 'text-amber-600' :
+          'text-gray-400'
+        }`}>
+          {todayMomentum.momentumScore}%
+        </p>
+        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Score</p>
+      </div>
+    )}
+  </div>
 
-  {currentFocus ? (
+  {currentFocus && todayMomentum ? (
     <div className="space-y-4">
-      {/* Primary Habit */}
-      <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-        <p className="text-sm text-blue-100 mb-1">Your focus this week:</p>
-        <p className="text-lg font-semibold">{currentFocus.habit}</p>
+      {/* Progress Bar */}
+      <div>
+        <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className={`absolute h-full transition-all duration-500 ${
+              todayMomentum.momentumScore >= 80
+                ? 'bg-gradient-to-r from-red-500 to-amber-500'
+                : todayMomentum.momentumScore >= 60
+                ? 'bg-gradient-to-r from-amber-500 to-amber-400'
+                : 'bg-gradient-to-r from-blue-500 to-blue-400'
+            }`}
+            style={{ width: `${todayMomentum.momentumScore}%` }}
+          />
+        </div>
         
-        {currentFocus.consecutiveDays > 0 && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-2xl">🔥</span>
-            <span className="text-sm">
-              {currentFocus.consecutiveDays} day{currentFocus.consecutiveDays !== 1 ? 's' : ''} in a row
-            </span>
-          </div>
-        )}
-
-        {currentFocus.eligibleForLevelUp && (
-          <div className="mt-3 bg-amber-500 text-gray-900 rounded-lg p-3">
-            <p className="text-sm font-semibold">🎯 Ready to level up</p>
-            <p className="text-xs mt-1">You've proven consistency. Time to add the next brick.</p>
-          </div>
-        )}
+        <p className="text-[10px] text-gray-500 text-center mt-1">
+          {todayMomentum.momentumScore < 40
+            ? "Building..."
+            : todayMomentum.momentumScore < 60
+            ? "Gaining traction"
+            : todayMomentum.momentumScore < 80
+            ? "Heating up 🔥"
+            : "On fire 🔥🔥"}
+        </p>
       </div>
 
-      {/* Streak Stats */}
-      {todayMomentum && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="text-center">
-            <p className="text-3xl font-bold">{todayMomentum.currentStreak}</p>
-            <p className="text-xs text-blue-100 mt-1">Current Streak</p>
-          </div>
-          
-          <div className="text-center">
-            <p className="text-3xl font-bold">{todayMomentum.lifetimeStreak}</p>
-            <p className="text-xs text-blue-100 mt-1">Total Days</p>
-          </div>
-          
-          <div className="text-center">
-            <p className="text-3xl font-bold">{todayMomentum.streakSavers}</p>
-            <p className="text-xs text-blue-100 mt-1">Savers</p>
-          </div>
+      {/* Stats Row */}
+      <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-200">
+        <div className="text-center">
+          <p className="text-2xl font-bold text-gray-900">{todayMomentum.currentStreak}</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Streak</p>
         </div>
-      )}
+        
+        <div className="text-center">
+          <p className="text-2xl font-bold text-gray-900">{todayMomentum.lifetimeStreak}</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Total</p>
+        </div>
+        
+        <div className="text-center">
+          <p className="text-2xl font-bold text-gray-900">{todayMomentum.streakSavers}</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Savers</p>
+        </div>
+      </div>
 
-      {/* Today's Score */}
-      {todayMomentum && (
-        <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Today's Momentum</span>
-            <span className={`text-2xl font-bold ${
-              todayMomentum.passed ? 'text-green-300' : 'text-amber-300'
-            }`}>
-              {todayMomentum.momentumScore}%
-            </span>
-          </div>
+      {/* Level Up Notice */}
+      {currentFocus.eligibleForLevelUp && (
+        <div className="bg-amber-500 text-gray-900 rounded-lg p-3 mt-3">
+          <p className="text-sm font-semibold">🎯 Ready to level up</p>
+          <p className="text-xs mt-1">Time to add the next brick.</p>
         </div>
       )}
     </div>
   ) : (
-    <p className="text-blue-100">Complete your first check-in to start building momentum.</p>
+    <p className="text-gray-500 text-sm">Complete your first check-in to start building momentum.</p>
   )}
 </motion.div>
 {/* 💬 Dynamic Coach Card */}
