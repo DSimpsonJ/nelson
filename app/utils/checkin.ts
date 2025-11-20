@@ -4,12 +4,13 @@ import { db } from "../firebase/config";
 
 export interface Checkin {
   date: string;
-  mood: string;
+  headspace: string;
   proteinHit: string;
   hydrationHit: string;
   movedToday?: string;
   sleepHit?: string;  // ADD THIS LINE
-  nutritionAlignment?: number;
+  energyBalance?: string;
+  eatingPattern?: string;
   note?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -47,11 +48,12 @@ export async function seedFakeCheckins(email: string) {
 
     const fake: Checkin = {
       date: dateStr,
-      mood: i % 3 === 0 ? "tired" : i % 2 === 0 ? "okay" : "energized",
+      headspace: i % 3 === 0 ? "tired" : i % 2 === 0 ? "okay" : "energized",
       proteinHit: i % 4 === 0 ? "no" : "yes",
       hydrationHit: i % 5 === 0 ? "no" : "yes",
       movedToday: i % 3 === 0 ? "no" : "yes",
-      nutritionAlignment: Math.floor(Math.random() * 40 + 60), // 60–100%
+      energyBalance: i % 4 === 0 ? "light" : i % 3 === 0 ? "heavy" : "normal",
+eatingPattern: i % 3 === 0 ? "mixed" : "meals",
     };
 
     await saveCheckin(email, fake);

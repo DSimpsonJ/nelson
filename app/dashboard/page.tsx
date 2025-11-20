@@ -279,8 +279,9 @@ const [checkin, setCheckin] = useState({
   proteinHit: "",
   hydrationHit: "",
   movedToday: "",
-  sleepHit: "",  // ADD THIS LINE
-  nutritionAlignment: 0,
+  sleepHit: "",
+  energyBalance: "", // NEW
+  eatingPattern: "", // NEW
   note: "",
 });
 
@@ -670,10 +671,64 @@ console.log("CHECK-IN VISIBILITY TEST (fixed):", {
     setLoading(false);
   }
 };
+// Calculate nutrition score based on energy balance, eating pattern, and goal
+const calculateNutritionScore = (
+  energyBalance: string,
+  eatingPattern: string,
+  goal: string
+): number => {
+  // Fat Loss scoring
+  if (goal === "fat_loss" || goal === "recomp") {
+    if ((energyBalance === "light" || energyBalance === "normal") && eatingPattern === "meals") return 12;
+    if ((energyBalance === "light" || energyBalance === "normal") && eatingPattern === "mixed") return 6;
+    if (energyBalance === "heavy" || energyBalance === "indulgent") return 0;
+    if (eatingPattern === "grazing") return 0;
+    if (eatingPattern === "none") return 0;
+  }
 
+  // Maintenance scoring
+  if (goal === "maintenance") {
+    if (energyBalance === "normal" && eatingPattern === "meals") return 12;
+    if ((energyBalance === "light" || energyBalance === "heavy") && eatingPattern === "meals") return 6;
+    if (energyBalance === "indulgent") return 0;
+    if (eatingPattern === "grazing") return 0;
+  }
+
+  // Muscle Gain scoring
+  if (goal === "muscle_gain" || goal === "muscle") {
+    if ((energyBalance === "heavy" || energyBalance === "normal") && eatingPattern === "meals") return 12;
+    if (energyBalance === "light") return 0;
+    if (eatingPattern === "grazing") return 0;
+    if (eatingPattern === "mixed") return 6;
+  }
+
+  return 0; // Default fallback
+};// Info tooltip component
+const InfoTooltip = ({ text }: { text: string }) => {
+  const [show, setShow] = useState(false);
+
+  return (
+    <span className="relative inline-block ml-1">
+      <button
+        type="button"
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow(!show)}
+        className="text-blue-600 hover:text-blue-700 text-xs leading-none"
+      >
+        ⓘ
+      </button>
+      {show && (
+        <span className="absolute z-10 w-64 p-2 text-xs text-gray-700 bg-white border border-gray-300 rounded-lg shadow-lg -top-2 left-6 block">
+          {text}
+        </span>
+      )}
+    </span>
+  );
+};
 /** Save check-in */
 const handleCheckinSubmit = async () => {
-  if (!checkin.headspace || !checkin.proteinHit || !checkin.hydrationHit) {
+  if (!checkin.headspace || !checkin.proteinHit || !checkin.hydrationHit || !checkin.energyBalance || !checkin.eatingPattern) {
     showToast({ message: "Please answer all questions.", type: "error" });
     return;
   }
@@ -690,7 +745,8 @@ const handleCheckinSubmit = async () => {
       hydrationHit: checkin.hydrationHit,
       movedToday: checkin.movedToday,
       sleepHit: checkin.sleepHit,
-      nutritionAlignment: checkin.nutritionAlignment,
+      energyBalance: checkin.energyBalance,
+      eatingPattern: checkin.eatingPattern,
       note: checkin.note || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -709,8 +765,13 @@ const handleCheckinSubmit = async () => {
 // Calculate today's weighted score
 const moved = checkin.movedToday === "yes";
 const hydrated = checkin.hydrationHit === "yes";
-const nutritionScore = checkin.nutritionAlignment ?? 0;
-const ateWell = nutritionScore >= 80;
+// Calculate nutrition score based on energy balance + eating pattern + goal
+const nutritionScore = calculateNutritionScore(
+  checkin.energyBalance,
+  checkin.eatingPattern,
+  profile?.plan?.goal || "fat_loss"
+);
+const ateWell = nutritionScore >= 12; // Out of 12 points
 const slept = checkin.sleepHit === "yes";
 
 // Load current focus to determine primary habit
@@ -747,7 +808,7 @@ if (currentHabit !== "hydration_100oz") secondaryBehaviors.push(hydrated);
 if (currentHabit !== "walk_10min" && currentHabit !== "walk_15min") secondaryBehaviors.push(moved);
 if (currentHabit !== "protein_daily") secondaryBehaviors.push(checkin.proteinHit === "yes");
 if (currentHabit !== "sleep_7plus") secondaryBehaviors.push(slept);
-secondaryBehaviors.push(ateWell); // nutrition always counts
+secondaryBehaviors.push(nutritionScore >= 9); // nutrition counts if score >= 9 (out of 12)
 
 const secondaryHits = secondaryBehaviors.filter(Boolean).length;
 const secondaryScore = secondaryBehaviors.length > 0 
@@ -1505,7 +1566,7 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
   ) : null}
 </div>
 </motion.div>
-{/* 2. Daily Check-In */}
+{/* 2. Morning Check-In */}
 {!hasCompletedCheckin() && (
   <motion.div
     variants={itemVariants}
@@ -1513,169 +1574,267 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
     className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
   >
     <p className="text-xs text-gray-500 mb-4 pb-3 border-b border-gray-100">
-      Before we move forward today, let's look back at how you showed up yesterday.
+      Accept where you've been, plan for where you're going. How'd you show up yesterday?
     </p>
     
-    <h2 className="text-lg font-semibold text-gray-900 mb-3">
+    <h2 className="text-lg font-semibold text-gray-900 mb-4">
       Daily Check-In
     </h2>
 
-    {/* Headspace */}
-<p className="text-xs text-gray-500 mt-1">How's your headspace today?</p>
-<div className="flex gap-2 mb-4">
-  {["Clear", "Steady", "Off"].map((m) => (
+    {/* Tier 1: Nutrition Foundation */}
+    <div className="space-y-3 mb-4">
+      {/* Energy Balance + Eating Pattern */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-gray-600 mb-2 flex items-center">
+            Energy Balance
+            <InfoTooltip text="Did you undereat, eat as intended, overeat, or have an indulgent day yesterday?" />
+          </p>
+          <div className="grid grid-cols-2 gap-1">
+            {["Light", "Normal", "Heavy", "Indulgent"].map((option) => (
+              <button
+                key={option}
+                onClick={() =>
+                  setCheckin((prev) => ({
+                    ...prev,
+                    energyBalance: option.toLowerCase(),
+                  }))
+                }
+                className={`text-xs py-2 rounded border ${
+                  checkin.energyBalance === option.toLowerCase()
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+  <p className="text-xs text-gray-600 mb-2 flex items-center">
+    Eating Pattern
+    <InfoTooltip text="Structured whole food meals with protein + fiber score higher than directionless meals do.  Overall, how did you eat yesterday?" />
+  </p>
+  <div className="grid grid-cols-2 gap-1">
+    {[
+      { value: "meals", label: "Structured" },
+      { value: "mixed", label: "Mixed" },
+      { value: "grazing", label: "Directionless" },
+      { value: "none", label: "No attention" },
+    ].map((option) => (
+      <button
+        key={option.value}
+        onClick={() =>
+          setCheckin((prev) => ({
+            ...prev,
+            eatingPattern: option.value,
+          }))
+        }
+        className={`text-xs py-2 rounded border ${
+          checkin.eatingPattern === option.value
+            ? "bg-blue-600 text-white border-blue-600"
+            : "border-gray-300 text-gray-700 hover:bg-blue-50"
+        }`}
+      >
+        {option.label}
+      </button>
+    ))}
+  </div>
+</div>
+      </div>
+
+      {/* Protein - Full Width */}
+      <div>
+        <p className="text-xs text-gray-600 mb-2 flex items-center">
+          Protein
+          <InfoTooltip text={`Your target is ${profile?.plan?.proteinTarget || 180}g/day based on your bodyweight goal`} />
+        </p>
+        <div className="flex gap-2">
+          {["Yes", "Almost", "No"].map((option) => (
+            <button
+              key={option}
+              onClick={() =>
+                setCheckin((prev) => ({
+                  ...prev,
+                  proteinHit: option.toLowerCase(),
+                }))
+              }
+              className={`flex-1 py-2 rounded border text-sm ${
+                checkin.proteinHit === option.toLowerCase()
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "border-gray-300 text-gray-700 hover:bg-blue-50"
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    {/* Tier 2: Recovery & Movement */}
+    <div className="space-y-3 mb-4 pt-4 border-t border-gray-100">
+      {/* Sleep + Headspace */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-gray-600 mb-2 flex items-center">
+            Sleep
+            <InfoTooltip text="7+ hours, no screens 30min before bed, lights out at a reasonable time" />
+          </p>
+          <div className="flex gap-2">
+            {["Yes", "No"].map((option) => (
+              <button
+                key={option}
+                onClick={() =>
+                  setCheckin((prev) => ({
+                    ...prev,
+                    sleepHit: option.toLowerCase(),
+                  }))
+                }
+                className={`flex-1 py-2 rounded border text-sm ${
+                  checkin.sleepHit === option.toLowerCase()
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs text-gray-600 mb-2 flex items-center">
+            Headspace
+            <InfoTooltip text="An overall sense of how you're feeling today" />
+          </p>
+          <div className="flex gap-2">
+            {["Great!", "Decent", "Off"].map((option) => (
+              <button
+                key={option}
+                onClick={() =>
+                  setCheckin((prev) => ({
+                    ...prev,
+                    headspace: option.toLowerCase(),
+                  }))
+                }
+                className={`flex-1 py-2 rounded border text-xs ${
+                  checkin.headspace === option.toLowerCase()
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Movement + Hydration */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-gray-600 mb-2 flex items-center">
+            Movement
+            <InfoTooltip text="Any intentional activity beyond your workout" />
+          </p>
+          <div className="flex gap-2">
+            {["Yes", "No"].map((option) => (
+              <button
+                key={option}
+                onClick={() =>
+                  setCheckin((prev) => ({
+                    ...prev,
+                    movedToday: option.toLowerCase(),
+                  }))
+                }
+                className={`flex-1 py-2 rounded border text-sm ${
+                  checkin.movedToday === option.toLowerCase()
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs text-gray-600 mb-2 flex items-center">
+            Hydration
+            <InfoTooltip text={`Your target is ${profile?.plan?.hydrationTarget || 100}oz/day`} />
+          </p>
+          <div className="flex gap-2">
+            {["Yes", "No"].map((option) => (
+              <button
+                key={option}
+                onClick={() =>
+                  setCheckin((prev) => ({
+                    ...prev,
+                    hydrationHit: option.toLowerCase(),
+                  }))
+                }
+                className={`flex-1 py-2 rounded border text-sm ${
+                  checkin.hydrationHit === option.toLowerCase()
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+
+   {/* Tier 3: Optional Note */}
+<div className="pt-4 border-t border-gray-100">
+  {!checkin.note || checkin.note === "" ? (
     <button
-      key={m}
-      onClick={() => setCheckin((prev) => ({ ...prev, headspace: m.toLowerCase() }))}
-      className={`flex-1 border rounded-lg py-2 ${
-        checkin.headspace === m.toLowerCase()
-          ? "bg-blue-600 text-white border-blue-600"
-          : "border-gray-300 text-gray-700 hover:bg-blue-50"
-      }`}
+      type="button"
+      onClick={() => setCheckin((prev) => ({ ...prev, note: " " }))}
+      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
     >
-      {m}
+      + Add a note?
     </button>
-  ))}
+  ) : (
+    <div>
+      <p className="text-xs text-gray-600 mb-2">Optional note</p>
+      <textarea
+        value={checkin.note || ""}
+        onChange={(e) =>
+          setCheckin((prev) => ({ ...prev, note: e.target.value }))
+        }
+        placeholder="Anything worth remembering about yesterday..."
+        className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900"
+        rows={2}
+      />
+      <button
+        type="button"
+        onClick={() => setCheckin((prev) => ({ ...prev, note: "" }))}
+        className="text-xs text-gray-500 hover:text-gray-700 mt-1"
+      >
+        Remove note
+      </button>
+    </div>
+  )}
 </div>
 
-    {/* Protein */}
-    <p className="text-xs text-gray-500 mt-1">
-      Did you hit your protein target yesterday?
-    </p>
-    <div className="flex gap-2 mb-4">
-      {["Yes", "Almost", "No"].map((p) => (
-        <button
-          key={p}
-          onClick={() =>
-            setCheckin((prev) => ({
-              ...prev,
-              proteinHit: p.toLowerCase(),
-            }))
-          }
-          className={`flex-1 border rounded-lg py-2 ${
-            checkin.proteinHit === p.toLowerCase()
-              ? "bg-blue-600 text-white border-blue-600"
-              : "border-gray-300 text-gray-700 hover:bg-blue-50"
-          }`}
-        >
-          {p}
-        </button>
-      ))}
-    </div>
-
-    {/* Hydration */}
-    <p className="text-xs text-gray-500 mt-1">
-      Did you down at least {profile?.plan?.hydrationTarget ?? 100} oz of water?
-    </p>
-    <div className="flex gap-2 mb-4">
-      {["Yes", "No"].map((h) => (
-        <button
-          key={h}
-          onClick={() =>
-            setCheckin((prev) => ({
-              ...prev,
-              hydrationHit: h.toLowerCase(),
-            }))
-          }
-          className={`flex-1 border rounded-lg py-2 ${
-            checkin.hydrationHit === h.toLowerCase()
-              ? "bg-blue-600 text-white border-blue-600"
-              : "border-gray-300 text-gray-700 hover:bg-blue-50"
-          }`}
-        >
-          {h}
-        </button>
-      ))}
-    </div>
-
-    {/* Steps */}
-    <p className="text-xs text-gray-500 mt-1">
-      Did you get some intentional extra steps?
-    </p>
-    <div className="flex gap-2 mb-4">
-      {["Yes", "No"].map((m) => (
-        <button
-          key={m}
-          onClick={() =>
-            setCheckin((prev) => ({ ...prev, movedToday: m.toLowerCase() }))
-          }
-          className={`flex-1 border rounded-lg py-2 ${
-            checkin.movedToday === m.toLowerCase()
-              ? "bg-blue-600 text-white border-blue-600"
-              : "border-gray-300 text-gray-700 hover:bg-blue-50"
-          }`}
-        >
-          {m}
-        </button>
-      ))}
-    </div>
-{/* Sleep */}
-<p className="text-xs text-gray-500 mt-1">
-      Did you prioritize sleep last night?
-    </p>
-    <div className="flex gap-2 mb-4">
-      {["Yes", "No"].map((s) => (
-        <button
-          key={s}
-          onClick={() =>
-            setCheckin((prev) => ({
-              ...prev,
-              sleepHit: s.toLowerCase(),
-            }))
-          }
-          className={`flex-1 border rounded-lg py-2 ${
-            checkin.sleepHit === s.toLowerCase()
-              ? "bg-blue-600 text-white border-blue-600"
-              : "border-gray-300 text-gray-700 hover:bg-blue-50"
-          }`}
-        >
-          {s}
-        </button>
-      ))}
-    </div>
-    {/* Nutrition Slider */}
-<p className="text-xs text-gray-500 mt-1">
-  How closely did your eating match your intentions?
-</p>
-<input
-  type="range"
-  min={0}
-  max={100}
-  step={5}
-  value={checkin.nutritionAlignment ?? 0}
-  onChange={(e) =>
-    setCheckin((prev) => ({
-      ...prev,
-      nutritionAlignment: Number(e.target.value),
-    }))
-  }
-  className="w-full accent-blue-600"
-/>
-<p className="text-sm text-gray-700 text-center mt-1">
-  {checkin.nutritionAlignment ?? 0}%
-</p>
-<p className="text-xs text-gray-500 text-center mt-1 italic">
-  Anything above 80 is a win — perfection is not the goal.
-</p>
-
-    {/* Note */}
-    <textarea
-      value={checkin.note || ""}
-      onChange={(e) =>
-        setCheckin((prev) => ({ ...prev, note: e.target.value }))
-      }
-      placeholder="Optional note about your day..."
-      className="w-full border border-gray-300 rounded-md p-2 text-gray-900 mb-4"
-      rows={3}
-    />
-
-    {/* Save */}
+    {/* Save Button */}
     <button
       onClick={handleCheckinSubmit}
       disabled={
-        !checkin.headspace || !checkin.proteinHit || !checkin.hydrationHit
+        !checkin.headspace ||
+        !checkin.proteinHit ||
+        !checkin.hydrationHit ||
+        !checkin.energyBalance ||
+        !checkin.eatingPattern
       }
-      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
+      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 mt-4 transition-colors duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
     >
       Save Check-In
     </button>
@@ -1697,7 +1856,7 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
     />
   ) : (
     <div className="space-y-4">
-      {/* Results Grid - 2 columns, 6 items */}
+      {/* Results Grid - 2 columns, 5 items */}
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
         {/* Headspace */}
         <div className="flex items-center justify-between">
@@ -1752,12 +1911,23 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
             {todayCheckin.movedToday === "yes" ? "Yes" : "No"}
           </span>
         </div>
+      </div>
 
-        {/* Nutrition */}
+      {/* Nutrition Section - Outside Grid */}
+      <div className="pt-3 border-t border-gray-100 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Nutrition</span>
+          <span className="text-sm text-gray-600">Energy Balance</span>
           <span className="text-sm font-semibold text-blue-700">
-            {todayCheckin.nutritionAlignment ?? 0}%
+          {todayCheckin.energyBalance ? todayCheckin.energyBalance.charAt(0).toUpperCase() + todayCheckin.energyBalance.slice(1) : "—"}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Eating Pattern</span>
+          <span className="text-sm font-semibold text-blue-700">
+            {todayCheckin.eatingPattern === "meals" ? "Meals" : 
+             todayCheckin.eatingPattern === "mixed" ? "Mixed" : 
+             todayCheckin.eatingPattern === "grazing" ? "Grazing" : "—"}
           </span>
         </div>
       </div>
