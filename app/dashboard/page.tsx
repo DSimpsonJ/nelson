@@ -45,7 +45,6 @@ import { getStreakMessage } from "../utils/getStreakMessage";
 import { withFirestoreError } from "../utils/withFirestoreError";
 import Image from "next/image";
 import { motion } from "framer-motion";
-
 /** ---------- Types ---------- */
 
 type Plan = {
@@ -138,6 +137,7 @@ function calculateTrends(checkins: any[]): CheckinTrend {
       checkinsCompleted: 0,
     };
   }
+  
   const proteinDays = last7.filter(
     (c) => c.proteinHit?.toLowerCase() === "yes"
   ).length;
@@ -153,13 +153,7 @@ function calculateTrends(checkins: any[]): CheckinTrend {
   }, 0);
 
   const count = last7.length;
-  const [weeklyReflection, setWeeklyReflection] = useState<{
-    coachNote?: string;
-    weekId?: string;
-    momentumScore?: number;
-    workoutsThisWeek?: number;
-    checkinsCompleted?: number;
-  } | null>(null);
+  
   const moodScores = last7.map((c) => {
     const mood = c.mood?.toLowerCase();
     if (mood === "energized") return 3;
@@ -304,6 +298,11 @@ const [recentCheckins, setRecentCheckins] = useState<Checkin[]>([]);
 const [currentFocus, setCurrentFocus] = useState<any>(null);
 const [todayMomentum, setTodayMomentum] = useState<any>(null);
 const [recentMomentum, setRecentMomentum] = useState<any[]>([]);
+const [commitment, setCommitment] = useState<any>(null);
+const [showCommitment, setShowCommitment] = useState(false);
+const [commitmentStage, setCommitmentStage] = useState<"initial" | "reason" | "alternative">("initial");
+const [commitmentReason, setCommitmentReason] = useState<string>("");
+const [saving, setSaving] = useState(false);
 console.log("🔥 Dashboard render:", {
   loading,
   profile,
@@ -904,227 +903,214 @@ if (!currentFocusSnap.exists()) {
     }
   };
 
-  // ✅ Initial dashboard data load
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+// ✅ Initial dashboard data load
+useEffect(() => {
+  loadDashboardData();
+}, []);
 // 🪞 Weekly Reflection loader
 useEffect(() => {
-  const fetchWeeklyReflection = async () => {
-    try {
-      const email = getEmail();
-      if (!email) return;
-
-      const weekId = getISOWeekId(new Date());
-      const ref = doc(db, "users", email, "weeklyStats", weekId);
-
-      // ✅ Safely wrap the Firestore call
-      const snap = await withFirestoreError(
-        getDoc(ref),
-        "weekly reflection",
-        showToast
-      );
-
-      // Stop here if wrapper returned null (Firestore failed)
-      if (!snap) return;
-
-      // Normal logic continues
-      if (snap.exists()) {
-        setWeeklyReflection(snap.data() as any);
-      }
-    } catch (err) {
-      console.error("[Dashboard] Error fetching weekly reflection:", err);
-    }
-  };
-
-  fetchWeeklyReflection();
-}, [todayCheckin]); // ✅ triggers whenever you check in
-
-  // ✅ Dev tools hook (seed / clear data)
-  useEffect(() => {
+const fetchWeeklyReflection = async () => {
+  try {
     const email = getEmail();
     if (!email) return;
 
-    // 🧪 Uncomment one at a time for development
-    // devClearCheckins(email);
-  }, []);
-  // 🌀 Auto-refresh dashboard after workout completion
-useEffect(() => {
-  const sessionDone = localStorage.getItem("sessionComplete");
-  if (sessionDone) {
-    console.log("[Lifecycle] Detected completed session → refreshing dashboard");
-    localStorage.removeItem("sessionComplete");
-    loadDashboardData(); // already defined in your file
+    const weekId = getISOWeekId(new Date());
+    const ref = doc(db, "users", email, "weeklyStats", weekId);
+
+    // ✅ Safely wrap the Firestore call
+    const snap = await withFirestoreError(
+      getDoc(ref),
+      "weekly reflection",
+      showToast
+    );
+
+    // Stop here if wrapper returned null (Firestore failed)
+    if (!snap) return;
+
+    // Normal logic continues
+    if (snap.exists()) {
+      setWeeklyReflection(snap.data() as any);
+    }
+  } catch (err) {
+    console.error("[Dashboard] Error fetching weekly reflection:", err);
   }
-}, []);
- // ✅ Real-time listener (read-only, no Firestore write loop)
+};
+
+fetchWeeklyReflection();
+}, []); // Changed: only load once on mount
+
+// ✅ Dev tools hook (seed / clear data)
 useEffect(() => {
   const email = getEmail();
-  if (!email) return;
-
-  console.log("[Realtime] listeners attached");
-
-  const checkinRef = collection(db, "users", email, "checkins");
-  const sessionsRef = collection(db, "users", email, "sessions");
-  const statusRef = doc(db, "users", email, "metadata", "status");
-
-  // 🔹 Check-in listener: updates recentCheckins and refreshes coach insight
-  const unsubCheckins = onSnapshot(checkinRef, async (snapshot) => {
-    if (snapshot.metadata.hasPendingWrites) return;
-
-    console.log("[Realtime] Check-in updated");
-    const checkins = snapshot.docs.map((d) => d.data() as Checkin);
-    setRecentCheckins(checkins);
-
-    // 💬 Auto-refresh the coach insight dynamically
-    const latestTrends = trends || null;
-    if (latestTrends) {
-      const style =
-        (trends as any)?.coachingStyle ||
-        (globalThis as any)?.coachingStyle ||
-        "encouraging";
-
-      const newInsight = generateCoachInsight(latestTrends, checkins, style);
-      setCoachNote(newInsight);
-
-      // email is available from the parent scope of this effect
-      await saveCoachNoteToWeeklyStats(email, newInsight);
-      await logInsight(email, newInsight, {
-        source: "checkin_update",
-        stats: latestTrends,
-      });
-    }
-  });
-
-  // 🔹 Workout listener: updates workout stats and refreshes insight
-  const unsubSessions = onSnapshot(sessionsRef, async (snapshot) => {
-    if (snapshot.metadata.hasPendingWrites) return;
-
-    console.log("[Realtime] Workout updated");
-    const sessions = snapshot.docs.map((d) => d.data());
-
-    // Update the trend for workouts this week (keep your other fields intact)
-    const updatedStats: TrendStats = {
-      ...(trends ?? {
-        proteinConsistency: 0,
-        hydrationConsistency: 0,
-        movementConsistency: 0,
-        checkinsCompleted: 0,
-        moodTrend: "",
-        totalSets: 0,
-        avgDuration: 0,
-        workoutsThisWeek: 0,
-      }),
-      workoutsThisWeek: sessions.length,
-    };
-
-    setTrends(updatedStats);
-
-    // 💬 Generate updated insight whenever workouts change
-    const checkins = recentCheckins ?? [];
-    const style = profile?.plan?.coachingStyle ?? "encouraging";
-    const newInsight = generateCoachInsight(updatedStats, checkins, style);
-    setCoachNote(newInsight);
-
-    await saveCoachNoteToWeeklyStats(email, newInsight);
-    await logInsight(email, newInsight, {
-      source: "workout_update",
-      stats: updatedStats,
-    });
-  });
-
-  // 🔹 NEW: Status listener (for dashboard sync)
-  const unsubStatus = onSnapshot(statusRef, (snap) => {
-    if (snap.exists()) {
-      console.log("[Realtime] Status updated:", snap.data());
-      setStatus(snap.data()); // ✅ updates state when Firestore doc changes
-    }
-  });
-
-  // ✅ Cleanup all listeners when component unmounts
-  return () => {
-    unsubCheckins();
-    unsubSessions();
-    unsubStatus(); // ✅ added cleanup for new listener
-  };
+  if (email) {
+    // seedFakeCheckins(email); // COMMENT THIS OUT
+  }
 }, []);
-  // ✅ Recent Check-ins for Mood History (Last 14 Days)
-  useEffect(() => {
-    const loadRecentCheckins = async () => {
-      const email = getEmail();
-      if (!email) return;
-  
-      const colRef = collection(db, "users", email, "checkins");
-  
-      // ✅ Firestore wrapper for safety and toast feedback
-      const snaps = await withFirestoreError(getDocs(colRef), "recent check-ins", showToast);
-      if (!snaps) return; // stop if Firestore failed
-  
-      const all = snaps.docs.map((d) => d.data() as Checkin);
-  
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 14);
-  
-      const recent = all
-        .filter((c) => new Date(c.date) >= cutoff)
-        .sort((a, b) => (a.date < b.date ? -1 : 1));
-  
-      setRecentCheckins(recent);
-    };
-  
-    loadRecentCheckins();
-  }, [todayCheckin]);
-  // ✅ Mood history for the line chart (last 7 days)
- // Keeping placeholder state for compatibility with coach insight generation
+// 🌀 Auto-refresh dashboard after workout completion
+useEffect(() => {
+const sessionDone = localStorage.getItem("sessionComplete");
+if (sessionDone) {
+  console.log("[Lifecycle] Detected completed session → refreshing dashboard");
+  localStorage.removeItem("sessionComplete");
+  loadDashboardData(); // already defined in your file
+}
+}, []);
+// ✅ Real-time listener (read-only, no Firestore write loop)
+useEffect(() => {
+const email = getEmail();
+if (!email) return;
+
+console.log("[Realtime] listeners attached");
+
+const checkinRef = collection(db, "users", email, "checkins");
+const sessionsRef = collection(db, "users", email, "sessions");
+const statusRef = doc(db, "users", email, "metadata", "status");
+
+// 🔹 Check-in listener: updates recentCheckins only (no coach note generation)
+const unsubCheckins = onSnapshot(checkinRef, (snapshot) => {
+  if (snapshot.metadata.hasPendingWrites) return;
+
+  console.log("[Realtime] Check-in updated");
+  const checkins = snapshot.docs.map((d) => d.data() as Checkin);
+  setRecentCheckins(checkins);
+});
+
+// 🔹 Workout listener: updates workout stats only (no coach note generation)
+const unsubSessions = onSnapshot(sessionsRef, (snapshot) => {
+if (snapshot.metadata.hasPendingWrites) return;
+
+console.log("[Realtime] Workout updated");
+const sessions = snapshot.docs.map((d) => d.data());
+
+// Simple update - just set workout count without spreading old state
+setTrends({
+  proteinConsistency: 0,
+  hydrationConsistency: 0,
+  movementConsistency: 0,
+  checkinsCompleted: 0,
+  moodTrend: "",
+  totalSets: 0,
+  avgDuration: 0,
+  workoutsThisWeek: sessions.length,
+});
+});
+
+// 🔹 Status listener (for dashboard sync)
+const unsubStatus = onSnapshot(statusRef, (snap) => {
+  if (snap.exists()) {
+    console.log("[Realtime] Status updated:", snap.data());
+    setStatus(snap.data());
+  }
+});
+
+// ✅ Cleanup all listeners when component unmounts
+return () => {
+  unsubCheckins();
+  unsubSessions();
+  unsubStatus();
+};
+}, []);
+// ✅ Recent Check-ins for Mood History (Last 14 Days)
+useEffect(() => {
+  const loadRecentCheckins = async () => {
+    const email = getEmail();
+    if (!email) return;
+
+    const colRef = collection(db, "users", email, "checkins");
+
+    // ✅ Firestore wrapper for safety and toast feedback
+    const snaps = await withFirestoreError(getDocs(colRef), "recent check-ins", showToast);
+    if (!snaps) return; // stop if Firestore failed
+
+    const all = snaps.docs.map((d) => d.data() as Checkin);
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 14);
+
+    const recent = all
+      .filter((c) => new Date(c.date) >= cutoff)
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+    setRecentCheckins(recent);
+  };
+
+  loadRecentCheckins();
+}, [todayCheckin]);
+// ✅ Mood history for the line chart (last 7 days)
+// Keeping placeholder state for compatibility with coach insight generation
 const [moodHistory] = useState<{ day: string; mood: number }[]>([]);
 // Convert mood text to numeric score for chart visualization
 function moodToScore(m: string): number {
-  const val = m?.toLowerCase?.() || "";
-  if (val === "energized") return 3;
-  if (val === "okay") return 2;
-  if (val === "tired") return 1;
-  return 0;
+const val = m?.toLowerCase?.() || "";
+if (val === "energized") return 3;
+if (val === "okay") return 2;
+if (val === "tired") return 1;
+return 0;
 }
 // Determine which consistency area needs the most focus
 function getNextFocus(trends: any): string {
-  if (!trends) return "Keep building momentum through small, steady actions.";
+if (!trends) return "Keep building momentum through small, steady actions.";
 
-  const areas = [
-    { name: "Protein", value: trends.proteinConsistency ?? 0 },
-    { name: "Hydration", value: trends.hydrationConsistency ?? 0 },
-    { name: "Movement", value: trends.movementConsistency ?? 0 },
-    { name: "Nutrition", value: trends.nutritionAlignment ?? 0 },
-  ];
+const areas = [
+  { name: "Protein", value: trends.proteinConsistency ?? 0 },
+  { name: "Hydration", value: trends.hydrationConsistency ?? 0 },
+  { name: "Movement", value: trends.movementConsistency ?? 0 },
+  { name: "Nutrition", value: trends.nutritionAlignment ?? 0 },
+];
 
-  const lowest = areas.reduce((min, a) => (a.value < min.value ? a : min), areas[0]);
+const lowest = areas.reduce((min, a) => (a.value < min.value ? a : min), areas[0]);
 
-  switch (lowest.name) {
-    case "Protein":
-      return "Next focus: hit your protein goal consistently this week.";
-    case "Hydration":
-      return "Next focus: improve hydration — aim for 100+ oz daily.";
-    case "Movement":
-      return "Next focus: move more often — even short walks add up.";
-    case "Nutrition":
-      return "Next focus: tighten your food quality and meal timing.";
-    default:
-      return "Stay balanced across all areas — small wins compound.";
-  }
+switch (lowest.name) {
+  case "Protein":
+    return "Next focus: hit your protein goal consistently this week.";
+  case "Hydration":
+    return "Next focus: improve hydration — aim for 100+ oz daily.";
+  case "Movement":
+    return "Next focus: move more often — even short walks add up.";
+  case "Nutrition":
+    return "Next focus: tighten your food quality and meal timing.";
+  default:
+    return "Stay balanced across all areas — small wins compound.";
+}
 }
 useEffect(() => {
-  const email = getEmail();
-  if (email) {
-    // 🧪 Seed fake data once for testing, then comment out after
-    // seedFakeCheckins(email);
-  }
+const email = getEmail();
+if (email) {
+  // 🧪 Seed fake data once for testing, then comment out after
+  // seedFakeCheckins(email);
+}
 }, []);
+
+
 useEffect(() => {
-  const email = getEmail();
-  if (email) {
-    // ⚠️ Only run this once for testing, then comment it out
-    seedFakeCheckins(email);
+  const loadCommitment = async () => {
+    const email = getEmail();
+    if (!email) return;
+
+    const commitRef = doc(db, "users", email, "momentum", "commitment");
+    const snap = await getDoc(commitRef);
+
+    if (!snap.exists()) {
+      // No commitment exists, show prompt
+      setShowCommitment(true);
+      return;
+    }
+
+    const data = snap.data();
+    setCommitment(data);
+
+    // Check if commitment expired (7 days passed)
+    if (data.expiresAt && new Date(data.expiresAt) < new Date()) {
+      setShowCommitment(true); // Time to recommit or level up
+    }
+  };
+
+  if (!loading && currentFocus) {
+    loadCommitment();
   }
-}, []);
+}, [loading, currentFocus]);
+
+
 // ✅ Framer Motion variants for staggered fade-in
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -1175,76 +1161,352 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
     className="max-w-3xl mx-auto space-y-6"
   >
           
-          {/* 1. Welcome Header */}
+          {/* 1. Welcome Header with Integrated Commitment */}
 <motion.div
   variants={itemVariants}
-  className="bg-white rounded-2xl shadow-sm p-4 mb-3 transition-shadow hover:shadow flex items-start justify-between"
+  className="bg-white rounded-2xl shadow-sm p-6 mb-6"
 >
-  {/* Left side: greeting, streak, tagline */}
-  <div className="flex flex-col">
-    <h1 className="text-2xl font-bold text-gray-900">
-      Hey {profile?.firstName || "there"}.
-    </h1>
+  <div className="flex items-start justify-between mb-4">
+    {/* Left: Greeting */}
+    <div className="flex flex-col">
+      <h1 className="text-2xl font-bold text-gray-900">
+        Hey {profile?.firstName || "there"}.
+      </h1>
 
-    {hasCompletedCheckin() ? (
-      <p className="text-gray-600 mt-1">You checked in today. That's the kind of consistency that compounds.</p>
-    ) : (
-      <p className="text-gray-600 mt-1">Welcome back. Ready to build?</p>
-    )}
+      {hasCompletedCheckin() ? (
+        <p className="text-gray-600 mt-1">You checked in today. That's the kind of consistency that compounds.</p>
+      ) : (
+        <p className="text-gray-600 mt-1">Welcome back. Ready to build?</p>
+      )}
 
-   {/* 🔥 Check-in Streak Display */}
-{checkinStreak > 0 && (() => {
-  const { icon, message } = getStreakMessage(checkinStreak);
-  return (
-    <div className="flex items-center gap-2 text-sm font-medium text-amber-600 mt-2">
-      <span>{icon}</span>
-      <span>{message}</span>
+      {/* Streak Display */}
+      {checkinStreak > 0 && (() => {
+        const { icon, message } = getStreakMessage(checkinStreak);
+        return (
+          <div className="flex items-center gap-2 text-sm font-medium text-amber-600 mt-2">
+            <span>{icon}</span>
+            <span>{message}</span>
+          </div>
+        );
+      })()}
+
+      {/* Tagline */}
+      <p className="text-[11px] tracking-widest uppercase text-gray-400 font-semibold mt-2">
+        Patience • Perseverance • Progress
+      </p>
     </div>
-  );
-})()}
 
-{/* Tagline */}
-<p className="text-[11px] tracking-widest uppercase text-gray-400 font-semibold mt-2">
-  Patience • Perseverance • Progress
-</p>
-</div>
+    {/* Right: Logo */}
+    <div className="mt-1 mr-2 w-32 sm:w-36 md:w-40">
+      <Image
+        src="/logo.png"
+        alt="Nelson Logo"
+        width={160}
+        height={90}
+        className="w-full h-auto"
+        priority
+      />
+    </div>
+  </div>
 
-{/* Right side: Nelson logo */}
-<div className="mt-1 mr-2 w-32 sm:w-36 md:w-40">
-  <Image
-    src="/logo.png"
-    alt="Nelson Logo"
-    width={160}
-    height={90}
-    className="w-full h-auto"
-    priority
-  />
+  {/* Commitment Section */}
+<div className="mt-4 pt-4 border-t border-gray-200 transition-all duration-500 ease-in-out">
+  {showCommitment && currentFocus ? (
+    <div className="transition-all duration-500 ease-in-out">
+      {/* Stage 1: Initial Prompt */}
+      {commitmentStage === "initial" && (
+        <div className="animate-fadeIn">
+          <p className="text-gray-800 mb-3">
+            Before we start tracking, I need to know you're in. Can you commit to{" "}
+            <span className="font-semibold">{currentFocus.habit.toLowerCase()}</span> for the next 7 days, rain or shine?
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={async () => {
+                setSaving(true);
+                try {
+                  const email = getEmail();
+                  if (!email) return;
+
+                  const weekId = getISOWeekId(new Date());
+                  const expiresAt = new Date();
+                  expiresAt.setDate(expiresAt.getDate() + 7);
+
+                  await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                    habitOffered: currentFocus.habit,
+                    habitKey: currentFocus.habitKey,
+                    accepted: true,
+                    acceptedAt: new Date().toISOString(),
+                    weekStarted: weekId,
+                    expiresAt: expiresAt.toISOString(),
+                    createdAt: new Date().toISOString(),
+                  });
+
+                  setShowCommitment(false);
+                  loadDashboardData();
+                } catch (err) {
+                  console.error("Failed to save commitment:", err);
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "I'm In"}
+            </button>
+            <button
+              onClick={() => setCommitmentStage("reason")}
+              className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
+            >
+              Not Yet
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Stage 2: Reason Selection */}
+      {commitmentStage === "reason" && (
+        <div className="animate-fadeIn">
+          <p className="text-gray-800 mb-3 font-semibold">
+            I respect that. Let's figure out what would work better.
+          </p>
+          <p className="text-gray-700 mb-3 text-sm">What's making this feel difficult?</p>
+
+          <div className="space-y-2 mb-3">
+            <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 cursor-pointer text-sm">
+              <input
+                type="radio"
+                name="reason"
+                value="time_too_big"
+                checked={commitmentReason === "time_too_big"}
+                onChange={(e) => setCommitmentReason(e.target.value)}
+                className="w-4 h-4"
+              />
+              <span className="text-gray-800">The time commitment feels too big</span>
+            </label>
+
+            <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 cursor-pointer text-sm">
+              <input
+                type="radio"
+                name="reason"
+                value="different_habit"
+                checked={commitmentReason === "different_habit"}
+                onChange={(e) => setCommitmentReason(e.target.value)}
+                className="w-4 h-4"
+              />
+              <span className="text-gray-800">I'd rather focus on a different habit first</span>
+            </label>
+
+            <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 cursor-pointer text-sm">
+              <input
+                type="radio"
+                name="reason"
+                value="something_else"
+                checked={commitmentReason === "something_else"}
+                onChange={(e) => setCommitmentReason(e.target.value)}
+                className="w-4 h-4"
+              />
+              <span className="text-gray-800">Something else is in the way</span>
+            </label>
+          </div>
+
+          <button
+            onClick={async () => {
+              if (!commitmentReason) return;
+
+              setSaving(true);
+              try {
+                const email = getEmail();
+                if (!email) return;
+
+                await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                  habitOffered: currentFocus.habit,
+                  habitKey: currentFocus.habitKey,
+                  accepted: false,
+                  reason: commitmentReason,
+                  createdAt: new Date().toISOString(),
+                });
+
+                if (commitmentReason === "time_too_big" || commitmentReason === "different_habit") {
+                  setCommitmentStage("alternative");
+                } else {
+                  setShowCommitment(false);
+                  loadDashboardData();
+                }
+              } catch (err) {
+                console.error("Failed to save reason:", err);
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={!commitmentReason || saving}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? "Saving..." : "Continue"}
+          </button>
+        </div>
+      )}
+
+      {/* Stage 3: Alternative Options */}
+      {commitmentStage === "alternative" && (
+        <div className="animate-fadeIn">
+          {commitmentReason === "time_too_big" ? (
+            <>
+              <p className="text-gray-800 mb-3 font-semibold">
+                No problem. Would 5 minutes work better?
+              </p>
+              <p className="text-gray-700 mb-3 text-sm">
+                Sometimes starting smaller is the key. Can you commit to a 5-minute walk every day for 7 days?
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    setSaving(true);
+                    try {
+                      const email = getEmail();
+                      if (!email) return;
+
+                      const weekId = getISOWeekId(new Date());
+                      const expiresAt = new Date();
+                      expiresAt.setDate(expiresAt.getDate() + 7);
+
+                      await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                        habitOffered: currentFocus.habit,
+                        habitKey: currentFocus.habitKey,
+                        accepted: false,
+                        reason: commitmentReason,
+                        alternativeOffered: "Walk 5 minutes daily",
+                        alternativeAccepted: true,
+                        acceptedAt: new Date().toISOString(),
+                        weekStarted: weekId,
+                        expiresAt: expiresAt.toISOString(),
+                        createdAt: new Date().toISOString(),
+                      }, { merge: true });
+
+                      await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
+                        habit: "Walk 5 minutes daily",
+                        habitKey: "walk_5min",
+                        startedAt: new Date().toISOString().split("T")[0],
+                        consecutiveDays: 0,
+                        eligibleForLevelUp: false,
+                        createdAt: new Date().toISOString(),
+                      });
+
+                      setShowCommitment(false);
+                      loadDashboardData();
+                    } catch (err) {
+                      console.error("Failed to save alternative:", err);
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Yes, 5 Minutes"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCommitment(false);
+                    loadDashboardData();
+                  }}
+                  className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
+                >
+                  I'll Think About It
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-800 mb-3 font-semibold">
+                No problem. What would you rather focus on?
+              </p>
+              <p className="text-gray-700 mb-3 text-sm">Pick the habit that feels most important right now:</p>
+
+              <div className="space-y-2">
+                {[
+                  { habit: "Walk 10 minutes daily", key: "walk_10min", desc: "Build the movement habit" },
+                  { habit: "Hit your protein target daily", key: "protein_daily", desc: "Fuel muscle and recovery" },
+                  { habit: "Drink 100 oz of water daily", key: "hydration_100oz", desc: "Stay hydrated and energized" },
+                  { habit: "Sleep 7+ hours nightly", key: "sleep_7plus", desc: "Recover and rebuild" },
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    onClick={async () => {
+                      setSaving(true);
+                      try {
+                        const email = getEmail();
+                        if (!email) return;
+
+                        const weekId = getISOWeekId(new Date());
+                        const expiresAt = new Date();
+                        expiresAt.setDate(expiresAt.getDate() + 7);
+
+                        await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                          habitOffered: currentFocus.habit,
+                          habitKey: currentFocus.habitKey,
+                          accepted: false,
+                          reason: "different_habit",
+                          alternativeOffered: option.habit,
+                          alternativeAccepted: true,
+                          acceptedAt: new Date().toISOString(),
+                          weekStarted: weekId,
+                          expiresAt: expiresAt.toISOString(),
+                          createdAt: new Date().toISOString(),
+                        }, { merge: true });
+
+                        await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
+                          habit: option.habit,
+                          habitKey: option.key,
+                          startedAt: new Date().toISOString().split("T")[0],
+                          consecutiveDays: 0,
+                          eligibleForLevelUp: false,
+                          createdAt: new Date().toISOString(),
+                        });
+
+                        setShowCommitment(false);
+                        loadDashboardData();
+                      } catch (err) {
+                        console.error("Failed to save habit selection:", err);
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    disabled={saving}
+                    className="w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-50"
+                  >
+                    <p className="font-semibold text-gray-900 text-sm">{option.habit}</p>
+                    <p className="text-xs text-gray-600">{option.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  ) : commitment && (commitment.accepted || commitment.alternativeAccepted) ? (
+    /* Active Commitment Display - Always Visible */
+    <div className="animate-fadeIn">
+      <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3">
+        <div>
+          <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Your Commitment</p>
+          <p className="text-sm font-bold text-gray-900 mt-1">
+            🎯 {commitment.alternativeOffered || commitment.habitOffered}
+          </p>
+        </div>
+        <p className="text-xs text-gray-600 font-semibold">
+          Day {Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1} of 7
+          </p>
+      </div>
+    </div>
+  ) : null}
 </div>
 </motion.div>
-
-{/* Weekly Focus Card */}
-{currentFocus && (
-  <motion.div
-    variants={itemVariants}
-    className="bg-white rounded-2xl shadow-sm p-5 mb-6"
-  >
-    <h2 className="text-lg font-semibold text-gray-900 mb-3">
-      Your Focus This Week
-    </h2>
-
-    <div className="bg-gray-50 rounded-lg p-4">
-      <p className="text-base font-semibold text-gray-900 mb-2">
-        {currentFocus.habit}
-      </p>
-      <p className="text-sm text-gray-600">
-        One brick at a time. Show up for this, and momentum builds itself.
-      </p>
-    </div>
-  </motion.div>
-)}
-
-       {/* 2. Daily Check-In */}
-       {!hasCompletedCheckin() && (
+{/* 2. Daily Check-In */}
+{!hasCompletedCheckin() && (
   <motion.div
     variants={itemVariants}
     initial="visible"
@@ -1419,7 +1681,6 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
     </button>
   </motion.div>
 )}
-
        {/* Yesterday's Accountability */}
 <motion.div
   variants={itemVariants}
