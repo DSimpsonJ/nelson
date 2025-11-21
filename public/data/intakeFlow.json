@@ -1,110 +1,145 @@
 {
-    "questions": [
-      {
-        "id": "welcome",
-        "type": "message",
-        "text": "Hey {{name}}, I’m Nelson. Nice to meet you. Before I build your program, I want to understand where you’re starting from and what you want to achieve. No judgment here, just facts and a plan that fits you.",
-        "next": "activity"
-      },
-      {
-        "id": "activity",
-        "type": "singleChoice",
-        "text": "Be honest with me. How active have you been over the last few months?",
-        "options": [
-          { "label": "I don’t exercise", "value": "none" },
-          { "label": "Rarely, but I move sometimes", "value": "rare" },
-          { "label": "A little something every week", "value": "some" },
-          { "label": "A few workouts most weeks", "value": "regular" },
-          { "label": "Almost every day", "value": "daily" }
-        ],
-        "next": "goal"
-      },
-      {
-        "id": "goal",
-        "type": "singleChoice",
-        "text": "Let’s start on the right foot. What’s your main goal right now? Pick the one that fits best.",
-        "options": [
-          { "label": "Build muscle", "value": "muscle" },
-          { "label": "Get stronger", "value": "strength" },
-          { "label": "Lose fat", "value": "fatloss" },
-          { "label": "Feel better and improve overall health", "value": "health" }
-        ],
-        "next": "mindset"
-      },
-      {
-        "id": "mindset",
-        "type": "singleChoice",
-        "text": "How would you describe your mindset right now?",
-        "options": [
-          { "label": "Just getting started, I need momentum", "value": "start" },
-          { "label": "I’ve done this before, but I’m rebuilding", "value": "rebuild" },
-          { "label": "I’m consistent, I just need structure", "value": "structure" },
-          { "label": "I’m all in, let’s push", "value": "push" }
-        ],
-        "next": "equipment"
-      },
-      {
-        "id": "equipment",
-        "type": "singleChoice",
-        "text": "What kind of gear do you have access to?",
-        "options": [
-          { "label": "Full gym", "value": "full" },
-          { "label": "Home setup", "value": "home" },
-          { "label": "Minimal, just bands or bodyweight", "value": "minimal" }
-        ],
-        "next": "commitment"
-      },
-      {
-        "id": "commitment",
-        "type": "singleChoice",
-        "text": "How many days a week can you realistically commit to training? Be honest, consistency is the most crucial ingredient of your plan.",
-        "options": [
-          { "label": "2 days", "value": "2" },
-          { "label": "3 days", "value": "3" },
-          { "label": "4 days", "value": "4" },
-          { "label": "5+ days", "value": "5plus" }
-        ],
-        "next": "sleep"
-      },
-      {
-        "id": "sleep",
-        "type": "singleChoice",
-        "text": "How’s your sleep these days?",
-        "options": [
-          { "label": "Rough", "value": "poor" },
-          { "label": "Decent but inconsistent", "value": "ok" },
-          { "label": "Solid most nights", "value": "good" }
-        ],
-        "next": "coaching"
-      },
-      {
-        "id": "coaching",
-        "type": "singleChoice",
-        "text": "How do you want me to coach you?",
-        "options": [
-          { "label": "Encouraging, keep me positive", "value": "encouraging" },
-          { "label": "Direct, call me out when needed", "value": "direct" },
-          { "label": "Analytical, focus on the data", "value": "analytical" }
-        ],
-        "next": "bodyStats"
-      },
-      {
-        "id": "bodyStats",
-        "type": "numberInput",
-        "text": "If you’re comfortable sharing, what’s your current weight and where would you like to be? I use it to estimate hydration, calories, and track your progress — nothing more.",
-        "fields": [
-          { "name": "currentWeight", "label": "Current Weight (lb)" },
-          { "name": "goalWeight", "label": "Goal Weight (lb)" }
-        ],
-        "next": "summary"
-      },
-      {
-        "id": "summary",
-        "type": "message",
-        "text": "Great job, {{name}}! Thanks for the info — getting started can be tough, but you’re already winning. Let’s take this momentum and build your plan together!",
-        "actions": [
-          { "label": "Let’s Do This!", "action": "finalizeIntake" }
-        ]
+  "questions": [
+    {
+      "id": "welcome",
+      "type": "message",
+      "text": "Hey {{name}}, I’m Nelson, your accountability support partner. Before we start building together, I'd like to understand where you’re at today and what you intend to achieve. No judgment, just facts and a realistic plan tailored to you. Sound good?",
+      "next": "goal"
+    },
+    {
+      "id": "goal",
+      "type": "singleChoice",
+      "text": "Excellent!  So tell me, what's your primary desired change?  What brings you here today?",
+      "options": [
+        { "label": "Lose body fat", "value": "fat_loss" },
+        { "label": "Build muscle", "value": "muscle_gain" },
+        { "label": "Lean and strong (recomp)", "value": "recomp" },
+        { "label": "Improve overall health", "value": "health" },
+        { "label": "Not sure, I just need change", "value": "unsure" }
+      ],
+      "next": "eatingPattern"
+    },
+    {
+      "id": "eatingPattern",
+      "type": "singleChoice",
+      "text": "Honesty is our first policy. Truth isn't always pretty, but it's the baseline for our work together. So tell me, which best describes how you usually eat?",
+      "options": [
+        { "label": "Structured meals with protein and some veggies", "value": "structured" },
+        { "label": "Mix of meals and snacks", "value": "mixed" },
+        { "label": "Mostly grazing or snacking", "value": "grazing" },
+        { "label": "No real pattern; eat whatever's convenient", "value": "no_pattern" }
+      ],
+      "next": "activityLevel"
+    },
+    {
+      "id": "activityLevel",
+      "type": "singleChoice",
+      "text": "How active have you been over the last few months?",
+      "options": [
+        { "label": "Mostly sedentary - sit most of the day, not much walking", "value": "sedentary" },
+        { "label": "Lightly active - some walking, chores, occasional activity", "value": "lightly_active" },
+        { "label": "Regularly active - walk or move most days, some home exercise", "value": "regularly_active" },
+        { "label": "Very active - consistent training, daily movement, work on my feet", "value": "training_consistently" }
+      ],
+      "next": "scheduleLoad"
+    },
+    {
+      "id": "scheduleLoad",
+      "type": "singleChoice",
+      "text": "How booked is your schedule most days?",
+      "options": [
+        { "label": "Light", "value": "light" },
+        { "label": "Manageable", "value": "manageable" },
+        { "label": "Busy", "value": "busy" },
+        { "label": "Packed", "value": "packed" }
+      ],
+      "next": "commitment_router"
+    },
+    {
+      "id": "commitment_router",
+      "type": "router",
+      "routes": {
+        "sedentary": "commitment_sedentary",
+        "lightly_active": "commitment_lightly_active",
+        "regularly_active": "commitment_regularly_active",
+        "training_consistently": "commitment_training_consistently"
       }
+    },
+    {
+      "id": "commitment_sedentary",
+      "type": "singleChoice",
+      "text": "How much time will you commit to moving your body EVERY day? Start small, be real, consistency matters more than duration.",
+      "options": [
+        { "label": "2-3 minutes", "value": "3" },
+        { "label": "3-5 minutes", "value": "5" },
+        { "label": "5-8 minutes", "value": "8" }
+      ],
+      "next": "sleepHours"
+    },
+    {
+      "id": "commitment_lightly_active",
+      "type": "singleChoice",
+      "text": "How much time will you commit to moving your body EVERY day? Be real, consistency matters more than duration.",
+      "options": [
+        { "label": "5-10 minutes", "value": "10" },
+        { "label": "10-15 minutes", "value": "15" },
+        { "label": "15-20 minutes", "value": "20" }
+      ],
+      "next": "sleepHours"
+    },
+    {
+      "id": "commitment_regularly_active",
+      "type": "singleChoice",
+      "text": "Solid, let's build from that! How much time will you commit to moving your body EVERY day?",
+      "options": [
+        { "label": "10-20 minutes", "value": "20" },
+        { "label": "15-25 minutes", "value": "25" },
+        { "label": "20-30 minutes", "value": "30" }
+      ],
+      "next": "sleepHours"
+    },
+    {
+      "id": "commitment_training_consistently",
+      "type": "singleChoice",
+      "text": "Wow!  Ok, let's continue building from your solid foundation.  How much time will you commit to moving your body EVERY day?",
+      "disclaimer": "Note: Gym programs are coming soon. For now, you'll set a daily movement goal and log any workouts you do.",
+      "options": [
+        { "label": "15-25 minutes", "value": "25" },
+        { "label": "20-30 minutes", "value": "30" },
+        { "label": "30-45 minutes", "value": "45" },
+        { "label": "45+ minutes", "value": "60" }
+      ],
+      "next": "sleepHours"
+    },
+    {
+      "id": "sleepHours",
+      "type": "singleChoice",
+      "text": "On most nights, how many hours of sleep do you get?",
+      "options": [
+        { "label": "Less than 5", "value": "<5" },
+        { "label": "5-6 hours", "value": "5-6" },
+        { "label": "6-7 hours", "value": "6-7" },
+        { "label": "7-8 hours", "value": "7-8" },
+        { "label": "More than 8", "value": ">8" }
+      ],
+      "next": "weight"
+    },
+    {
+      "id": "weight",
+      "type": "numberInput",
+      "text": "Last question - What's your current weight? I use this to calculate your hydration and protein targets.",
+      "fields": [
+        { "name": "weightLbs", "label": "Current Weight (lb)" }
+      ],
+      "next": "summary"
+    },
+    {
+      "id": "summary",
+      "type": "message",
+      "text": "That's it, {{name}}! You've given me plenty to work with for now.  Together, we'll build you into the healthy, fit person you intend to be!  Ready to change your life one brick at a time?",
+      "actions": [
+        { "label": "Let's Go!", "action": "finalizeIntake" }
       ]
-      }
+    }
+  ]
+}

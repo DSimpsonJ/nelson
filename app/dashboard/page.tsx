@@ -1738,7 +1738,7 @@ console.log("🔍 CHECK-IN VISIBILITY TEST:", {
         <div>
           <p className="text-xs text-gray-600 mb-2 flex items-center">
             Movement
-            <InfoTooltip text="Any intentional activity beyond your workout" />
+            <InfoTooltip text="Any intentional activity beyond your main focus. Examples: parking farther away, taking the stairs, gardening, walking the dog, cleaning, walking during calls." />
           </p>
           <div className="flex gap-2">
             {["Yes", "No"].map((option) => (
