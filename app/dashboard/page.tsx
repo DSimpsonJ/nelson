@@ -45,6 +45,7 @@ import { getStreakMessage } from "../utils/getStreakMessage";
 import { withFirestoreError } from "../utils/withFirestoreError";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import WalkTimer from "../components/WalkTimer";
 
 /** ---------- Types ---------- */
 
@@ -311,7 +312,7 @@ export default function DashboardPage() {
   const [recentMomentum, setRecentMomentum] = useState<any[]>([]);
   const [commitment, setCommitment] = useState<any>(null);
   const [showCommitment, setShowCommitment] = useState(false);
-  const [commitmentStage, setCommitmentStage] = useState<"initial" | "reason" | "alternative">("initial");
+  const [commitmentStage, setCommitmentStage] = useState<"initial" | "reason" | "alternative" | "choose" | "custom">("initial");
   const [commitmentReason, setCommitmentReason] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
@@ -346,7 +347,14 @@ export default function DashboardPage() {
       habitKey: `movement_${minutes}min`
     };
   };
-
+  const isMovementHabit = (habitKey: string): boolean => {
+    return habitKey?.includes("walk_") || habitKey?.includes("movement_");
+  };
+  
+  const getTargetMinutes = (habitKey: string): number => {
+    const match = habitKey.match(/(\d+)min/);
+    return match ? parseInt(match[1], 10) : 10;
+  };
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -447,8 +455,18 @@ export default function DashboardPage() {
       // ---- Load momentum data ----
       const focusRef = doc(db, "users", email, "momentum", "currentFocus");
       const focusSnap = await getDoc(focusRef);
+      
       if (focusSnap.exists()) {
         setCurrentFocus(focusSnap.data());
+      } else if (plan && (plan.primaryHabit as any)?.suggested) {
+        // New user with suggested habit - create suggested currentFocus for commitment flow
+        const suggestedFocus = {
+          habit: `Move ${plan.primaryHabit.targetMinutes} minutes daily`,
+          habitKey: `movement_${plan.primaryHabit.targetMinutes}min`,
+          suggested: true,
+          createdAt: new Date().toISOString(),
+        };
+        setCurrentFocus(suggestedFocus);
       }
 
       const todayMomentumRef = doc(db, "users", email, "momentum", today);
@@ -1148,11 +1166,18 @@ export default function DashboardPage() {
               <div className="transition-all duration-500 ease-in-out">
                 {commitmentStage === "initial" && (
                   <div className="animate-fadeIn">
-                    <p className="text-gray-800 mb-3">
-                      Before we start tracking, I need to know you're in. Can you commit to{" "}
-                      <span className="font-semibold">{currentFocus.habit.toLowerCase()}</span> for the next 7 days, rain or shine?
+                    <p className="text-gray-800 mb-1 text-sm">
+  {currentFocus.suggested && currentFocus.habitKey !== "custom_habit" && currentFocus.habitKey?.includes("movement_") 
+    ? "Based on your intake, I recommend:" 
+    : "Your focus:"}
+</p>
+                    <p className="text-gray-900 mb-3 font-semibold text-lg">
+                      {currentFocus.habit}
                     </p>
-                    <div className="flex gap-3">
+                    <p className="text-gray-700 mb-4 text-sm">
+                      Can you commit to this for 7 days, rain or shine?
+                    </p>
+                    <div className="flex flex-col gap-2">
                       <button
                         onClick={async () => {
                           setSaving(true);
@@ -1164,6 +1189,7 @@ export default function DashboardPage() {
                             const expiresAt = new Date();
                             expiresAt.setDate(expiresAt.getDate() + 7);
 
+                            // Save commitment
                             await setDoc(doc(db, "users", email, "momentum", "commitment"), {
                               habitOffered: currentFocus.habit,
                               habitKey: currentFocus.habitKey,
@@ -1171,6 +1197,16 @@ export default function DashboardPage() {
                               acceptedAt: new Date().toISOString(),
                               weekStarted: weekId,
                               expiresAt: expiresAt.toISOString(),
+                              createdAt: new Date().toISOString(),
+                            });
+
+                            // Lock in currentFocus
+                            await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
+                              habit: currentFocus.habit,
+                              habitKey: currentFocus.habitKey,
+                              startedAt: today,
+                              consecutiveDays: 0,
+                              eligibleForLevelUp: false,
                               createdAt: new Date().toISOString(),
                             });
 
@@ -1183,16 +1219,28 @@ export default function DashboardPage() {
                           }
                         }}
                         disabled={saving}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition disabled:opacity-50"
                       >
                         {saving ? "Saving..." : "I'm In"}
                       </button>
-                      <button
-                        onClick={() => setCommitmentStage("reason")}
-                        className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
-                      >
-                        Not Yet
-                      </button>
+                      
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setCommitmentStage("reason")}
+                          className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
+                        >
+                          Not Yet
+                        </button>
+                        
+                        {currentFocus.suggested && (
+                          <button
+                            onClick={() => setCommitmentStage("choose")}
+                            className="flex-1 bg-white hover:bg-gray-50 text-blue-600 font-semibold rounded-lg py-2 border-2 border-blue-300 transition"
+                          >
+                            Choose Different
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1262,8 +1310,9 @@ export default function DashboardPage() {
                           if (commitmentReason === "time_too_big" || commitmentReason === "different_habit") {
                             setCommitmentStage("alternative");
                           } else {
-                            setShowCommitment(false);
-                            loadDashboardData();
+                            // "Something else" - just go back to choose
+                            setCommitmentStage("choose");
+                            setCommitmentReason("");
                           }
                         } catch (err) {
                           console.error("Failed to save reason:", err);
@@ -1416,25 +1465,140 @@ export default function DashboardPage() {
                     )}
                   </div>
                 )}
+
+                {commitmentStage === "choose" && (
+                  <div className="animate-fadeIn">
+                    <p className="text-gray-800 mb-3 font-semibold">
+                      What would you rather focus on?
+                    </p>
+                    <p className="text-gray-700 mb-3 text-sm">Pick the habit that feels most important right now:</p>
+
+                    <div className="space-y-2">
+                    {[
+  { habit: "Walk 5 minutes daily", key: "walk_5min", desc: "Start small, build consistency" },
+  { habit: "Walk 10 minutes daily", key: "walk_10min", desc: "Build the movement habit" },
+  { habit: "Walk 15 minutes daily", key: "walk_15min", desc: "Increase daily activity" },
+  { habit: "Hit your protein target daily", key: "protein_daily", desc: "Fuel muscle and recovery" },
+  { habit: "Eat protein at every meal", key: "protein_every_meal", desc: "Build the protein habit" },
+  { habit: "Eat 3 servings of vegetables daily", key: "vegetables_3_servings", desc: "Increase nutrient density" },
+  { habit: "No eating within 2 hours of bedtime", key: "no_late_eating", desc: "Improve digestion and sleep" },
+  { habit: "Drink 100 oz of water daily", key: "hydration_100oz", desc: "Stay hydrated and energized" },
+  { habit: "Sleep 7+ hours nightly", key: "sleep_7plus", desc: "Recover and rebuild" },
+].map((option) => (
+                        <button
+                          key={option.key}
+                          onClick={() => {
+                            // Update currentFocus with selected habit
+                            setCurrentFocus({
+                              habit: option.habit,
+                              habitKey: option.key,
+                              suggested: true,
+                              createdAt: new Date().toISOString(),
+                            });
+                          
+                            setCommitmentStage("initial");
+                          }}
+                          disabled={saving}
+                          className="w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-50"
+                        >
+                         <p className="font-semibold text-gray-900 text-sm">{option.habit}</p>
+                          <p className="text-xs text-gray-600">{option.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                    
+                    <button
+                      onClick={() => setCommitmentStage("custom")}
+                      className="w-full mt-3 text-center p-3 border-2 border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition text-blue-600 font-semibold"
+                    >
+                      + Create My Own Habit
+                    </button>
+                  </div>
+                )}
+
+                {commitmentStage === "custom" && (
+                  <div className="animate-fadeIn">
+                    <p className="text-gray-800 mb-3 font-semibold">
+                      What is ONE small habit can you do EVERY day for 7 days?
+                    </p>
+                    <p className="text-gray-600 mb-3 text-sm">
+                      Examples: Eat 1 serving of vegetables, Do 10 pushups, Journal for 5 minutes
+                    </p>
+                    
+                    <input
+                      type="text"
+                      maxLength={50}
+                      placeholder="One small daily habit..."
+                      value={commitmentReason}
+                      onChange={(e) => setCommitmentReason(e.target.value)}
+                      className="w-full border-2 border-gray-300 rounded-lg p-3 text-gray-900 mb-3 focus:border-blue-400 focus:outline-none"
+                    />
+                    
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setCommitmentStage("choose");
+                          setCommitmentReason("");
+                        }}
+                        className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
+                      >
+                        Back
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          if (!commitmentReason.trim()) return;
+                          
+                          // Update currentFocus with custom habit
+                          setCurrentFocus({
+                            habit: commitmentReason.trim(),
+                            habitKey: "custom_habit",
+                            suggested: true,
+                            createdAt: new Date().toISOString(),
+                          });
+                          
+                          setCommitmentStage("initial");
+                          setCommitmentReason("");
+                        }}
+                        disabled={!commitmentReason.trim()}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Continue
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : commitment && (commitment.accepted || commitment.alternativeAccepted) ? (
               <div className="animate-fadeIn">
-                <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3">
-                  <div>
+                <button
+                  onClick={() => {
+                    if (currentFocus && isMovementHabit(currentFocus.habitKey)) {
+                      router.push('/walk');
+                    } else {
+                      router.push('/program');
+                    }
+                  }}
+                  className="w-full flex items-center justify-between bg-blue-50 hover:bg-blue-100 rounded-lg p-3 transition-all border-2 border-transparent hover:border-blue-300 group"
+                >
+                  <div className="text-left">
                     <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Your Commitment</p>
                     <p className="text-sm font-bold text-gray-900 mt-1">
-                      🎯 {commitment.alternativeOffered || commitment.habitOffered}
+                      🎯 {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1 group-hover:underline">
+                      Tap to start →
                     </p>
                   </div>
                   <p className="text-xs text-gray-600 font-semibold">
-                    Day {Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1} of 7
+                    Day {commitment?.acceptedAt ? Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 1} of 7
                   </p>
-                </div>
+                </button>
               </div>
             ) : null}
           </div>
         </motion.div>
-
+      
         {/* 2. Morning Check-In */}
         {!hasCompletedCheckin() && (
           <motion.div

@@ -20,6 +20,7 @@ export type PrimaryHabit = {
   createdAt: any;
   lastChangeAt: any;
   source: "intake" | "manual" | "auto_level";
+  suggested?: boolean; // Mark as suggested until user commits
 };
 
 export type Plan = {
@@ -68,13 +69,14 @@ export function buildInitialPlanFromIntake(answers: IntakeAnswers): Plan {
     
   const proteinTargetG = Math.round(baseWeightForProtein * 0.8);
 
-  // Build primary habit object
+  // Build primary habit object as a SUGGESTION (not committed yet)
   const primaryHabit: PrimaryHabit = {
     type: "movement_minutes",
     targetMinutes,
     createdAt: now,
     lastChangeAt: now,
     source: "intake",
+    suggested: true, // User must approve this on dashboard
   };
 
   // Build complete plan
