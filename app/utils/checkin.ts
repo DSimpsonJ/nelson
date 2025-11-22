@@ -8,9 +8,10 @@ export interface Checkin {
   proteinHit: string;
   hydrationHit: string;
   movedToday?: string;
-  sleepHit?: string;  // ADD THIS LINE
+  sleepHit?: string;
   energyBalance?: string;
   eatingPattern?: string;
+  primaryHabitDuration?: string;  // ADD THIS LINE
   note?: string;
   createdAt?: string;
   updatedAt?: string;

@@ -3,13 +3,13 @@
     {
       "id": "welcome",
       "type": "message",
-      "text": "Hey {{name}}, I’m Nelson, your accountability support partner. Before we start building together, I'd like to understand where you’re at today and what you intend to achieve. No judgment, just facts and a realistic plan tailored to you. Sound good?",
+      "text": "Hey {{name}}, I'm Nelson, your accountability support partner. To kick things off, I'd like to understand where you're at on your health journey so we can determine where you intend to go. Answer a few questions and I'll design a plan specifically for you. Sound good?",
       "next": "goal"
     },
     {
       "id": "goal",
       "type": "singleChoice",
-      "text": "Excellent!  So tell me, what's your primary desired change?  What brings you here today?",
+      "text": "Tell me, what's the most important desired outcome for you right now?",
       "options": [
         { "label": "Lose body fat", "value": "fat_loss" },
         { "label": "Build muscle", "value": "muscle_gain" },
@@ -22,7 +22,7 @@
     {
       "id": "eatingPattern",
       "type": "singleChoice",
-      "text": "Honesty is our first policy. Truth isn't always pretty, but it's the baseline for our work together. So tell me, which best describes how you usually eat?",
+      "text": "Honesty is our policy. The truth isn't always pretty, but we need to determine your baseline.  So, which best describes how you usually eat?",
       "options": [
         { "label": "Structured meals with protein and some veggies", "value": "structured" },
         { "label": "Mix of meals and snacks", "value": "mixed" },
@@ -34,19 +34,19 @@
     {
       "id": "activityLevel",
       "type": "singleChoice",
-      "text": "How active have you been over the last few months?",
+      "text": "How active are you right now?",
       "options": [
         { "label": "Mostly sedentary - sit most of the day, not much walking", "value": "sedentary" },
         { "label": "Lightly active - some walking, chores, occasional activity", "value": "lightly_active" },
-        { "label": "Regularly active - walk or move most days, some home exercise", "value": "regularly_active" },
-        { "label": "Very active - consistent training, daily movement, work on my feet", "value": "training_consistently" }
+        { "label": "Regularly active - walk or move most days, some exercise", "value": "regularly_active" },
+        { "label": "Very active - working on my feet, multiple workouts per week", "value": "training_consistently" }
       ],
       "next": "scheduleLoad"
     },
     {
       "id": "scheduleLoad",
       "type": "singleChoice",
-      "text": "How booked is your schedule most days?",
+      "text": "How jammed is your schedule most days?",
       "options": [
         { "label": "Light", "value": "light" },
         { "label": "Manageable", "value": "manageable" },
@@ -68,7 +68,7 @@
     {
       "id": "commitment_sedentary",
       "type": "singleChoice",
-      "text": "How much time will you commit to moving your body EVERY day? Start small, be real, consistency matters more than duration.",
+      "text": "Realistically, how much time will you commit to moving your body EVERY day? Start small because consistency matters more than duration.",
       "options": [
         { "label": "2-3 minutes", "value": "3" },
         { "label": "3-5 minutes", "value": "5" },
@@ -79,7 +79,7 @@
     {
       "id": "commitment_lightly_active",
       "type": "singleChoice",
-      "text": "How much time will you commit to moving your body EVERY day? Be real, consistency matters more than duration.",
+      "text": "How much time will you commit to moving your body EVERY day? Be real because consistency matters more than duration.",
       "options": [
         { "label": "5-10 minutes", "value": "10" },
         { "label": "10-15 minutes", "value": "15" },
@@ -90,7 +90,7 @@
     {
       "id": "commitment_regularly_active",
       "type": "singleChoice",
-      "text": "Solid, let's build from that! How much time will you commit to moving your body EVERY day?",
+      "text": "Ok, and how much time will you commit to moving your body EVERY day?",
       "options": [
         { "label": "10-20 minutes", "value": "20" },
         { "label": "15-25 minutes", "value": "25" },
@@ -101,7 +101,7 @@
     {
       "id": "commitment_training_consistently",
       "type": "singleChoice",
-      "text": "Wow!  Ok, let's continue building from your solid foundation.  How much time will you commit to moving your body EVERY day?",
+      "text": "Alright, so how much time will you commit to moving your body EVERY day?",
       "disclaimer": "Note: Gym programs are coming soon. For now, you'll set a daily movement goal and log any workouts you do.",
       "options": [
         { "label": "15-25 minutes", "value": "25" },
@@ -127,18 +127,19 @@
     {
       "id": "weight",
       "type": "numberInput",
-      "text": "Last question - What's your current weight? I use this to calculate your hydration and protein targets.",
+      "text": "Last question - What's your current weight and what's your ideal weight? These numbers help me calculate realistic protein and hydration targets.",
       "fields": [
-        { "name": "weightLbs", "label": "Current Weight (lb)" }
+        { "name": "weightLbs", "label": "Current Weight (lb)" },
+        { "name": "goalWeightLbs", "label": "Goal Weight (lb)" }
       ],
       "next": "summary"
     },
     {
       "id": "summary",
       "type": "message",
-      "text": "That's it, {{name}}! You've given me plenty to work with for now.  Together, we'll build you into the healthy, fit person you intend to be!  Ready to change your life one brick at a time?",
+      "text": "Alright, thanks {{name}}! That's everything I need for now to put together a sustainable plan.  Together, we'll build the healhiest, fittest version of you. Ready to start laying some bricks?",
       "actions": [
-        { "label": "Let's Go!", "action": "finalizeIntake" }
+        { "label": "Let's Do This!", "action": "finalizeIntake" }
       ]
     }
   ]

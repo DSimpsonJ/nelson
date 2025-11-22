@@ -11,6 +11,7 @@ type IntakeAnswers = {
   commitment_training_consistently?: string;
   sleepHours: string;
   weightLbs: string;
+  goalWeightLbs?: string;
 };
 
 export type PrimaryHabit = {
@@ -56,8 +57,16 @@ export function buildInitialPlanFromIntake(answers: IntakeAnswers): Plan {
   const hydrationTargetOz = Math.max(80, Math.min(120, rawHydration));
 
   // Calculate protein target
-  // 1g per lb bodyweight as baseline (can be refined later based on goal)
-  const proteinTargetG = Math.round(weightLbs * 1.0);
+  // Use lower of current/goal weight to avoid over-prescribing for obese users
+  // Formula: ~1.75g/kg or 0.8g/lb (reasonable for all goals)
+  const goalWeightLbs = parseFloat(answers.goalWeightLbs || "0");
+  
+  // If no goal weight provided, cap protein at 200g (equivalent to 250lb person)
+  const baseWeightForProtein = goalWeightLbs > 0 
+    ? Math.min(weightLbs, goalWeightLbs)
+    : Math.min(weightLbs, 250);
+    
+  const proteinTargetG = Math.round(baseWeightForProtein * 0.8);
 
   // Build primary habit object
   const primaryHabit: PrimaryHabit = {

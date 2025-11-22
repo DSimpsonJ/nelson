@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { db, auth } from "../firebase/config";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { getEmail } from "../utils/getEmail";
-import { buildInitialPlanFromIntake, type IntakeAnswers } from "../utils/buildInitialPlanFromIntake";
+import { buildInitialPlanFromIntake } from "../utils/buildInitialPlanFromIntake";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
@@ -126,7 +126,7 @@ export default function IntakePage() {
       
       console.log("📌 Saving intake answers:", answers);
       
-      const plan = buildInitialPlanFromIntake(answers as IntakeAnswers);
+      const plan = buildInitialPlanFromIntake(answers as any);
       
       console.log("📌 Generated plan:", plan);
 
@@ -291,7 +291,12 @@ export default function IntakePage() {
               ))}
               <button
                 onClick={() => handleNext(current.id)}
-                className="bg-blue-600 text-white px-5 py-2 mt-3 rounded-md hover:bg-blue-700 transition-all w-full"
+                disabled={
+                  current.fields?.some(
+                    (field) => !answers[field.name] || answers[field.name] === ""
+                  )
+                }
+                className="bg-blue-600 text-white px-5 py-2 mt-3 rounded-md hover:bg-blue-700 transition-all w-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Continue
               </button>
