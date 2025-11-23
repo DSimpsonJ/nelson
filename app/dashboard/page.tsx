@@ -355,6 +355,18 @@ export default function DashboardPage() {
     const match = habitKey.match(/(\d+)min/);
     return match ? parseInt(match[1], 10) : 10;
   };
+  const hasCompletedPrimaryHabit = (): boolean => {
+    if (!currentFocus || !commitment) return false;
+    
+    // For movement habits, check if session exists
+    if (isMovementHabit(currentFocus.habitKey)) {
+      return hasSessionToday;
+    }
+    
+    // For other habits, we'd check todayMomentum.primaryHabitHit
+    // But for now, just handle movement
+    return false;
+  };
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -698,41 +710,61 @@ export default function DashboardPage() {
 
       setTodayCheckin(data);
       setCheckinSubmitted(true);
+    // --- MOMENTUM ENGINE v3 (3-Day Rolling Average) -------------------------
 
-      // --- MOMENTUM ENGINE v3 (3-Day Rolling Average) -------------------------
+// Check if they completed a session today
+const currentFocusRef = doc(db, "users", email, "momentum", "currentFocus");
+const currentFocusSnap = await getDoc(currentFocusRef);
+const currentHabit = currentFocusSnap.exists() ? currentFocusSnap.data().habitKey : "walk_10min";
 
-      const moved = checkin.movedToday === "yes";
-      const hydrated = checkin.hydrationHit === "yes";
-      const nutritionScore = calculateNutritionScore(
-        checkin.energyBalance,
-        checkin.eatingPattern,
-        profile?.plan?.goal || "fat_loss"
-      );
-      const ateWell = nutritionScore >= 12;
-      const slept = checkin.sleepHit === "yes";
+let moved = checkin.movedToday === "yes";
+let primaryHabitHit = false;
 
-      const currentFocusRef = doc(db, "users", email, "momentum", "currentFocus");
-      const currentFocusSnap = await getDoc(currentFocusRef);
-      const currentHabit = currentFocusSnap.exists() ? currentFocusSnap.data().habitKey : "walk_10min";
+// For movement habits, check if they have a session that meets target
+if (isMovementHabit(currentHabit)) {
+  const targetMin = getTargetMinutes(currentHabit);
+  const sessionsCol = collection(db, "users", email, "sessions");
+  const sessionsSnap = await getDocs(sessionsCol);
+  
+  const todaySession = sessionsSnap.docs
+    .map(d => d.data())
+    .find(s => s.date === today && s.durationMin >= targetMin);
+  
+  if (todaySession) {
+    primaryHabitHit = true;
+    moved = true; // Session also counts as bonus movement
+  }
+}
 
-      let primaryHabitHit = false;
-      switch (currentHabit) {
-        case "walk_10min":
-        case "walk_15min":
-          primaryHabitHit = moved;
-          break;
-        case "hydration_100oz":
-          primaryHabitHit = hydrated;
-          break;
-        case "protein_daily":
-          primaryHabitHit = checkin.proteinHit === "yes";
-          break;
-        case "sleep_7plus":
-          primaryHabitHit = slept;
-          break;
-        default:
-          primaryHabitHit = moved;
-      }
+const hydrated = checkin.hydrationHit === "yes";
+const nutritionScore = calculateNutritionScore(
+  checkin.energyBalance,
+  checkin.eatingPattern,
+  profile?.plan?.goal || "fat_loss"
+);
+const ateWell = nutritionScore >= 12;
+const slept = checkin.sleepHit === "yes";
+
+// Now use the session-aware primaryHabitHit or fall back to other habits
+if (!primaryHabitHit) {
+  switch (currentHabit) {
+    case "walk_10min":
+    case "walk_15min":
+      primaryHabitHit = moved;
+      break;
+    case "hydration_100oz":
+      primaryHabitHit = hydrated;
+      break;
+    case "protein_daily":
+      primaryHabitHit = checkin.proteinHit === "yes";
+      break;
+    case "sleep_7plus":
+      primaryHabitHit = slept;
+      break;
+    default:
+      primaryHabitHit = moved;
+  }
+}
 
       const primaryScore = primaryHabitHit ? 60 : 0;
 
@@ -1074,7 +1106,37 @@ export default function DashboardPage() {
       loadCommitment();
     }
   }, [loading, currentFocus]);
+// After the other useEffects, around line 900
+useEffect(() => {
+  const loadTodaySession = async () => {
+    const email = getEmail();
+    if (!email || !currentFocus) return;
 
+    const sessionsCol = collection(db, "users", email, "sessions");
+    const sessionsSnap = await getDocs(sessionsCol);
+    
+    const todaySession = sessionsSnap.docs
+      .map(d => d.data())
+      .find(s => s.date === today);
+    
+    if (todaySession && todaySession.durationMin) {
+      const duration = todaySession.durationMin;
+      let range = "1-3";
+      
+      if (duration >= 45) range = "45+";
+      else if (duration >= 30) range = "30-45";
+      else if (duration >= 20) range = "20-30";
+      else if (duration >= 15) range = "15-20";
+      else if (duration >= 10) range = "10-15";
+      else if (duration >= 5) range = "5-10";
+      else if (duration >= 3) range = "3-5";
+      
+      setCheckin(prev => ({ ...prev, primaryHabitDuration: range }));
+    }
+  };
+
+  loadTodaySession();
+}, [currentFocus, today]);
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -1571,29 +1633,51 @@ export default function DashboardPage() {
               </div>
             ) : commitment && (commitment.accepted || commitment.alternativeAccepted) ? (
               <div className="animate-fadeIn">
-                <button
-                  onClick={() => {
-                    if (currentFocus && isMovementHabit(currentFocus.habitKey)) {
-                      router.push('/walk');
-                    } else {
-                      router.push('/program');
-                    }
-                  }}
-                  className="w-full flex items-center justify-between bg-blue-50 hover:bg-blue-100 rounded-lg p-3 transition-all border-2 border-transparent hover:border-blue-300 group"
-                >
-                  <div className="text-left">
-                    <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Your Commitment</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1">
-                      🎯 {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
-                    </p>
-                    <p className="text-xs text-blue-600 mt-1 group-hover:underline">
-                      Tap to start →
-                    </p>
+                {hasCompletedPrimaryHabit() ? (
+                  <div className="relative bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4 overflow-hidden">
+                    {/* Celebratory graphic */}
+                    <div className="absolute top-0 right-0 text-6xl opacity-20">🎯</div>
+                    
+                    <div className="relative">
+                      <p className="text-xs text-green-600 font-semibold uppercase tracking-wide">
+                        ✓ Commitment Complete
+                      </p>
+                      <p className="text-lg font-bold text-gray-900 mt-1">
+                        {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
+                      </p>
+                      <p className="text-sm text-green-700 mt-2 font-medium">
+                        That's the kind of consistency that compounds. 🔥
+                      </p>
+                      <p className="text-xs text-gray-600 mt-2">
+                        Day {commitment?.acceptedAt ? Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 1} of 7
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-600 font-semibold">
-                    Day {commitment?.acceptedAt ? Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 1} of 7
-                  </p>
-                </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (currentFocus && isMovementHabit(currentFocus.habitKey)) {
+                        router.push('/walk');
+                      } else {
+                        router.push('/program');
+                      }
+                    }}
+                    className="w-full flex items-center justify-between bg-blue-50 hover:bg-blue-100 rounded-lg p-3 transition-all border-2 border-transparent hover:border-blue-300 group"
+                  >
+                    <div className="text-left">
+                      <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Your Commitment</p>
+                      <p className="text-sm font-bold text-gray-900 mt-1">
+                        🎯 {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
+                      </p>
+                      <p className="text-xs text-blue-600 mt-1 group-hover:underline">
+                        Tap to start →
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-600 font-semibold">
+                      Day {commitment?.acceptedAt ? Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 1} of 7
+                    </p>
+                    </button>
+                )}
               </div>
             ) : null}
           </div>
