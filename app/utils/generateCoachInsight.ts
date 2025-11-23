@@ -63,7 +63,7 @@ export function generateCoachInsight(
       // --- Analyze moods ---
       const avgMood =
         recentCheckins.length > 0
-          ? recentCheckins.reduce((sum, c) => sum + moodToScore(c.mood), 0) /
+        ? recentCheckins.reduce((sum, c) => sum + (c.headspace ? moodToScore(c.headspace) : 0), 0) /
             recentCheckins.length
           : 0;
   

@@ -315,7 +315,9 @@ export default function DashboardPage() {
   const [commitmentStage, setCommitmentStage] = useState<"initial" | "reason" | "alternative" | "choose" | "custom">("initial");
   const [commitmentReason, setCommitmentReason] = useState<string>("");
   const [saving, setSaving] = useState(false);
-
+  const [showStreakSaver, setShowStreakSaver] = useState(false);
+  const [missedDays, setMissedDays] = useState(0);
+  const [streakSavers, setStreakSavers] = useState(0);
   const today = new Date().toISOString().split("T")[0];
   const [hasSessionToday, setHasSessionToday] = useState(false);
 
@@ -514,15 +516,37 @@ export default function DashboardPage() {
 
       await loadRecentCheckins(email);
 
-      const streakColRef = collection(db, "users", email, "checkins");
-      const streakSnaps = await getDocs(streakColRef);
-      const allCheckins = streakSnaps.docs.map(
-        (d) => d.data() as { date: string }
-      );
+const streakColRef = collection(db, "users", email, "checkins");
+const streakSnaps = await getDocs(streakColRef);
+const allCheckins = streakSnaps.docs.map(
+  (d) => d.data() as { date: string }
+);
 
-      const streakValue = calculateCheckinStreak(allCheckins);
-      setCheckinStreak(streakValue);
+const streakValue = calculateCheckinStreak(allCheckins);
+setCheckinStreak(streakValue);
 
+// Load streak savers from Firestore
+const streakRef = doc(db, "users", email, "metadata", "streakData");
+const streakSnap = await getDoc(streakRef);
+const savers = streakSnap.exists() ? streakSnap.data().streakSavers || 0 : 0;
+setStreakSavers(savers);
+
+// Detect missed days using allCheckins (not recentCheckins state)
+const sortedCheckins = [...allCheckins].sort((a, b) => b.date.localeCompare(a.date));
+if (sortedCheckins.length > 0) {
+  const lastCheckin = new Date(sortedCheckins[0].date + "T00:00:00");
+  const todayDate = new Date();
+  todayDate.setHours(0, 0, 0, 0);
+  
+  const diffTime = todayDate.getTime() - lastCheckin.getTime();
+  const missed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  setMissedDays(missed);
+  
+  if (missed > 0) {
+    setShowStreakSaver(true);
+  }
+}
       const note = await refreshCoachNote(email, plan as any);
       setCoachNote(note);
 
@@ -679,7 +703,23 @@ export default function DashboardPage() {
       </span>
     );
   };
-
+  const getMissedDays = (): number => {
+    // Find the last check-in date
+    const sorted = [...recentCheckins].sort((a, b) => b.date.localeCompare(a.date));
+    if (!sorted.length) return 0;
+    
+    const lastCheckin = new Date(sorted[0].date + "T00:00:00");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const diffTime = today.getTime() - lastCheckin.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // If last check-in was 11-21 and today is 11-23, that's 2 days difference
+    // which means 1 missed day (11-22). But we also haven't checked in today (11-23)
+    // So we need to count today too if no check-in exists
+    return diffDays;
+  };
   const handleCheckinSubmit = async () => {
     if (!checkin.headspace || !checkin.proteinHit || !checkin.hydrationHit || !checkin.energyBalance || !checkin.eatingPattern) {
       showToast({ message: "Please answer all questions.", type: "error" });
@@ -1188,22 +1228,96 @@ useEffect(() => {
               <h1 className="text-2xl font-bold text-gray-900">
                 Hey {profile?.firstName || "there"}.
               </h1>
+              {missedDays > 0 && !hasCompletedCheckin() ? (
+  <div className="mt-3">
+    <p className="text-gray-900 font-semibold mb-2">
+      I missed you. It's been {missedDays} {missedDays === 1 ? "day" : "days"}.
+    </p>
+    
+    {missedDays <= streakSavers ? (
+      <>
+        <p className="text-sm text-gray-700 mb-3">
+          Use {missedDays} streak {missedDays === 1 ? "saver" : "savers"} to keep your streak alive? ({streakSavers} available)
+        </p>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              const email = getEmail();
+              if (!email) return;
+              
+              const streakRef = doc(db, "users", email, "metadata", "streakData");
+              await setDoc(streakRef, {
+                streakSavers: streakSavers - missedDays,
+                lastSaved: new Date().toISOString(),
+              }, { merge: true });
+              
+              // Create placeholder check-ins for missed days to preserve streak
+if (!email) return;
 
-              {hasCompletedCheckin() ? (
-                <p className="text-gray-600 mt-1">You checked in today. That's the kind of consistency that compounds.</p>
-              ) : (
-                <p className="text-gray-600 mt-1">Welcome back. Ready to build?</p>
-              )}
+const today = new Date();
+for (let i = 1; i <= missedDays; i++) {
+  const missedDate = new Date(today);
+  missedDate.setDate(missedDate.getDate() - i);
+  const dateStr = missedDate.toISOString().split("T")[0];
+  
+  await setDoc(doc(db, "users", email, "checkins", dateStr), {
+    date: dateStr,
+    streakSaver: true,
+    createdAt: new Date().toISOString(),
+  });
+}
 
-              {checkinStreak > 0 && (() => {
-                const { icon, message } = getStreakMessage(checkinStreak);
-                return (
-                  <div className="flex items-center gap-2 text-sm font-medium text-amber-600 mt-2">
-                    <span>{icon}</span>
-                    <span>{message}</span>
-                  </div>
-                );
-              })()}
+setStreakSavers(streakSavers - missedDays);
+setMissedDays(0);
+// Don't reload - just update state manually
+// The streak is preserved, no need to recalculate
+            }}
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg py-2 transition"
+          >
+            Save Streak
+          </button>
+          
+          <button
+            onClick={() => {
+              setMissedDays(0);
+              setCheckinStreak(0);
+            }}
+            className="flex-1 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
+          >
+            Start Fresh
+          </button>
+        </div>
+      </>
+    ) : (
+      <>
+        <p className="text-sm text-gray-700 mb-3">
+          You need {missedDays} savers but only have {streakSavers}. Your streak has been reset.
+        </p>
+        <button
+          onClick={() => setMissedDays(0)}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg py-2 transition"
+        >
+          Start Fresh
+        </button>
+      </>
+    )}
+  </div>
+) : hasCompletedCheckin() ? (
+  <p className="text-gray-600 mt-1">You checked in today. That's the kind of consistency that compounds.</p>
+) : (
+  <p className="text-gray-600 mt-1">Welcome back. Ready to build?</p>
+)}
+
+{checkinStreak > 0 && missedDays === 0 && (() => {
+  const { icon, message } = getStreakMessage(checkinStreak);
+  return (
+    <div className="flex items-center gap-2 text-sm font-medium text-amber-600 mt-2">
+      <span>{icon}</span>
+      <span>{message}</span>
+    </div>
+  );
+})()}
 
               <p className="text-[11px] tracking-widest uppercase text-gray-400 font-semibold mt-2">
                 Patience • Perseverance • Progress
@@ -1681,8 +1795,8 @@ useEffect(() => {
               </div>
             ) : null}
           </div>
-        </motion.div>
-      
+          </motion.div>
+
         {/* 2. Morning Check-In */}
         {!hasCompletedCheckin() && (
           <motion.div
