@@ -326,6 +326,7 @@ const [showLevelUp, setShowLevelUp] = useState(false);
 const [levelUpStage, setLevelUpStage] = useState<"prompt" | "reflection" | "alternative">("prompt");
 const [levelUpReason, setLevelUpReason] = useState<string>("");
 const [levelUpNextStep, setLevelUpNextStep] = useState<string>("");
+const [habitStack, setHabitStack] = useState<any[]>([]);
 
   const hasCompletedCheckin = (): boolean => {
     if (!todayCheckin) return false;
@@ -362,6 +363,38 @@ const [levelUpNextStep, setLevelUpNextStep] = useState<string>("");
   const getTargetMinutes = (habitKey: string): number => {
     const match = habitKey.match(/(\d+)min/);
     return match ? parseInt(match[1], 10) : 10;
+  };
+  const moveCurrentToStack = async (email: string, currentHabit: any): Promise<void> => {
+    const stackRef = doc(db, "users", email, "momentum", "habitStack");
+    const stackSnap = await getDoc(stackRef);
+    
+    const existingStack = stackSnap.exists() ? (stackSnap.data().habits || []) : [];
+    
+    // Add current habit to stack
+    const newStackEntry = {
+      habit: currentHabit.habit,
+      habitKey: currentHabit.habitKey,
+      startedAt: currentHabit.startedAt,
+      daysOnThisHabit: currentHabit.daysOnThisHabit || 0,
+      status: "active",
+      movedToStackAt: new Date().toISOString(),
+    };
+    
+    await setDoc(stackRef, {
+      habits: [...existingStack, newStackEntry],
+      updatedAt: new Date().toISOString(),
+    });
+  };
+  
+  const isInHabitStack = (habitKey: string): boolean => {
+    if (currentFocus?.habitKey === habitKey) return true;
+    return habitStack.some(h => h.habitKey === habitKey);
+  };
+  
+  const getHabitIcon = (habitKey: string): string => {
+    if (currentFocus?.habitKey === habitKey) return "🎯";
+    if (habitStack.some(h => h.habitKey === habitKey)) return "🧱";
+    return "";
   };
   const hasCompletedPrimaryHabit = (): boolean => {
     if (!currentFocus || !commitment) return false;
@@ -488,6 +521,14 @@ const [levelUpNextStep, setLevelUpNextStep] = useState<string>("");
         };
         setCurrentFocus(suggestedFocus);
       }
+      // Load habit stack
+const stackRef = doc(db, "users", email, "momentum", "habitStack");
+const stackSnap = await getDoc(stackRef);
+if (stackSnap.exists()) {
+  setHabitStack(stackSnap.data().habits || []);
+} else {
+  setHabitStack([]);
+}
 
       const todayMomentumRef = doc(db, "users", email, "momentum", today);
       const todayMomentumSnap = await getDoc(todayMomentumRef);
@@ -974,7 +1015,28 @@ if (!primaryHabitHit) {
         streakSavers,
         createdAt: new Date().toISOString(),
       });
+// Auto-earn streak saver every 7 consecutive check-ins
+const newCheckinStreak = calculateCheckinStreak([...recentCheckins, { date: today }]);
 
+if (newCheckinStreak > 0 && newCheckinStreak % 7 === 0) {
+  const streakRef = doc(db, "users", email, "metadata", "streakData");
+  const streakSnap = await getDoc(streakRef);
+  const currentSavers = streakSnap.exists() ? (streakSnap.data().streakSavers || 0) : 0;
+  
+  // Only earn if under max (3)
+  if (currentSavers < 3) {
+    await setDoc(streakRef, {
+      streakSavers: currentSavers + 1,
+      lastEarned: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    
+    showToast({ 
+      message: `🎉 7-day streak! Earned a streak saver (${currentSavers + 1}/3)`, 
+      type: "success" 
+    });
+  }
+}
       setTodayMomentum({
         dailyScore: todayScore,
         momentumScore: momentumScore,
@@ -1133,15 +1195,20 @@ await setDoc(commitRef, {
         },
       }, { merge: true });
   
-      // Handle "try_different" - open habit picker
-      if (levelUpNextStep === "try_different") {
-        setShowLevelUp(false);
-        setLevelUpReason("");
-        setLevelUpNextStep("");
-        setLevelUpStage("prompt");
-        setCommitmentStage("choose");
-        setShowCommitment(true);
-        showToast({ message: "Let's find the right habit for you.", type: "success" });
+      // Handle "try_different" - move current to stack, open habit picker
+if (levelUpNextStep === "try_different") {
+  // Move current habit to stack before choosing new one
+  if (currentFocus && !currentFocus.suggested) {
+    await moveCurrentToStack(email, currentFocus);
+  }
+  
+  setShowLevelUp(false);
+  setLevelUpReason("");
+  setLevelUpNextStep("");
+  setLevelUpStage("prompt");
+  setCommitmentStage("choose");
+  setShowCommitment(true);
+  showToast({ message: "Let's find the right habit for you.", type: "success" });
       } else {
         // Show supportive response based on their choice
         let message = "";
@@ -1583,15 +1650,19 @@ setMissedDays(0);
               </button>
               
               <button
-                onClick={() => {
-                  setShowLevelUp(false);
-                  setCommitmentStage("choose");
-                  setShowCommitment(true);
-                }}
-                className="flex-1 bg-white hover:bg-gray-50 text-blue-600 font-semibold rounded-lg py-2 border-2 border-blue-300 transition"
-              >
-                Choose Different
-              </button>
+  onClick={async () => {
+    const email = getEmail();
+    if (email && currentFocus && !currentFocus.suggested) {
+      await moveCurrentToStack(email, currentFocus);
+    }
+    setShowLevelUp(false);
+    setCommitmentStage("choose");
+    setShowCommitment(true);
+  }}
+  className="flex-1 bg-white hover:bg-gray-50 text-blue-600 font-semibold rounded-lg py-2 border-2 border-blue-300 transition"
+>
+  Choose Different
+</button>
             </div>
           </div>
         </div>
@@ -2091,24 +2162,30 @@ setMissedDays(0);
         </div>
       ) : (
         <button
-          onClick={() => {
-            if (currentFocus && isMovementHabit(currentFocus.habitKey)) {
-              router.push('/walk');
-            } else {
-              router.push('/program');
-            }
-          }}
-          className="w-full flex items-center justify-between bg-blue-50 hover:bg-blue-100 rounded-lg p-3 transition-all border-2 border-transparent hover:border-blue-300 group"
-        >
-          <div className="text-left">
-            <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Your Commitment</p>
-            <p className="text-sm font-bold text-gray-900 mt-1">
-              🎯 {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
-            </p>
-            <p className="text-xs text-blue-600 mt-1 group-hover:underline">
-              Tap to start →
-            </p>
-          </div>
+        onClick={() => {
+          if (currentFocus && isMovementHabit(currentFocus.habitKey)) {
+            router.push('/walk');
+          } else {
+            // For non-movement habits, just show a reminder (or disable button)
+            showToast({ 
+              message: "Track this in your daily check-in!", 
+              type: "info" 
+            });
+          }
+        }}
+        className="w-full flex items-center justify-between bg-blue-50 hover:bg-blue-100 rounded-lg p-3 transition-all border-2 border-transparent hover:border-blue-300 group"
+      >
+        <div className="text-left">
+          <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Your Commitment</p>
+          <p className="text-sm font-bold text-gray-900 mt-1">
+            🎯 {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
+          </p>
+          <p className="text-xs text-blue-600 mt-1 group-hover:underline">
+            {currentFocus && isMovementHabit(currentFocus.habitKey) 
+              ? "Tap to start →" 
+              : "Track in check-in →"}
+          </p>
+        </div>
           <p className="text-xs text-gray-600 font-semibold">
             Day {commitment?.acceptedAt ? Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 1} of 7
           </p>
@@ -2118,8 +2195,54 @@ setMissedDays(0);
   ) : null}
 </div>
 </motion.div>
+{/* 2. Active Habits Stack */}
+{(habitStack.length > 0 || currentFocus) && (
+  <motion.div
+    variants={itemVariants}
+    className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
+  >
+    <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Active Habits</h2>
+    
+    <div className="space-y-3">
+      {/* Primary Habit */}
+      {currentFocus && (
+        <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-semibold">PRIMARY</span>
+              <span className="font-semibold text-gray-900">{currentFocus.habit}</span>
+              <span className="text-lg">🎯</span>
+            </div>
+            <span className="text-xs text-gray-600">
+              {currentFocus.daysOnThisHabit || 0} days
+            </span>
+          </div>
+        </div>
+      )}
 
-        {/* 2. Morning Check-In */}
+      {/* Stacked Habits */}
+      {habitStack.map((habit, idx) => (
+        <div key={idx} className="border border-gray-200 rounded-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-semibold">STACK</span>
+              <span className="font-semibold text-gray-900">{habit.habit}</span>
+              <span className="text-lg">🧱</span>
+            </div>
+            <span className="text-xs text-gray-600">
+              {habit.daysOnThisHabit || 0} days
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <p className="text-xs text-gray-500 mt-4 text-center">
+      Stacking habits increases your momentum score.  Aim for 80%+!
+    </p>
+  </motion.div>
+)}
+        {/* 3. Morning Check-In */}
         {!hasCompletedCheckin() && (
           <motion.div
             variants={itemVariants}
@@ -2138,10 +2261,14 @@ setMissedDays(0);
             <div className="space-y-3 mb-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs text-gray-600 mb-2 flex items-center">
-                    Energy Balance
-                    <InfoTooltip text="Did you undereat, eat as intended, overeat, or have an indulgent day yesterday?" />
-                  </p>
+                <p className="text-xs text-gray-600 mb-2 flex items-center gap-1">
+  Energy Balance
+  {(() => {
+    const icon = getHabitIcon('energy_balance');
+    return icon ? <span className="text-base">{icon}</span> : null;
+  })()}
+  <InfoTooltip text="Did you undereat, eat as intended, overeat, or have an indulgent day yesterday?" />
+</p>
                   <div className="grid grid-cols-2 gap-1">
                     {["Light", "Normal", "Heavy", "Indulgent"].map((option) => (
                       <button
@@ -2165,10 +2292,11 @@ setMissedDays(0);
                 </div>
 
                 <div>
-                  <p className="text-xs text-gray-600 mb-2 flex items-center">
-                    Eating Pattern
-                    <InfoTooltip text="Structured whole food meals with protein + fiber score higher than directionless meals do. Overall, how did you eat yesterday?" />
-                  </p>
+                <p className="text-xs text-gray-600 mb-2 flex items-center">
+  Eating Pattern
+  <span className="text-base">{getHabitIcon('no_late_eating')}</span>
+  <InfoTooltip text="Structured whole food meals with protein + fiber score higher than directionless meals do. Overall, how did you eat yesterday?" />
+</p>
                   <div className="grid grid-cols-2 gap-1">
                     {[
                       { value: "meals", label: "Structured" },
@@ -2199,10 +2327,11 @@ setMissedDays(0);
 
               {/* Protein */}
               <div>
-                <p className="text-xs text-gray-600 mb-2 flex items-center">
-                  Protein
-                  <InfoTooltip text={`Your target is ${profile?.plan?.proteinTargetG || 180}g/day based on your bodyweight goal`} />
-                </p>
+              <p className="text-xs text-gray-600 mb-2 flex items-center">
+  Protein
+  <span className="text-base">{getHabitIcon('protein_daily')}</span>
+  <InfoTooltip text={`Your target is ${profile?.plan?.proteinTargetG || 180}g/day based on your bodyweight goal`} />
+</p>
                 <div className="flex gap-2">
                   {["Yes", "Almost", "No"].map((option) => (
                     <button
@@ -2230,10 +2359,11 @@ setMissedDays(0);
             <div className="space-y-3 mb-4 pt-4 border-t border-gray-100">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs text-gray-600 mb-2 flex items-center">
-                    Sleep
-                    <InfoTooltip text="7+ hours, no screens 30min before bed, lights out at a reasonable time" />
-                  </p>
+                <p className="text-xs text-gray-600 mb-2 flex items-center">
+  Sleep
+  <span className="text-base">{getHabitIcon('sleep_7plus')}</span>
+  <InfoTooltip text="7+ hours, no screens 30min before bed, lights out at a reasonable time" />
+</p>
                   <div className="flex gap-2">
                     {["Yes", "No"].map((option) => (
                       <button
@@ -2585,22 +2715,17 @@ setMissedDays(0);
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-200">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900">{todayMomentum.currentStreak}</p>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">Streak</p>
-                </div>
-                
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900">{todayMomentum.lifetimeStreak}</p>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">Total</p>
-                </div>
-                
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900">{todayMomentum.streakSavers}</p>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">Savers</p>
-                </div>
-              </div>
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200">
+  <div className="text-center">
+    <p className="text-2xl font-bold text-gray-900">{todayMomentum.currentStreak}</p>
+    <p className="text-[10px] text-gray-500 uppercase tracking-wide">Streak</p>
+  </div>
+  
+  <div className="text-center">
+    <p className="text-2xl font-bold text-gray-900">{todayMomentum.lifetimeStreak}</p>
+    <p className="text-[10px] text-gray-500 uppercase tracking-wide">Total</p>
+  </div>
+</div>
 
               {currentFocus.eligibleForLevelUp && (
                 <div className="bg-amber-500 text-gray-900 rounded-lg p-3 mt-3">
