@@ -46,6 +46,8 @@ import { withFirestoreError } from "../utils/withFirestoreError";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import WalkTimer from "../components/WalkTimer";
+import { calculateDailyMomentumScore, determinePrimaryHabitHit, applyMomentumCap } from "../utils/momentumCalculation";
+
 
 /** ---------- Types ---------- */
 
@@ -364,6 +366,15 @@ const [habitStack, setHabitStack] = useState<any[]>([]);
     const match = habitKey.match(/(\d+)min/);
     return match ? parseInt(match[1], 10) : 10;
   };
+  const getHabitType = (habitKey: string): string => {
+    if (habitKey.includes("walk_") || habitKey.includes("movement_")) return "movement";
+    if (habitKey.includes("protein_")) return "protein";
+    if (habitKey.includes("hydration_")) return "hydration";
+    if (habitKey.includes("sleep_")) return "sleep";
+    if (habitKey === "no_late_eating") return "eating_pattern";
+    if (habitKey === "vegetables_3_servings") return "vegetables";
+    return "custom";
+  };
   const moveCurrentToStack = async (email: string, currentHabit: any): Promise<void> => {
     const stackRef = doc(db, "users", email, "momentum", "habitStack");
     const stackSnap = await getDoc(stackRef);
@@ -521,13 +532,28 @@ const [habitStack, setHabitStack] = useState<any[]>([]);
         };
         setCurrentFocus(suggestedFocus);
       }
+      console.log("[Dashboard] currentFocus:", focusSnap.exists() ? focusSnap.data() : "NOT FOUND");
+
       // Load habit stack
 const stackRef = doc(db, "users", email, "momentum", "habitStack");
 const stackSnap = await getDoc(stackRef);
 if (stackSnap.exists()) {
+  console.log("[Dashboard] Loaded habitStack:", stackSnap.data().habits);
   setHabitStack(stackSnap.data().habits || []);
 } else {
+  console.log("[Dashboard] No habitStack found");
   setHabitStack([]);
+}
+const commitRef = doc(db, "users", email, "momentum", "commitment");
+const commitSnap = await getDoc(commitRef);
+const commitmentData = commitSnap.exists() ? commitSnap.data() : null;
+console.log("[Dashboard] commitment loaded:", commitmentData);
+setCommitment(commitmentData);
+
+if (!commitSnap.exists()) {
+  setShowCommitment(true);
+} else if (commitmentData && commitmentData.expiresAt && new Date(commitmentData.expiresAt) < new Date()) {
+  setShowCommitment(true);
 }
 
       const todayMomentumRef = doc(db, "users", email, "momentum", today);
@@ -687,14 +713,18 @@ if (sortedCheckins.length > 0) {
         }
 
         const insight = generateCoachInsight(merged, recentCheckins);
-        setCoachNote(insight);
-        await saveCoachNoteToWeeklyStats(email, insight);
+setCoachNote(insight);
+await saveCoachNoteToWeeklyStats(email, insight);
       }
-      await checkLevelUpEligibility(email);
+      
+      await checkLevelUpEligibility(
+        email, 
+        focusSnap.exists() ? focusSnap.data() : null, 
+        commitmentData
+      );
     } catch (err) {
       console.error("Dashboard load error:", err);
       showToast({ message: "Error loading dashboard", type: "error" });
-      // Check level-up eligibility
     } finally {
       setLoading(false);
     }
@@ -745,10 +775,10 @@ if (sortedCheckins.length > 0) {
           ⓘ
         </button>
         {show && (
-          <span className="absolute z-10 w-64 p-2 text-xs text-gray-700 bg-white border border-gray-300 rounded-lg shadow-lg -top-2 left-6 block">
-            {text}
-          </span>
-        )}
+  <span className="absolute z-10 w-64 p-2 text-xs text-gray-700 bg-white border border-gray-300 rounded-lg shadow-lg bottom-full mb-2 left-1/2 -translate-x-1/2 block max-w-[calc(100vw-2rem)]">
+    {text}
+  </span>
+)}
       </span>
     );
   };
@@ -765,24 +795,35 @@ if (sortedCheckins.length > 0) {
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   };
-  const checkLevelUpEligibility = async (email: string): Promise<void> => {
-    console.log("[Level-Up] Checking eligibility...");
-    console.log("[Level-Up] currentFocus:", currentFocus);
-    console.log("[Level-Up] commitment:", commitment);
+  const checkLevelUpEligibility = async (
+    email: string,
+    focus: any = null,
+    commit: any = null
+  ): Promise<void> => {
+    const currentFocusData = focus || currentFocus;
+    const commitmentData = commit || commitment;
     
-    if (!currentFocus || !commitment) {
+    console.log("[Level-Up] Checking eligibility...");
+    console.log("[Level-Up] currentFocus:", currentFocusData);
+    console.log("[Level-Up] commitment:", commitmentData);
+    
+    if (!currentFocusData || !commitmentData) {
       console.log("[Level-Up] No currentFocus or commitment found");
       return;
     }
     
-    if (!isMovementHabit(currentFocus.habitKey)) {
-      console.log("[Level-Up] Not a movement habit:", currentFocus.habitKey);
+    if (!isMovementHabit(currentFocusData.habitKey)) {
+      console.log("[Level-Up] Not a movement habit:", currentFocusData.habitKey);
       return;
     }
   
     // Check if we've shown prompt recently
     const commitRef = doc(db, "users", email, "momentum", "commitment");
     const commitSnap = await getDoc(commitRef);
+    console.log("[Dashboard] commitment:", commitSnap.exists() ? commitSnap.data() : "NOT FOUND");
+    
+    // ... rest of your function stays the same
+
     
     if (commitSnap.exists()) {
       const data = commitSnap.data();
@@ -808,7 +849,7 @@ if (sortedCheckins.length > 0) {
     const sessionsCol = collection(db, "users", email, "sessions");
     const sessionsSnap = await getDocs(sessionsCol);
   
-    const targetMin = getTargetMinutes(currentFocus.habitKey);
+    const targetMin = getTargetMinutes(currentFocusData.habitKey);
     const last7Days: string[] = [];
   
     for (let i = 0; i < 7; i++) {
@@ -881,101 +922,179 @@ if (sortedCheckins.length > 0) {
       setCheckinSubmitted(true);
     // --- MOMENTUM ENGINE v3 (3-Day Rolling Average) -------------------------
 
-// Check if they completed a session today
+// Get current habit
 const currentFocusRef = doc(db, "users", email, "momentum", "currentFocus");
 const currentFocusSnap = await getDoc(currentFocusRef);
 const currentHabit = currentFocusSnap.exists() ? currentFocusSnap.data().habitKey : "walk_10min";
 
+// Calculate values needed for scoring
 let moved = checkin.movedToday === "yes";
-let primaryHabitHit = false;
-
-// For movement habits, check if they have a session that meets target
-if (isMovementHabit(currentHabit)) {
-  const targetMin = getTargetMinutes(currentHabit);
-  const sessionsCol = collection(db, "users", email, "sessions");
-  const sessionsSnap = await getDocs(sessionsCol);
-  
-  const todaySession = sessionsSnap.docs
-    .map(d => d.data())
-    .find(s => s.date === today && s.durationMin >= targetMin);
-  
-  if (todaySession) {
-    primaryHabitHit = true;
-    moved = true; // Session also counts as bonus movement
-  }
-}
-
 const hydrated = checkin.hydrationHit === "yes";
+const slept = checkin.sleepHit === "yes";
 const nutritionScore = calculateNutritionScore(
   checkin.energyBalance,
   checkin.eatingPattern,
   profile?.plan?.goal || "fat_loss"
 );
-const ateWell = nutritionScore >= 12;
-const slept = checkin.sleepHit === "yes";
 
-// Now use the session-aware primaryHabitHit or fall back to other habits
-if (!primaryHabitHit) {
-  switch (currentHabit) {
-    case "walk_10min":
-    case "walk_15min":
-      primaryHabitHit = moved;
-      break;
-    case "hydration_100oz":
-      primaryHabitHit = hydrated;
-      break;
-    case "protein_daily":
-      primaryHabitHit = checkin.proteinHit === "yes";
-      break;
-    case "sleep_7plus":
-      primaryHabitHit = slept;
-      break;
-    default:
-      primaryHabitHit = moved;
-  }
+// For movement habits, check if they have a session that meets target
+const targetMin = getTargetMinutes(currentHabit);
+const sessionsCol = collection(db, "users", email, "sessions");
+const sessionsSnap = await getDocs(sessionsCol);
+
+const todaySession = sessionsSnap.docs
+  .map(d => d.data())
+  .find(s => s.date === today && s.durationMin >= targetMin);
+
+if (todaySession && isMovementHabit(currentHabit)) {
+  moved = true; // Session counts as bonus movement
 }
 
-      const primaryScore = primaryHabitHit ? 60 : 0;
+// Determine if primary habit was hit using centralized logic
+const primaryHabitHit = determinePrimaryHabitHit({
+  habitKey: currentHabit,
+  checkinData: {
+    proteinHit: checkin.proteinHit,
+    hydrationHit: checkin.hydrationHit,
+    movedToday: checkin.movedToday,
+    sleepHit: checkin.sleepHit
+  },
+  sessionData: {
+    hasSessionToday: !!todaySession,
+    todaySession: todaySession ? { durationMin: todaySession.durationMin } : undefined,
+    targetMinutes: targetMin
+  },
+  nutritionScore
+});
 
-      const secondaryBehaviors = [];
-      if (currentHabit !== "hydration_100oz") secondaryBehaviors.push(hydrated);
-      if (currentHabit !== "walk_10min" && currentHabit !== "walk_15min") secondaryBehaviors.push(moved);
-      if (currentHabit !== "protein_daily") secondaryBehaviors.push(checkin.proteinHit === "yes");
-      if (currentHabit !== "sleep_7plus") secondaryBehaviors.push(slept);
-      secondaryBehaviors.push(nutritionScore >= 9);
+      // Determine primary habit result
+const primaryResult = {
+  name: currentHabit,
+  hit: primaryHabitHit
+};
 
-      const secondaryHits = secondaryBehaviors.filter(Boolean).length;
-      const secondaryScore = secondaryBehaviors.length > 0 
-        ? Math.round((secondaryHits / secondaryBehaviors.length) * 40)
-        : 0;
+// Determine stacked habits results
+const stackedResults = habitStack.map(h => {
+  let hit = false;
+  const habitType = getHabitType(h.habitKey);
+  
+  switch (habitType) {
+    case "movement":
+      hit = moved;
+      break;
+    case "hydration":
+      hit = hydrated;
+      break;
+    case "protein":
+      hit = checkin.proteinHit === "yes";
+      break;
+    case "sleep":
+      hit = slept;
+      break;
+    case "eating_pattern":
+      hit = nutritionScore >= 9;
+      break;
+    default:
+      hit = false;
+  }
+  
+  return {
+    name: h.habit,
+    hit
+  };
+});
 
-      const todayScore = primaryScore + secondaryScore;
+// Determine generic behaviors (behaviors NOT in primary or stack)
+const genericResults = [];
+const primaryType = getHabitType(currentHabit);
+const stackTypes = habitStack.map(h => getHabitType(h.habitKey));
 
-      const last3Days = [];
-      for (let i = 0; i < 3; i++) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dateKey = d.toISOString().split("T")[0];
-        
-        if (dateKey === today) {
-          last3Days.push(todayScore);
-        } else {
-          const dayRef = doc(db, "users", email, "momentum", dateKey);
-          const daySnap = await getDoc(dayRef);
-          
-          if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
-            last3Days.push(daySnap.data().dailyScore);
-          } else {
-            last3Days.push(0);
-          }
-        }
-      }
+// Add hydration if not primary or stacked
+if (primaryType !== "hydration" && !stackTypes.includes("hydration")) {
+  genericResults.push({ name: "Hydration", hit: hydrated });
+}
 
-      const weights = [0.5, 0.3, 0.2];
-      const weightedSum = last3Days.reduce((sum, score, i) => sum + (score * weights[i]), 0);
-      const momentumScore = Math.round(weightedSum);
+// Add movement if not primary or stacked
+if (primaryType !== "movement" && !stackTypes.includes("movement")) {
+  genericResults.push({ name: "Bonus Movement", hit: moved });
+}
 
-      const yesterday = new Date();
+// Add protein if not primary or stacked
+if (primaryType !== "protein" && !stackTypes.includes("protein")) {
+  genericResults.push({ name: "Protein", hit: checkin.proteinHit === "yes" });
+}
+
+// Add sleep if not primary or stacked
+if (primaryType !== "sleep" && !stackTypes.includes("sleep")) {
+  genericResults.push({ name: "Sleep", hit: slept });
+}
+
+// Nutrition always counts as generic (not a committable habit yet)
+genericResults.push({ name: "Nutrition", hit: nutritionScore >= 9 });
+// Calculate momentum score with new system
+const momentumResult = calculateDailyMomentumScore({
+  primaryResult,
+  stackedResults,
+  genericResults
+});
+
+const todayScore = momentumResult.score;
+
+// Build 3-day history for rolling average
+const last3Days = [];
+for (let i = 0; i < 3; i++) {
+  const d = new Date();
+  d.setDate(d.getDate() - i);
+  const dateKey = d.toISOString().split("T")[0];
+  
+  if (dateKey === today) {
+    last3Days.push(todayScore);
+  } else {
+    const dayRef = doc(db, "users", email, "momentum", dateKey);
+    const daySnap = await getDoc(dayRef);
+    
+    if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
+      last3Days.push(daySnap.data().dailyScore);
+    }
+    // Don't push 0 - just skip missing days
+  }
+}
+// Calculate raw momentum score
+const rawMomentumScore = last3Days.length > 0
+  ? Math.round(last3Days.reduce((sum, score) => sum + score, 0) / last3Days.length)
+  : 0;
+
+// Get or set first check-in date to calculate account age
+const metadataRef = doc(db, "users", email, "metadata", "accountInfo");
+const metadataSnap = await getDoc(metadataRef);
+
+let firstCheckinDate: string;
+if (metadataSnap.exists() && metadataSnap.data().firstCheckinDate) {
+  firstCheckinDate = metadataSnap.data().firstCheckinDate;
+} else {
+  // First time checking in - store today as first check-in date
+  firstCheckinDate = today;
+  await setDoc(metadataRef, {
+    firstCheckinDate: today,
+    createdAt: new Date().toISOString()
+  }, { merge: true });
+}
+
+// Calculate account age in days
+const firstDate = new Date(firstCheckinDate);
+const todayDate = new Date(today);
+const accountAgeDays = Math.floor((todayDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+console.log("[Momentum] Account age:", accountAgeDays, "days");
+console.log("[Momentum] Raw score:", rawMomentumScore);
+
+// Apply momentum cap based on account age
+const { score: momentumScore, message: momentumMessage } = applyMomentumCap(rawMomentumScore, accountAgeDays);
+
+console.log("[Momentum] Capped score:", momentumScore);
+console.log("[Momentum] Message:", momentumMessage);
+
+const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayKey = yesterday.toISOString().split("T")[0];
 
@@ -1004,7 +1123,9 @@ if (!primaryHabitHit) {
       await setDoc(doc(db, "users", email, "momentum", today), {
         date: today,
         dailyScore: todayScore,
+        rawMomentumScore: rawMomentumScore,
         momentumScore: momentumScore,
+        momentumMessage: momentumMessage,
         primaryHabitHit,
         moved,
         hydrated,
@@ -1015,6 +1136,23 @@ if (!primaryHabitHit) {
         streakSavers,
         createdAt: new Date().toISOString(),
       });
+      // Update state immediately
+setTodayMomentum({
+  date: today,
+  dailyScore: todayScore,
+  rawMomentumScore: rawMomentumScore,
+  momentumScore: momentumScore,
+  momentumMessage: momentumMessage,
+  primaryHabitHit,
+  moved,
+  hydrated,
+  slept,
+  nutritionScore,
+  currentStreak,
+  lifetimeStreak,
+  streakSavers,
+});
+
 // Auto-earn streak saver every 7 consecutive check-ins
 const newCheckinStreak = calculateCheckinStreak([...recentCheckins, { date: today }]);
 
@@ -1037,15 +1175,7 @@ if (newCheckinStreak > 0 && newCheckinStreak % 7 === 0) {
     });
   }
 }
-      setTodayMomentum({
-        dailyScore: todayScore,
-        momentumScore: momentumScore,
-        currentStreak,
-        lifetimeStreak,
-        streakSavers,
-        primaryHabitHit,
-      });
-
+      
       if (!currentFocusSnap.exists()) {
         const primaryHabit = getPrimaryHabit(profile?.plan);
         
@@ -2653,91 +2783,82 @@ setMissedDays(0);
           )}
         </motion.div>
 
-        {/* Momentum Engine */}
-        <motion.div
-          variants={itemVariants}
-          className={`rounded-2xl shadow-sm p-5 mb-6 transition-all duration-500 ${
-            !todayMomentum 
-              ? 'bg-white'
-              : todayMomentum.momentumScore >= 80
-              ? 'bg-gradient-to-br from-red-50 to-amber-50 border-2 border-red-400'
-              : todayMomentum.momentumScore >= 60
-              ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-400'
-              : 'bg-white border-2 border-gray-200'
-          }`}
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Your Momentum</h2>
-              {currentFocus && (
-                <p className="text-xs text-gray-500 mt-1">Focus: {currentFocus.habit}</p>
-              )}
-            </div>
-            
-            {todayMomentum && (
-              <div className="text-right">
-                <p className={`text-3xl font-bold ${
-                  todayMomentum.momentumScore >= 80 ? 'text-red-600' :
-                  todayMomentum.momentumScore >= 60 ? 'text-amber-600' :
-                  'text-gray-400'
-                }`}>
-                  {todayMomentum.momentumScore}%
-                </p>
-                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Score</p>
-              </div>
-            )}
-          </div>
-
-          {currentFocus && todayMomentum ? (
-            <div className="space-y-4">
-              <div>
-                <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`absolute h-full transition-all duration-500 ${
-                      todayMomentum.momentumScore >= 80
-                        ? 'bg-gradient-to-r from-red-500 to-amber-500'
-                        : todayMomentum.momentumScore >= 60
-                        ? 'bg-gradient-to-r from-amber-500 to-amber-400'
-                        : 'bg-gradient-to-r from-blue-500 to-blue-400'
-                    }`}
-                    style={{ width: `${todayMomentum.momentumScore}%` }}
-                  />
-                </div>
-                
-                <p className="text-[10px] text-gray-500 text-center mt-1">
-                  {todayMomentum.momentumScore < 40
-                    ? "Building..."
-                    : todayMomentum.momentumScore < 60
-                    ? "Gaining traction"
-                    : todayMomentum.momentumScore < 80
-                    ? "Heating up 🔥"
-                    : "On fire 🔥🔥"}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200">
-  <div className="text-center">
-    <p className="text-2xl font-bold text-gray-900">{todayMomentum.currentStreak}</p>
-    <p className="text-[10px] text-gray-500 uppercase tracking-wide">Streak</p>
+       {/* Momentum Engine */}
+<motion.div
+  variants={itemVariants}
+  className={`rounded-2xl shadow-lg p-5 mb-6 transition-all duration-500 relative overflow-hidden ${
+    !todayMomentum 
+      ? 'bg-white'
+      : todayMomentum.momentumScore >= 80
+      ? 'bg-gradient-to-br from-red-50 to-orange-50'
+      : todayMomentum.momentumScore >= 60
+      ? 'bg-gradient-to-br from-amber-50 to-yellow-50'
+      : todayMomentum.momentumScore >= 40
+      ? 'bg-gradient-to-br from-blue-50 to-cyan-50'
+      : 'bg-white'
+  }`}
+>
+  {/* Subtle background pattern */}
+  <div className="absolute inset-0 opacity-5">
+    <div className="absolute inset-0" style={{
+      backgroundImage: 'radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)',
+      backgroundSize: '32px 32px'
+    }}></div>
   </div>
-  
-  <div className="text-center">
-    <p className="text-2xl font-bold text-gray-900">{todayMomentum.lifetimeStreak}</p>
-    <p className="text-[10px] text-gray-500 uppercase tracking-wide">Total</p>
-  </div>
-</div>
 
-              {currentFocus.eligibleForLevelUp && (
-                <div className="bg-amber-500 text-gray-900 rounded-lg p-3 mt-3">
-                  <p className="text-sm font-semibold">🎯 Ready to level up</p>
-                  <p className="text-xs mt-1">Time to add the next brick.</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-sm">Complete your first check-in to start building momentum.</p>
-          )}
-        </motion.div>
+  <div className="relative">
+    <div className="flex items-center justify-between mb-3">
+      <h2 className="text-base font-semibold text-gray-900">Momentum Score</h2>
+      
+      {todayMomentum && (
+        <div className="text-right">
+          <p className={`text-4xl font-black tracking-tight ${
+            todayMomentum.momentumScore >= 80 ? 'text-red-600' :
+            todayMomentum.momentumScore >= 60 ? 'text-amber-600' :
+            todayMomentum.momentumScore >= 40 ? 'text-blue-600' :
+            'text-gray-400'
+          }`}>
+            {todayMomentum.momentumScore}%
+          </p>
+        </div>
+      )}
+    </div>
+
+    {currentFocus && todayMomentum ? (
+      <>
+        {/* Progress bar with glow */}
+        <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden mb-2">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${todayMomentum.momentumScore}%` }}
+            transition={{ duration: 1, ease: "easeOut" }}
+            className={`absolute h-full rounded-full ${
+              todayMomentum.momentumScore >= 80
+                ? 'bg-gradient-to-r from-red-500 to-orange-500 shadow-lg shadow-red-500/50'
+                : todayMomentum.momentumScore >= 60
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 shadow-lg shadow-amber-500/50'
+                : todayMomentum.momentumScore >= 40
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/50'
+                : 'bg-gradient-to-r from-gray-400 to-gray-500'
+            }`}
+          />
+        </div>
+        
+        {/* Status text */}
+        <p className={`text-xs font-semibold text-center ${
+  todayMomentum.momentumScore >= 80 ? 'text-red-600' :
+  todayMomentum.momentumScore >= 60 ? 'text-amber-600' :
+  todayMomentum.momentumScore >= 40 ? 'text-blue-600' :
+  'text-gray-500'
+}`}>
+  {todayMomentum.momentumMessage || "Building..."}
+</p>
+      </>
+    ) : (
+      <p className="text-gray-500 text-sm">Complete your first check-in to start building momentum.</p>
+    )}
+  </div>
+</motion.div>
 
         {/* Coach Card */}
         <motion.div
@@ -3005,7 +3126,56 @@ setMissedDays(0);
                 >
                   Seed Check-ins
                 </button>
-
+                <button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    // Delete all momentum docs except currentFocus, commitment, habitStack
+    const momentumCol = collection(db, "users", email, "momentum");
+    const momentumSnap = await getDocs(momentumCol);
+    
+    for (const doc of momentumSnap.docs) {
+      if (doc.id !== "currentFocus" && doc.id !== "commitment" && doc.id !== "habitStack") {
+        await deleteDoc(doc.ref);
+      }
+    }
+    
+    showToast({ message: "Cleared momentum history", type: "success" });
+    loadDashboardData();
+  }}
+  className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-md py-1 text-sm"
+>
+  Clear Momentum History
+</button>
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    const stackRef = doc(db, "users", email, "momentum", "habitStack");
+    const stackSnap = await getDoc(stackRef);
+    
+    if (stackSnap.exists()) {
+      const habits = stackSnap.data().habits || [];
+      
+      // Remove duplicates by habitKey
+      const uniqueHabits = habits.reduce((acc: any[], habit: any) => {
+        if (!acc.some(h => h.habitKey === habit.habitKey)) {
+          acc.push(habit);
+        }
+        return acc;
+      }, []);
+      
+      await setDoc(stackRef, { habits: uniqueHabits });
+      showToast({ message: `Cleaned stack: ${habits.length} → ${uniqueHabits.length}`, type: "success" });
+      loadDashboardData();
+    }
+  }}
+  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+>
+  Clean Habit Stack
+</button>
                 <button
                   onClick={async () => {
                     const email = getEmail();
@@ -3112,8 +3282,7 @@ setMissedDays(0);
                 >
                   Recalculate Stats
                 </button>
-              </div>
-            </details>
+              </div>            </details>
           </div>
         )}
       </motion.div>
