@@ -47,8 +47,12 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import WalkTimer from "../components/WalkTimer";
 import { calculateDailyMomentumScore, determinePrimaryHabitHit, applyMomentumCap } from "../utils/momentumCalculation";
-
-
+import { getDayVisualState } from "../utils/history/getDayVisualState";
+import { isGrowthHabit, getNextLevel, getLevelDescription } from "@/app/utils/habitConfig";
+import { logHabitEvent, getRecentHabitEvents } from "@/app/utils/habitEvents";
+import { checkLevelUpEligibility as checkEligibilityPure } from "@/app/utils/checkLevelUpEligibility";
+import type { DailyDoc } from "@/app/utils/checkLevelUpEligibility";
+import { runBackfill } from "@/app/utils/backfillMomentumStructure";
 /** ---------- Types ---------- */
 
 type Plan = {
@@ -390,7 +394,14 @@ const [habitStack, setHabitStack] = useState<any[]>([]);
       status: "active",
       movedToStackAt: new Date().toISOString(),
     };
-    
+    // Log the stack event
+await logHabitEvent(email, {
+  type: "moved_to_stack",
+  date: new Date().toISOString().split("T")[0],
+  habitKey: currentHabit.habitKey,
+  habitName: currentHabit.habit,
+  stackPosition: existingStack.length + 1,
+});
     await setDoc(stackRef, {
       habits: [...existingStack, newStackEntry],
       updatedAt: new Date().toISOString(),
@@ -414,9 +425,6 @@ const [habitStack, setHabitStack] = useState<any[]>([]);
     if (isMovementHabit(currentFocus.habitKey)) {
       return hasSessionToday;
     }
-    
-    // For other habits, we'd check todayMomentum.primaryHabitHit
-    // But for now, just handle movement
     return false;
   };
   useEffect(() => {
@@ -570,6 +578,7 @@ if (!commitSnap.exists()) {
         .sort((a, b) => a.date < b.date ? 1 : -1)
         .slice(0, 14);
       setRecentMomentum(allMomentum);
+      
 
       // ---- Today's check-in ----
       const rawToday = await getCheckin(email, today);
@@ -805,25 +814,25 @@ await saveCoachNoteToWeeklyStats(email, insight);
     
     console.log("[Level-Up] Checking eligibility...");
     console.log("[Level-Up] currentFocus:", currentFocusData);
-    console.log("[Level-Up] commitment:", commitmentData);
     
-    if (!currentFocusData || !commitmentData) {
-      console.log("[Level-Up] No currentFocus or commitment found");
+    if (!currentFocusData) {
+      console.log("[Level-Up] No currentFocus found");
+      setShowLevelUp(false);
       return;
     }
     
-    if (!isMovementHabit(currentFocusData.habitKey)) {
-      console.log("[Level-Up] Not a movement habit:", currentFocusData.habitKey);
+    const currentHabit = currentFocusData.habitKey || "walk_10min";
+    
+    // Only check growth habits
+    if (!isGrowthHabit(currentHabit)) {
+      console.log("[Level-Up] Not a growth habit:", currentHabit);
+      setShowLevelUp(false);
       return;
     }
   
-    // Check if we've shown prompt recently
+    // Check 7-day cooldown
     const commitRef = doc(db, "users", email, "momentum", "commitment");
     const commitSnap = await getDoc(commitRef);
-    console.log("[Dashboard] commitment:", commitSnap.exists() ? commitSnap.data() : "NOT FOUND");
-    
-    // ... rest of your function stays the same
-
     
     if (commitSnap.exists()) {
       const data = commitSnap.data();
@@ -836,56 +845,56 @@ await saveCoachNoteToWeeklyStats(email, insight);
         
         console.log("[Level-Up] Days since last prompt:", daysSincePrompt);
         
-        // Only show once per week
         if (daysSincePrompt < 7) {
           console.log("[Level-Up] Shown too recently, skipping");
           setShowLevelUp(false);
           return;
         }
-      }
+      } 
     }
   
-    // Get last 7 days of sessions
-    const sessionsCol = collection(db, "users", email, "sessions");
-    const sessionsSnap = await getDocs(sessionsCol);
-  
-    const targetMin = getTargetMinutes(currentFocusData.habitKey);
-    const last7Days: string[] = [];
-  
+    // Get last 7 days from momentum docs
+    const last7Days: DailyDoc[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateKey = d.toISOString().split("T")[0];
-      last7Days.push(dateKey);
+      
+      const dayRef = doc(db, "users", email, "momentum", dateKey);
+      const daySnap = await getDoc(dayRef);
+      
+      if (daySnap.exists()) {
+        const data = daySnap.data();
+        last7Days.push({
+          date: dateKey,
+          primary: data.primary,
+          checkinType: data.checkinType || "real",
+        });
+      }
     }
   
-    const relevantSessions = sessionsSnap.docs
-      .map(d => d.data())
-      .filter(s => last7Days.includes(s.date));
-    
-    console.log("[Level-Up] Target minutes:", targetMin);
-    console.log("[Level-Up] Relevant sessions:", relevantSessions.length);
-    console.log("[Level-Up] Session dates:", relevantSessions.map(s => s.date));
-    
-    // Count days that hit target
-    const daysHitTarget = relevantSessions.filter(s => s.durationMin >= targetMin).length;
-    
-    // Calculate average duration
-    const totalMinutes = relevantSessions.reduce((sum, s) => sum + (s.durationMin || 0), 0);
-    const avg = relevantSessions.length > 0 ? Math.round(totalMinutes / relevantSessions.length) : 0;
-    
-    setAverageDuration(avg);
-    
-    console.log("[Level-Up] Days hit target:", daysHitTarget);
-    console.log("[Level-Up] Average duration:", avg);
-    
-    // Eligible if 5+ days hit target
-    if (daysHitTarget >= 5) {
-      console.log("[Level-Up] ELIGIBLE! Setting showLevelUp to true");
+    // Get account age
+    const metadataRef = doc(db, "users", email, "metadata", "accountInfo");
+    const metadataSnap = await getDoc(metadataRef);
+    const firstCheckinDate = metadataSnap.exists() ? metadataSnap.data().firstCheckinDate : today;
+    const accountAgeDays = Math.floor((new Date(today).getTime() - new Date(firstCheckinDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  
+    // Use the pure eligibility function
+    const eligibility = checkEligibilityPure({
+      dailyDocsLast7: last7Days,
+      currentHabit,
+      lastLevelUpDate: currentFocusData.lastLevelUpAt || null,
+      accountAgeDays,
+    });
+  
+    console.log("[Level-Up] Eligibility result:", eligibility);
+  
+    if (eligibility.isEligible) {
+      console.log("[Level-Up] ELIGIBLE! Days hit:", eligibility.daysHit);
       setLevelUpEligible(true);
       setShowLevelUp(true);
     } else {
-      console.log("[Level-Up] Not eligible yet");
+      console.log("[Level-Up] Not eligible. Reason:", eligibility.reason);
       setLevelUpEligible(false);
       setShowLevelUp(false);
     }
@@ -1003,7 +1012,9 @@ const stackedResults = habitStack.map(h => {
     hit
   };
 });
-
+// Track stack completion stats
+const stackedHabitsCompleted = stackedResults.filter(s => s.hit).length;
+const totalStackedHabits = stackedResults.length;
 // Determine generic behaviors (behaviors NOT in primary or stack)
 const genericResults = [];
 const primaryType = getHabitType(currentHabit);
@@ -1119,14 +1130,70 @@ const yesterday = new Date();
       if (currentStreak % 7 === 0) {
         streakSavers += 1;
       }
-
+      const visualState = getDayVisualState(primaryHabitHit, {
+        nutrition: nutritionScore >= 9,
+        sleep: slept,
+        hydration: hydrated,
+        movement: moved
+      });
       await setDoc(doc(db, "users", email, "momentum", today), {
+        date: today,
+        
+        // Structured habit data (NEW)
+        primary: {
+          habitKey: currentHabit,
+          done: primaryHabitHit,
+        },
+        
+        stack: stackedResults.reduce((acc, s) => {
+          acc[s.name] = { done: s.hit };
+          return acc;
+        }, {} as Record<string, { done: boolean }>),
+        
+        foundations: {
+          protein: checkin.proteinHit === "yes",
+          hydration: hydrated,
+          sleep: slept,
+          nutrition: nutritionScore >= 9,
+          movement: moved,
+        },
+        
+        // Scores
+        dailyScore: todayScore,
+        rawMomentumScore: rawMomentumScore,
+        momentumScore: momentumScore,
+        momentumMessage: momentumMessage,
+        visualState,
+        
+        // Tracking
+        primaryHabitHit,
+        stackedHabitsCompleted,
+        totalStackedHabits,
+        moved,
+        hydrated,
+        slept,
+        nutritionScore,
+        
+        // Streaks
+        currentStreak,
+        lifetimeStreak,
+        streakSavers,
+        
+        // Meta
+        checkinType: "real", // NEW - distinguishes from streak saver placeholders
+        createdAt: new Date().toISOString(),
+      });
+      // Update state immediately
+      setTodayMomentum({
         date: today,
         dailyScore: todayScore,
         rawMomentumScore: rawMomentumScore,
         momentumScore: momentumScore,
         momentumMessage: momentumMessage,
+        visualState,
         primaryHabitHit,
+        stackedHabitsCompleted,  // NEW
+        totalStackedHabits,      // NEW
         moved,
         hydrated,
         slept,
@@ -1134,24 +1201,7 @@ const yesterday = new Date();
         currentStreak,
         lifetimeStreak,
         streakSavers,
-        createdAt: new Date().toISOString(),
       });
-      // Update state immediately
-setTodayMomentum({
-  date: today,
-  dailyScore: todayScore,
-  rawMomentumScore: rawMomentumScore,
-  momentumScore: momentumScore,
-  momentumMessage: momentumMessage,
-  primaryHabitHit,
-  moved,
-  hydrated,
-  slept,
-  nutritionScore,
-  currentStreak,
-  lifetimeStreak,
-  streakSavers,
-});
 
 // Auto-earn streak saver every 7 consecutive check-ins
 const newCheckinStreak = calculateCheckinStreak([...recentCheckins, { date: today }]);
@@ -1172,6 +1222,13 @@ if (newCheckinStreak > 0 && newCheckinStreak % 7 === 0) {
     showToast({ 
       message: `🎉 7-day streak! Earned a streak saver (${currentSavers + 1}/3)`, 
       type: "success" 
+    });
+    // Log the event
+    await logHabitEvent(email, {
+      type: "streak_saver_earned",
+      date: today,
+      streakLength: newCheckinStreak,
+      saversRemaining: currentSavers + 1,
     });
   }
 }
@@ -1289,7 +1346,15 @@ await setDoc(commitRef, {
   },
   createdAt: new Date().toISOString(),
 });
-  
+  // Log the level-up event
+await logHabitEvent(email, {
+  type: "level_up",
+  date: today,
+  habitKey: nextHabitKey,
+  habitName: nextHabit,
+  fromLevel: currentTarget,
+  toLevel: nextTarget,
+});
       setShowLevelUp(false);
       showToast({ message: `Leveled up to ${nextTarget} minutes! 🎯`, type: "success" });
       loadDashboardData();
@@ -1324,7 +1389,14 @@ await setDoc(commitRef, {
           averageDurationWhenOffered: averageDuration,
         },
       }, { merge: true });
-  
+  // Log the decline event
+await logHabitEvent(email, {
+  type: "level_up",  // Still a level_up event, but declined
+  date: today,
+  habitKey: currentFocus?.habitKey,
+  habitName: currentFocus?.habit,
+  declineReason: `${levelUpReason} - ${levelUpNextStep}`,
+});
       // Handle "try_different" - move current to stack, open habit picker
 if (levelUpNextStep === "try_different") {
   // Move current habit to stack before choosing new one
@@ -1675,8 +1747,17 @@ for (let i = 1; i <= missedDays; i++) {
 
 setStreakSavers(streakSavers - missedDays);
 setMissedDays(0);
+// Log the streak saver usage event
+await logHabitEvent(email, {
+  type: "streak_saver_used",
+  date: new Date().toISOString().split("T")[0],
+  streakLength: checkinStreak,
+  saversRemaining: streakSavers - missedDays,
+});
+
 // Don't reload - just update state manually
 // The streak is preserved, no need to recalculate
+
             }}
             className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg py-2 transition"
           >
@@ -3112,7 +3193,19 @@ setMissedDays(0);
               </summary>
 
               <div className="flex flex-col gap-2 mt-3">
-                <button
+              <button
+  onClick={async () => {
+    const email = getEmail();
+    if (email) {
+      await runBackfill(email);
+      showToast({ message: "Backfill complete! Refresh page.", type: "success" });
+    }
+  }}
+  className="px-3 py-1 bg-purple-500 text-white rounded"
+>
+  Backfill Momentum Structure
+</button>
+<button
                   onClick={async () => {
                     const email = getEmail();
                     if (!email) return;
@@ -3153,6 +3246,33 @@ setMissedDays(0);
     const email = getEmail();
     if (!email) return;
     
+    // Create a fake streak saver earned event
+    await logHabitEvent(email, {
+      type: "streak_saver_earned",
+      date: new Date().toISOString().split("T")[0],
+      streakLength: 7,
+      saversRemaining: 1,
+    });
+    
+    // Create a fake streak saver used event
+    await logHabitEvent(email, {
+      type: "streak_saver_used",
+      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      streakLength: 10,
+      saversRemaining: 0,
+    });
+    
+    showToast({ message: "Created fake streak events", type: "success" });
+  }}
+  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+>
+  Seed Streak Events
+</button>
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
     const stackRef = doc(db, "users", email, "momentum", "habitStack");
     const stackSnap = await getDoc(stackRef);
     
@@ -3176,21 +3296,7 @@ setMissedDays(0);
 >
   Clean Habit Stack
 </button>
-                <button
-                  onClick={async () => {
-                    const email = getEmail();
-                    if (!email) return;
-                    await devClearCheckins(email);
-                    showToast({
-                      message: "Cleared all check-ins",
-                      type: "error",
-                    });
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
-                >
-                  Reset Check-ins
-                </button>
-                <button
+<button
   onClick={async () => {
     const email = getEmail();
     if (!email) return;
@@ -3207,15 +3313,14 @@ setMissedDays(0);
     const currentHabitKey = focusSnap.data().habitKey;
     const targetMin = getTargetMinutes(currentHabitKey);
     
-    // Create 7 days of sessions hitting the current target
-    const sessionsCol = collection(db, "users", email, "sessions");
-    
+    // Create 7 days of BOTH sessions AND momentum docs
     for (let i = 6; i >= 1; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateKey = d.toISOString().split("T")[0];
       
-      await setDoc(doc(sessionsCol, `walk_${dateKey}`), {
+      // Create session
+      await setDoc(doc(collection(db, "users", email, "sessions"), `walk_${dateKey}`), {
         id: `walk_${dateKey}`,
         date: dateKey,
         type: "walk",
@@ -3225,10 +3330,46 @@ setMissedDays(0);
         completedAt: new Date(d).toISOString(),
         createdAt: new Date(d).toISOString(),
       });
+      
+      // Create momentum doc with new structure
+      await setDoc(doc(db, "users", email, "momentum", dateKey), {
+        date: dateKey,
+        primary: {
+          habitKey: currentHabitKey,
+          done: true, // Always true for these test days
+        },
+        stack: {},
+        foundations: {
+          protein: true,
+          hydration: true,
+          sleep: true,
+          nutrition: true,
+          movement: true,
+        },
+        checkinType: "real",
+        dailyScore: 100,
+        rawMomentumScore: 100,
+        momentumScore: 100,
+        momentumMessage: "Test data",
+        visualState: "solid",
+        primaryHabitHit: true,
+        stackedHabitsCompleted: 0,
+        totalStackedHabits: 0,
+        moved: true,
+        hydrated: true,
+        slept: true,
+        nutritionScore: 12,
+        currentStreak: i,
+        lifetimeStreak: i,
+        streakSavers: 0,
+        createdAt: new Date(d).toISOString(),
+      });
     }
     
-    showToast({ message: `Created 7 days of ${targetMin}min walks`, type: "success" });
-    loadDashboardData();
+    showToast({ message: `Created 7 days of ${targetMin}min walks + momentum`, type: "success" });
+    
+    // Reload dashboard to trigger eligibility check
+    setTimeout(() => loadDashboardData(), 1000);
   }}
   className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
 >

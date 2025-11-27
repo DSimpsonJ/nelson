@@ -6,6 +6,10 @@ import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { getEmail } from "../utils/getEmail";
 import { getDayVisualState, DayVisualState } from "../utils/history/getDayVisualState";
+import { getRecentHabitEvents, getEventDescription, getEventIcon } from "../utils/habitEvents";
+import type { HabitEvent } from "../utils/habitEvents";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { AnimatePresence, motion } from "framer-motion";
 
 type DayData = {
   date: string;
@@ -25,6 +29,10 @@ export default function HistoryPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [days, setDays] = useState<DayData[]>([]);
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null);
+  const [habitEvents, setHabitEvents] = useState<HabitEvent[]>([]);
+  const [showAllMilestones, setShowAllMilestones] = useState(false);
+const [showAllStreakEvents, setShowAllStreakEvents] = useState(false);
+const [showAllWorkouts, setShowAllWorkouts] = useState(false);
 
   useEffect(() => {
     loadMonthData();
@@ -68,6 +76,13 @@ export default function HistoryPage() {
       });
 
       setDays(loadedDays);
+      // Load habit events for the month
+const events = await getRecentHabitEvents(email, 50);
+const monthEvents = events.filter(e => {
+  const eventDate = new Date(e.date);
+  return eventDate.getFullYear() === year && eventDate.getMonth() === month;
+});
+setHabitEvents(monthEvents);
     } catch (err) {
       console.error("Failed to load history:", err);
     } finally {
@@ -198,6 +213,7 @@ export default function HistoryPage() {
               Next →
             </button>
           </div>
+          </div>
 
           {/* Day Labels */}
           <div className="flex gap-1 justify-between mb-3">
@@ -277,12 +293,150 @@ export default function HistoryPage() {
             </div>
           </div>
         </div>
- {/* Workout Timeline */}
- <div className="mt-8 pt-6 border-t border-gray-200">
-  <h2 className="text-base font-semibold text-gray-900 mb-4">Recent Workouts</h2>
-  <WorkoutTimeline currentMonth={currentMonth} />
+        {/* Momentum Trend */}
+<div className="mt-8 pt-6 border-t border-gray-200">
+  <h2 className="text-base font-semibold text-gray-900 mb-4">Momentum Trend</h2>
+  <div className="h-48">
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={days.slice(-30)}>
+        <XAxis 
+          dataKey="date" 
+          tickFormatter={(date) => new Date(date).getDate().toString()}
+          stroke="#9CA3AF"
+          fontSize={12}
+        />
+        <YAxis 
+          domain={[0, 100]}
+          stroke="#9CA3AF"
+          fontSize={12}
+          tickFormatter={(value) => `${value}%`}
+        />
+        <Tooltip 
+          content={({ active, payload }) => {
+            if (active && payload && payload.length) {
+              const data = payload[0].payload;
+              return (
+                <div className="bg-white border border-gray-200 rounded-lg p-2 shadow-lg">
+                  <p className="text-xs text-gray-500">
+                    {new Date(data.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </p>
+                  <p className="text-sm font-bold text-gray-900">{data.momentumScore}%</p>
+                </div>
+              );
+            }
+            return null;
+          }}
+        />
+        <Line 
+          type="monotone" 
+          dataKey="momentumScore" 
+          stroke="#2563EB" 
+          strokeWidth={2}
+          dot={false}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  </div>
+  <div className="flex items-center justify-center gap-4 mt-3 text-xs text-gray-500">
+    <div className="flex items-center gap-1">
+      <div className="w-3 h-0.5 bg-blue-600"></div>
+      <span>Last 30 days</span>
+    </div>
+  </div>
 </div>
+       {/* Habit Events Timeline */}
+{habitEvents.filter(e => e.type !== "streak_saver_earned" && e.type !== "streak_saver_used").length > 0 && (
+  <div className="mt-8 pt-6 border-t border-gray-200">
+    <h2 className="text-base font-semibold text-gray-900 mb-4">Milestones & Progress</h2>
+    <div className="space-y-3">
+      {habitEvents
+        .filter(e => e.type !== "streak_saver_earned" && e.type !== "streak_saver_used")
+        .map((event, index) => (
+          <div
+            key={event.id}
+            className={`flex items-start gap-3 border border-gray-200 rounded-lg p-3 transition-all duration-300 ease-out ${
+              !showAllMilestones && index >= 5 
+                ? "max-h-0 opacity-0 overflow-hidden py-0 my-0 border-0" 
+                : "max-h-96 opacity-100"
+            }`}
+          >
+            <div className="text-2xl flex-shrink-0">{getEventIcon(event)}</div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900 text-sm">
+                {getEventDescription(event)}
+              </p>
+              <p className="text-xs text-gray-500">
+                {new Date(event.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </p>
+            </div>
           </div>
+        ))}
+    </div>
+    {habitEvents.filter(e => e.type !== "streak_saver_earned" && e.type !== "streak_saver_used").length > 5 && (
+      <button
+        onClick={() => setShowAllMilestones(!showAllMilestones)}
+        className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-semibold"
+      >
+        {showAllMilestones ? "Show Less" : `Show ${habitEvents.filter(e => e.type !== "streak_saver_earned" && e.type !== "streak_saver_used").length - 5} More`}
+      </button>
+    )}
+  </div>
+)}
+{/* Streak Ledger */}
+{habitEvents.filter(e => e.type === "streak_saver_earned" || e.type === "streak_saver_used").length > 0 && (
+  <div className="mt-8 pt-6 border-t border-gray-200">
+    <h2 className="text-base font-semibold text-gray-900 mb-4">Streak Savers</h2>
+    <div className="space-y-2">
+      {habitEvents
+        .filter(e => e.type === "streak_saver_earned" || e.type === "streak_saver_used")
+        .map((event, index) => (
+          <div
+            key={event.id}
+            className={`flex items-center justify-between p-3 rounded-lg transition-all duration-300 ease-out ${
+              !showAllStreakEvents && index >= 3
+                ? "max-h-0 opacity-0 overflow-hidden py-0 my-0 border-0"
+                : "max-h-96 opacity-100"
+            } ${
+              event.type === "streak_saver_earned" 
+                ? "bg-green-50 border border-green-200" 
+                : "bg-amber-50 border border-amber-200"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{getEventIcon(event)}</span>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {event.type === "streak_saver_earned" ? "Earned Streak Saver" : "Used Streak Saver"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {new Date(event.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {event.streakLength && ` • ${event.streakLength}-day streak`}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-semibold text-gray-600">
+                {event.saversRemaining}/3
+              </p>
+            </div>
+          </div>
+        ))}
+    </div>
+    {habitEvents.filter(e => e.type === "streak_saver_earned" || e.type === "streak_saver_used").length > 3 && (
+      <button
+        onClick={() => setShowAllStreakEvents(!showAllStreakEvents)}
+        className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-semibold"
+      >
+        {showAllStreakEvents ? "Show Less" : `Show ${habitEvents.filter(e => e.type === "streak_saver_earned" || e.type === "streak_saver_used").length - 3} More`}
+      </button>
+    )}
+  </div>
+)}
+{/* Workout Timeline */}
+<div className="mt-8 pt-6 border-t border-gray-200">
+  <h2 className="text-base font-semibold text-gray-900 mb-4">Recent Workouts</h2>
+  <WorkoutTimeline currentMonth={currentMonth} showAllWorkouts={showAllWorkouts} setShowAllWorkouts={setShowAllWorkouts} />
+</div>
         {/* Day Detail Modal */}
 {selectedDay && (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -347,7 +501,15 @@ export default function HistoryPage() {
       </div>
     </main>
   );
-  function WorkoutTimeline({ currentMonth }: { currentMonth: Date }) {
+  function WorkoutTimeline({ 
+    currentMonth, 
+    showAllWorkouts, 
+    setShowAllWorkouts 
+  }: { 
+    currentMonth: Date;
+    showAllWorkouts: boolean;
+    setShowAllWorkouts: (show: boolean) => void;
+  }) {
     const [sessions, setSessions] = useState<any[]>([]);
   
     useEffect(() => {
@@ -383,24 +545,41 @@ export default function HistoryPage() {
     }
   
     return (
-      <div className="space-y-3">
-        {sessions.map(session => (
-          <div key={session.id} className="border border-gray-200 rounded-lg p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">{session.dayType} Day</p>
-                <p className="text-xs text-gray-500">
-                  {new Date(session.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-gray-900">{session.totalSets} sets</p>
-                <p className="text-xs text-gray-500">{Math.floor(session.durationSec / 60)} min</p>
+      <>
+        <div className="space-y-3">
+          {sessions.map((session, index) => (
+            <div
+              key={session.id}
+              className={`border border-gray-200 rounded-lg p-3 transition-all duration-300 ease-out ${
+                !showAllWorkouts && index >= 5
+                  ? "max-h-0 opacity-0 overflow-hidden py-0 my-0 border-0"
+                  : "max-h-96 opacity-100"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{session.dayType} Day</p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(session.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-gray-900">{session.totalSets} sets</p>
+                  <p className="text-xs text-gray-500">{Math.floor(session.durationSec / 60)} min</p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+        {sessions.length > 5 && (
+          <button
+            onClick={() => setShowAllWorkouts(!showAllWorkouts)}
+            className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-semibold"
+          >
+            {showAllWorkouts ? "Show Less" : `Show ${sessions.length - 5} More`}
+          </button>
+        )}
+      </>
     );
   }
 }
