@@ -7,11 +7,11 @@ export interface Checkin {
   headspace: string;
   proteinHit: string;
   hydrationHit: string;
-  movedToday?: string;
-  sleepHit?: string;
-  energyBalance?: string;
-  eatingPattern?: string;
-  primaryHabitDuration?: string;  // ADD THIS LINE
+  movedToday: string;  // Now required
+  sleepHit: string;    // Now required
+  energyBalance: string;  // Now required
+  eatingPattern: string;  // Now required
+  primaryHabitDuration?: string;
   note?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -53,8 +53,9 @@ export async function seedFakeCheckins(email: string) {
       proteinHit: i % 4 === 0 ? "no" : "yes",
       hydrationHit: i % 5 === 0 ? "no" : "yes",
       movedToday: i % 3 === 0 ? "no" : "yes",
+      sleepHit: i % 4 === 0 ? "no" : "yes",  // ADD THIS LINE
       energyBalance: i % 4 === 0 ? "light" : i % 3 === 0 ? "heavy" : "normal",
-eatingPattern: i % 3 === 0 ? "mixed" : "meals",
+      eatingPattern: i % 3 === 0 ? "mixed" : "meals",
     };
 
     await saveCheckin(email, fake);
