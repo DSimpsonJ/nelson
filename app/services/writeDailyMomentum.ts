@@ -16,6 +16,7 @@ import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 import { calculateDailyMomentumScore, determinePrimaryHabitHit } from "@/app/utils/momentumCalculation";
 import { getDayVisualState } from "@/app/utils/history/getDayVisualState";
+import { getLocalDateOffset } from "@/app/utils/date";
 
 // getHabitType helper - inline since it's not exported
 function getHabitType(habitKey: string): string {
@@ -470,17 +471,15 @@ export async function writeDailyMomentum(
     // 4. Get last 7 days for rolling average
     const last7Days: number[] = [];
     for (let i = 1; i <= 6; i++) {
-      const d = new Date(input.date);
-      d.setDate(d.getDate() - i);
-      const dateKey = d.toISOString().split("T")[0];
-      
-      const dayRef = doc(db, "users", input.email, "momentum", dateKey);
-      const daySnap = await getDoc(dayRef);
-      
-      if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
-        last7Days.push(daySnap.data().dailyScore);
+        const dateKey = getLocalDateOffset(i);  // Clean, direct, local-time aware
+        
+        const dayRef = doc(db, "users", input.email, "momentum", dateKey);
+        const daySnap = await getDoc(dayRef);
+        
+        if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
+          last7Days.push(daySnap.data().dailyScore);
+        }
       }
-    }
     
     // 5. Calculate all derived fields
     const finalDoc = await calculateDerivedFields(sanitized, merged, last7Days);
