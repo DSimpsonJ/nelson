@@ -16,6 +16,7 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 import { isGrowthHabit, getNextLevel as getNextLevelMinutes, extractMinutes } from "@/app/utils/habitConfig";
+import { getLocalDate } from "@/app/utils/date";
 
 // ============================================================================
 // CANONICAL INTERFACE
@@ -138,7 +139,7 @@ return updateLevelInternal(email, currentFocus as Required<CurrentFocus>);
       throw new Error(`No next level available for ${currentFocus.habitKey}`);
     }
     
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalDate();
     
     // Build new habitKey (e.g., walk_12min -> walk_15min)
     const nextHabitKey = `walk_${nextMinutes}min`;
@@ -187,7 +188,7 @@ export async function switchPrimaryFocus(
     await moveToStack(email, currentFocus);
   }
   
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalDate();
   
   // For movement habits, start at walk_10min (level 1)
   const startHabitKey = "walk_10min";

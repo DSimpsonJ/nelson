@@ -16,7 +16,7 @@ import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 import { calculateDailyMomentumScore, determinePrimaryHabitHit } from "@/app/utils/momentumCalculation";
 import { getDayVisualState } from "@/app/utils/history/getDayVisualState";
-import { getLocalDateOffset } from "@/app/utils/date";
+import { getLocalDateOffset, parseLocalDate } from "@/app/utils/date";
 
 // getHabitType helper - inline since it's not exported
 function getHabitType(habitKey: string): string {
@@ -469,17 +469,24 @@ export async function writeDailyMomentum(
     const merged = await mergeWithExisting(input.email, input.date, defaults);
     
     // 4. Get last 7 days for rolling average
-    const last7Days: number[] = [];
-    for (let i = 1; i <= 6; i++) {
-        const dateKey = getLocalDateOffset(i);  // Clean, direct, local-time aware
-        
-        const dayRef = doc(db, "users", input.email, "momentum", dateKey);
-        const daySnap = await getDoc(dayRef);
-        
-        if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
-          last7Days.push(daySnap.data().dailyScore);
-        }
-      }
+const last7Days: number[] = [];
+
+// Parse the input date to get a proper Date object in local time
+const baseDate = new Date(input.date + "T00:00:00"); // Force local midnight
+
+for (let i = 1; i <= 6; i++) {
+  // Calculate relative to the input date, not "today"
+  const lookbackDate = new Date(baseDate);
+  lookbackDate.setDate(lookbackDate.getDate() - i);
+  const dateKey = lookbackDate.toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+  
+  const dayRef = doc(db, "users", input.email, "momentum", dateKey);
+  const daySnap = await getDoc(dayRef);
+  
+  if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
+    last7Days.push(daySnap.data().dailyScore);
+  }
+}
     
     // 5. Calculate all derived fields
     const finalDoc = await calculateDerivedFields(sanitized, merged, last7Days);

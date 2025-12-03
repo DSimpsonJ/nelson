@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { getEmail } from "../utils/getEmail";
+import { getLocalDate } from "@/app/utils/date";
 
 export default function WalkPage() {
   const router = useRouter();
@@ -88,7 +89,7 @@ export default function WalkPage() {
       const email = getEmail();
       if (!email) throw new Error("No user email found");
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDate();
       const sessionId = `walk_${Date.now()}`;
 
       await setDoc(doc(db, "users", email, "sessions", sessionId), {

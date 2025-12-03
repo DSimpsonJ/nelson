@@ -11,7 +11,8 @@ import {
   deleteDoc,
   query,
   orderBy,
-  limit
+  limit,
+  writeBatch,
 } from "firebase/firestore";
 import { db, auth } from "../firebase/config";
 import { getEmail } from "../utils/getEmail";
@@ -44,7 +45,7 @@ import { generateWeeklySummary } from "../utils/generateWeeklySummary";
 import { getStreakMessage } from "../utils/getStreakMessage";
 import { withFirestoreError } from "../utils/withFirestoreError";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import WalkTimer from "../components/WalkTimer";
 import { calculateDailyMomentumScore, determinePrimaryHabitHit, applyMomentumCap } from "../utils/momentumCalculation";
 import { getDayVisualState } from "../utils/history/getDayVisualState";
@@ -61,6 +62,9 @@ import {
   type CurrentFocus 
 } from "@/app/services/currentFocus";
 import { getLocalDate, getLocalDateOffset, daysBetween } from "@/app/utils/date";
+import { getRewardForEvent, type RewardPayload } from "@/app/services/rewardEngine";
+import RewardRenderer from "@/app/components/rewards/RewardRenderer";
+import CheckinSuccessAnimation from "@/app/components/rewards/CheckinSuccessAnimation";
 
 /** ---------- Types ---------- */
 
@@ -338,10 +342,12 @@ export default function DashboardPage() {
   const [levelUpEligible, setLevelUpEligible] = useState(false);
   const [averageDuration, setAverageDuration] = useState(0);
   const [showLevelUp, setShowLevelUp] = useState(false);
-  const [levelUpStage, setLevelUpStage] = useState<"prompt" | "reflection" | "alternative">("prompt");
+  const [levelUpStage, setLevelUpStage] = useState<"prompt" | "reflection" | "alternative" | "adjust">("prompt");
   const [levelUpReason, setLevelUpReason] = useState<string>("");
   const [levelUpNextStep, setLevelUpNextStep] = useState<string>("");
   const [habitStack, setHabitStack] = useState<any[]>([]);
+  const [pendingReward, setPendingReward] = useState<RewardPayload | null>(null);
+  const [checkinSuccess, setCheckinSuccess] = useState(false);
 
   const hasCompletedCheckin = (): boolean => {
     if (!todayCheckin) return false;
@@ -567,11 +573,12 @@ const commitmentData = commitSnap.exists() ? commitSnap.data() : null;
 console.log("[Dashboard] commitment loaded:", commitmentData);
 setCommitment(commitmentData);
 
-if (!commitSnap.exists()) {
-  setShowCommitment(true);
-} else if (commitmentData && commitmentData.expiresAt && new Date(commitmentData.expiresAt) < new Date()) {
-  setShowCommitment(true);
-}
+// Show commitment modal if no commitment exists OR if it's expired
+const shouldShowCommitmentModal = 
+  !commitSnap.exists() || 
+  (commitmentData?.expiresAt && new Date(commitmentData.expiresAt) < new Date());
+
+setShowCommitment(shouldShowCommitmentModal);
 
       const todayMomentumRef = doc(db, "users", email, "momentum", today);
       const todayMomentumSnap = await getDoc(todayMomentumRef);
@@ -604,6 +611,7 @@ if (!commitSnap.exists()) {
 
       setTodayCheckin(todayData);
       setCheckinSubmitted(!!todayData);
+
 
       await loadRecentCheckins(email);
 
@@ -942,7 +950,12 @@ const firstCheckinDate = metadataSnap.exists() ? metadataSnap.data().firstChecki
       await updateWeeklyStats(email);
   
       setTodayCheckin(data);
-      setCheckinSubmitted(true);
+     // Fetch all check-ins to count for milestones
+const checkinsColRef = collection(db, "users", email, "checkins");
+const checkinsSnap = await getDocs(checkinsColRef);
+const allCheckinsCount = checkinsSnap.size; // Total count including today
+
+console.log("🎯 Check-in count:", allCheckinsCount);
   
       // --- MOMENTUM ENGINE -------------------------
   
@@ -1038,30 +1051,98 @@ const firstCheckinDate = metadataSnap.exists() ? metadataSnap.data().firstChecki
         goal: profile?.plan?.goal || "fat_loss",
         accountAgeDays,
       });
-  
+      
       // Merge in the streak data we calculated
-      await setDoc(doc(db, "users", email, "momentum", localToday), {
-        ...momentumDoc,
-        currentStreak,
-        lifetimeStreak,
-        streakSavers,
-      }, { merge: true });
+await setDoc(doc(db, "users", email, "momentum", localToday), {
+  ...momentumDoc,
+  currentStreak,
+  lifetimeStreak,
+  streakSavers,
+}, { merge: true });
+
+// ✅ CHECK FOR COMMITMENT COMPLETE (priority over streaks)
+const commitRef = doc(db, "users", email, "momentum", "commitment");
+const commitSnap = await getDoc(commitRef);
+const commitmentData = commitSnap.exists() ? commitSnap.data() : null;
+
+let isCommitmentComplete = false;
+
+if (commitmentData?.expiresAt && commitmentData?.accepted && !commitmentData?.celebrated) {
+  const expiresDate = new Date(commitmentData.expiresAt);
+  const todayDate = new Date(localToday + "T00:00:00");
+  expiresDate.setHours(0, 0, 0, 0);
+  todayDate.setHours(0, 0, 0, 0);
   
-      // Update UI state
-      setTodayMomentum({
-        ...momentumDoc,
-        currentStreak,
-        lifetimeStreak,
-        streakSavers,
-      });
+  if (expiresDate.getTime() <= todayDate.getTime()) {
+    isCommitmentComplete = true;
+    
+    // Mark as celebrated
+    await setDoc(commitRef, {
+      celebrated: true,
+      celebratedAt: new Date().toISOString()
+    }, { merge: true });
+  }
+}
   
-      console.log("[Momentum] Written via writeDailyMomentum:", momentumDoc.momentumScore);
+ // ✅ CHECK FOR MILESTONE REWARDS
+
+// Check for perfect day (all foundations + primary)
+const isPerfectDay = 
+data.proteinHit === "yes" &&
+data.hydrationHit === "yes" &&
+data.sleepHit === "yes" &&
+data.movedToday === "yes" &&
+data.energyBalance === "normal" &&
+data.eatingPattern === "meals" &&
+momentumDoc.primaryHabitHit;
+
+// Check for return from break (7+ days away)
+const isReturningFromBreak = missedDays >= 7;
+
+// Check for lifetime check-in milestones
+const isMilestone50 = allCheckinsCount === 50;
+const isMilestone100 = allCheckinsCount === 100;
+const hasMilestone = 
+  currentStreak === 30 || 
+  currentStreak === 21 || 
+  currentStreak === 7 || 
+  currentStreak === 3 ||
+  isPerfectDay ||
+  isCommitmentComplete ||
+  isReturningFromBreak ||
+  isMilestone50 ||
+  isMilestone100;
+
+if (hasMilestone) {
+// Skip daily celebration, go straight to milestone
+// PRIORITY ORDER: Commitment > Return from Break > Streaks > Perfect Day
+if (isCommitmentComplete) {
+  setPendingReward(getRewardForEvent("commitment_complete"));
+} else if (isReturningFromBreak) {
+  setPendingReward(getRewardForEvent("return_from_break"));
+} else if (isMilestone100) {
+  setPendingReward(getRewardForEvent("milestone_100"));
+} else if (isMilestone50) {
+  setPendingReward(getRewardForEvent("milestone_50"));
+} else if (currentStreak === 30) {
+  setPendingReward(getRewardForEvent("streak_30"));
+} else if (currentStreak === 21) {
+  setPendingReward(getRewardForEvent("streak_21"));
+} else if (currentStreak === 7) {
+  setPendingReward(getRewardForEvent("streak_7"));
+} else if (currentStreak === 3) {
+  setPendingReward(getRewardForEvent("streak_3"));
+} else if (isPerfectDay) {
+  setPendingReward(getRewardForEvent("perfect_day"));
+}
+
+// Mark check-in as complete immediately (no daily animation)
+setCheckinSubmitted(true);
+} else {
+// Show daily celebration
+setCheckinSuccess(true);
+}
   
-      const note = await refreshCoachNote(email, profile?.plan as any);
-      setCoachNote(note);
-      await saveCoachNoteToWeeklyStats(email, note);
-  
-      showToast({ message: "Check-in saved!", type: "success" });
     } catch (err) {
       console.error("handleCheckinSubmit error:", err);
       showToast({ message: "Failed to save check-in", type: "error" });
@@ -1097,22 +1178,22 @@ const firstCheckinDate = metadataSnap.exists() ? metadataSnap.data().firstChecki
     try {
       const email = getEmail();
       if (!email || !currentFocus) return;
-  
       const today = getLocalDate();
       const currentTarget = getTargetMinutes(currentFocus.habitKey);
-  
-      // Use the service to handle level-up
+      
+      // Perform level-up
       const updatedFocus = await updateLevel(email);
-  
-      // Create new 7-day commitment
+      
+      // Build new 7-day commitment
       const weekId = getISOWeekId(new Date());
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
-  
       const commitRef = doc(db, "users", email, "momentum", "commitment");
       const commitSnap = await getDoc(commitRef);
-      const existingPrompts = commitSnap.exists() ? (commitSnap.data().levelUpPrompts || {}) : {};
-  
+      const existingPrompts = commitSnap.exists()
+        ? commitSnap.data().levelUpPrompts || {}
+        : {};
+      
       await setDoc(commitRef, {
         habitOffered: updatedFocus.habit,
         habitKey: updatedFocus.habitKey,
@@ -1128,19 +1209,25 @@ const firstCheckinDate = metadataSnap.exists() ? metadataSnap.data().firstChecki
         },
         createdAt: new Date().toISOString(),
       });
-  
+      
       // Log the level-up event
       await logHabitEvent(email, {
         type: "level_up",
-        date: getLocalDate(),
+        date: today,
         habitKey: updatedFocus.habitKey,
         habitName: updatedFocus.habit,
         fromLevel: currentTarget,
         toLevel: updatedFocus.target,
       });
-  
+      
+      // Close modal
       setShowLevelUp(false);
-      showToast({ message: `Leveled up to ${updatedFocus.target} minutes! 🎯`, type: "success" });
+      
+    // ✅ FIRE LEVEL-UP CELEBRATION
+const levelUpReward = getRewardForEvent("level_up");
+setPendingReward(levelUpReward);
+      
+      // Reload dashboard with new level
       loadDashboardData();
     } catch (err) {
       console.error("Failed to level up:", err);
@@ -1149,6 +1236,7 @@ const firstCheckinDate = metadataSnap.exists() ? metadataSnap.data().firstChecki
       setSaving(false);
     }
   };
+  
   
   const handleLevelUpDecline = async () => {
     if (!levelUpReason || !levelUpNextStep) return;
@@ -1477,6 +1565,10 @@ useEffect(() => {
       animate="visible"
       className="min-h-screen bg-gray-50 p-6"
     >
+      <RewardRenderer 
+      reward={pendingReward} 
+      onComplete={() => setPendingReward(null)}
+    />
       <motion.div
         variants={containerVariants}
         className="max-w-3xl mx-auto space-y-6"
@@ -1574,7 +1666,7 @@ await logHabitEvent(email, {
     )}
   </div>
 ) : hasCompletedCheckin() ? (
-  <p className="text-gray-600 mt-1">You checked in today. That's the kind of consistency that compounds.</p>
+  <p className="text-gray-600 mt-1">You checked in today, nice job. That's the kind of consistency that compounds.</p>
 ) : (
   <p className="text-gray-600 mt-1">Welcome back. Ready to build?</p>
 )}
@@ -1612,119 +1704,153 @@ await logHabitEvent(email, {
   {showLevelUp && levelUpEligible ? (
     <div className="transition-all duration-500 ease-in-out">
       {levelUpStage === "prompt" && (
-        <div className="animate-fadeIn">
-          <p className="text-gray-800 mb-1 text-sm">
-            You're ready to level up
-          </p>
-          <p className="text-gray-900 mb-2 font-semibold text-lg">
-            You're averaging {averageDuration} minutes over the last 7 days
-          </p>
-          <p className="text-gray-700 mb-4 text-sm">
-            Want to make {(() => {
-              const current = getTargetMinutes(currentFocus?.habitKey || "");
-              const next = current === 5 ? 10 : current === 10 ? 12 : current === 12 ? 15 : current + 2;
-              return next;
-            })()} minutes your official target?
-          </p>
-          
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={handleLevelUpAccept}
-              disabled={saving}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "I'm In"}
-            </button>
-            
-            <div className="flex gap-2">
-              <button
-                onClick={() => setLevelUpStage("reflection")}
-                className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
-              >
-                Not Yet
-              </button>
-              
-              <button
-  onClick={async () => {
-    const email = getEmail();
-    if (email && currentFocus && !currentFocus.suggested) {
-      await moveCurrentToStack(email, currentFocus);
-    }
-    setShowLevelUp(false);
-    setCommitmentStage("choose");
-    setShowCommitment(true);
-  }}
-  className="flex-1 bg-white hover:bg-gray-50 text-blue-600 font-semibold rounded-lg py-2 border-2 border-blue-300 transition"
->
-  Choose Different
-</button>
-            </div>
-          </div>
-        </div>
-      )}
+  <div className="animate-fadeIn">
+    <p className="text-gray-800 mb-1 text-sm">
+      You're ready to level up!
+    </p>
+    <p className="text-gray-900 mb-2 font-semibold text-lg">
+      You're averaging {averageDuration} minutes over the last 7 days
+    </p>
+    <p className="text-gray-700 mb-4 text-sm">
+      What feels doable for the next 7 days?
+    </p>
+    
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={handleLevelUpAccept}
+        disabled={saving}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition disabled:opacity-50"
+      >
+        {saving ? "Saving..." : `Level Up to ${(() => {
+          const current = getTargetMinutes(currentFocus?.habitKey || "");
+          const next = current === 5 ? 10 : current === 10 ? 12 : current === 12 ? 15 : current === 15 ? 20 : current === 20 ? 25 : current === 25 ? 30 : current + 5;
+          return next;
+        })()} Minutes`}
+      </button>
+      
+      <button
+        onClick={() => {
+          setShowLevelUp(false);
+          showToast({ message: "You got it. Keep building at your current pace.", type: "success" });
+        }}
+        className="w-full bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
+      >
+        Stay at This Level
+      </button>
+      
+      <button
+        onClick={() => setLevelUpStage("adjust")}
+        className="w-full bg-white hover:bg-gray-50 text-blue-600 font-semibold rounded-lg py-2 border-2 border-blue-300 transition"
+      >
+        Adjust My Plan
+      </button>
+    </div>
+  </div>
+)}
+{levelUpStage === "adjust" && (
+  <div className="animate-fadeIn">
+    <p className="text-gray-800 mb-3 font-semibold">
+      Sounds good. Sustainability beats intensity every time.
+    </p>
+    <p className="text-gray-700 mb-3 text-sm">
+      What feels more manageable right now?
+    </p>
 
-      {levelUpStage === "reflection" && (
-        <div className="animate-fadeIn">
-          <p className="text-gray-800 mb-3 font-semibold">
-            I respect that. Let's understand what would work better.
-          </p>
-          
-          <p className="text-gray-700 mb-3 text-sm">What's holding you back?</p>
-          <div className="space-y-2 mb-3">
-            {[
-              { value: "tight_on_time", label: "I'm tight on time" },
-              { value: "want_more_consistency", label: "I want to get more consistent first" },
-              { value: "afraid_overcommit", label: "I'm afraid of overcommitting" },
-              { value: "not_ready", label: "I don't feel ready yet" },
-            ].map((option) => (
-              <label key={option.value} className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 cursor-pointer text-sm">
-                <input
-                  type="radio"
-                  name="levelUpReason"
-                  value={option.value}
-                  checked={levelUpReason === option.value}
-                  onChange={(e) => setLevelUpReason(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span className="text-gray-800">{option.label}</span>
-              </label>
-            ))}
-          </div>
-
-          {levelUpReason && (
-            <>
-              <p className="text-gray-700 mb-3 text-sm">What feels like the right next step?</p>
-              <div className="space-y-2 mb-3">
-                {[
-                  { value: "stick_current", label: `Stick with ${currentFocus?.habit || "current habit"} for now` },
-                  { value: "increase_some_days", label: "Increase on 2–3 days per week only" },
-                  { value: "try_different", label: "Try a different focus habit instead" },
-                ].map((option) => (
-                  <label key={option.value} className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 cursor-pointer text-sm">
-                    <input
-                      type="radio"
-                      name="levelUpNextStep"
-                      value={option.value}
-                      checked={levelUpNextStep === option.value}
-                      onChange={(e) => setLevelUpNextStep(e.target.value)}
-                      className="w-4 h-4"
-                    />
-                    <span className="text-gray-800">{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            </>
-          )}
-
+    <div className="space-y-2">
+      {(() => {
+        const currentMinutes = extractMinutes(currentFocus?.habitKey || "walk_10min") || 10;
+        const ladder = [5, 10, 12, 15, 20, 25, 30];
+        
+        // Only show options BELOW current level
+        const lowerOptions = ladder.filter(min => min < currentMinutes);
+        
+        if (lowerOptions.length === 0) {
+          return (
+            <p className="text-sm text-gray-600 p-3 bg-gray-50 rounded-lg">
+              You're already at the starting level! Keep building consistency here.
+            </p>
+          );
+        }
+        
+        return lowerOptions.reverse().map((minutes) => (
           <button
-            onClick={handleLevelUpDecline}
-            disabled={!levelUpReason || !levelUpNextStep || saving}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            key={minutes}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                const email = getEmail();
+                if (!email) return;
+
+                // Update currentFocus to lower level
+                const newHabitKey = `walk_${minutes}min`;
+                const newHabit = `Walk ${minutes} minutes`;
+                
+                const focusData: CurrentFocus = {
+                  habitKey: newHabitKey,
+                  habit: newHabit,
+                  level: ladder.indexOf(minutes) + 1,
+                  target: minutes,
+                  startedAt: currentFocus?.startedAt || getLocalDate(),
+                  lastLevelUpAt: getLocalDate(), // Mark as adjusted
+                  consecutiveDays: 0,
+                  eligibleForLevelUp: false,
+                };
+                
+                await setCurrentFocusService(email, focusData);
+                
+                // Log the adjustment
+                await logHabitEvent(email, {
+                  type: "level_up", // Could create "level_adjust" type later
+                  date: getLocalDate(),
+                  habitKey: newHabitKey,
+                  habitName: newHabit,
+                  fromLevel: currentFocus?.level,
+                  toLevel: focusData.level,
+                });
+                
+                // Update commitment to reflect new habit
+                await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                  habitOffered: newHabit,
+                  habitKey: newHabitKey,
+                  acceptedAt: getLocalDate(),
+                  isActive: true,
+                }, { merge: true });
+                
+                setShowLevelUp(false);
+                showToast({ 
+                  message: "Plan adjusted. Focus on consistency at this level.", 
+                  type: "success" 
+                });
+                
+                loadDashboardData();
+                
+              } catch (err) {
+                console.error("Failed to adjust plan:", err);
+                showToast({ message: "Failed to adjust plan", type: "error" });
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={saving}
+            className="w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Continue"}
+            <p className="font-semibold text-gray-900 text-sm">Walk {minutes} minutes daily</p>
+            <p className="text-xs text-gray-600">
+              {minutes === 5 ? "Start small, build the habit" : "Dial it back, stay consistent"}
+            </p>
           </button>
-        </div>
-      )}
+        ));
+      })()}
+    </div>
+
+    <button
+      onClick={() => setLevelUpStage("prompt")}
+      className="w-full mt-3 text-sm text-gray-600 hover:text-gray-900"
+    >
+      ← Back
+    </button>
+  </div>
+)}
     </div>
   ) : showCommitment && currentFocus ? (
     <div className="transition-all duration-500 ease-in-out">
@@ -2056,7 +2182,9 @@ await logHabitEvent(email, {
               { habit: "No eating within 2 hours of bedtime", key: "no_late_eating", desc: "Improve digestion and sleep" },
               { habit: "Drink 100 oz of water daily", key: "hydration_100oz", desc: "Stay hydrated and energized" },
               { habit: "Sleep 7+ hours nightly", key: "sleep_7plus", desc: "Recover and rebuild" },
-            ].map((option) => (
+            ]
+            .filter(option => option.key !== currentFocus?.habitKey)
+            .map((option) => (
               <button
                 key={option.key}
                 onClick={() => {
@@ -2141,7 +2269,7 @@ await logHabitEvent(email, {
         </div>
       )}
     </div>
-  ) : commitment && (commitment.accepted || commitment.alternativeAccepted) ? (
+  ) : commitment && (commitment.isActive || commitment.accepted || commitment.alternativeAccepted) ? (
     <div className="animate-fadeIn">
       {hasCompletedPrimaryHabit() ? (
         <div className="relative bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4 overflow-hidden">
@@ -2198,6 +2326,335 @@ await logHabitEvent(email, {
   ) : null}
 </div>
 </motion.div>
+
+       {/* 3. Daily Reflection */}
+       <AnimatePresence mode="wait">
+  {checkinSuccess ? (
+    <motion.div
+      key="success"
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.4, ease: "easeInOut" }}
+    >
+      <CheckinSuccessAnimation
+        onComplete={() => {
+          setCheckinSuccess(false);
+          setCheckinSubmitted(true);
+          loadDashboardData();
+        }}
+      />
+    </motion.div>
+  ) : (
+    !hasCompletedCheckin() && (
+      <motion.div
+        key="form"
+        variants={itemVariants}
+        initial="visible"
+        className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
+    >
+        {/* Your form fields */}
+        <p className="text-xs text-gray-500 mb-4 pb-3 border-b border-gray-100">
+          Ready to check in? How'd you do yesterday?
+        </p>
+        
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Daily Reflection
+        </h2>
+
+        {/* Tier 1: Nutrition Foundation */}
+        <div className="space-y-3 mb-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+            <p className="text-xs text-gray-600 mb-2 flex items-center gap-1">
+              Energy Balance
+              {(() => {
+                const icon = getHabitIcon('energy_balance');
+                return icon ? <span className="text-base">{icon}</span> : null;
+              })()}
+              <InfoTooltip text="Did you undereat, eat as intended, overeat, or have an indulgent day yesterday?" />
+            </p>
+              <div className="grid grid-cols-2 gap-1">
+                {["Light", "Normal", "Heavy", "Indulgent"].map((option) => (
+                  <button
+                    key={option}
+                    onClick={() =>
+                      setCheckin((prev) => ({
+                        ...prev,
+                        energyBalance: option.toLowerCase(),
+                      }))
+                    }
+                    className={`text-xs py-2 rounded border ${
+                      checkin.energyBalance === option.toLowerCase()
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+            <p className="text-xs text-gray-600 mb-2 flex items-center">
+              Eating Pattern
+              <span className="text-base">{getHabitIcon('no_late_eating')}</span>
+              <InfoTooltip text="Structured whole food meals with protein + fiber score higher than directionless meals do. Overall, how did you eat yesterday?" />
+            </p>
+              <div className="grid grid-cols-2 gap-1">
+                {[
+                  { value: "meals", label: "Structured" },
+                  { value: "mixed", label: "Mixed" },
+                  { value: "grazing", label: "Directionless" },
+                  { value: "none", label: "No attention" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() =>
+                      setCheckin((prev) => ({
+                        ...prev,
+                        eatingPattern: option.value,
+                      }))
+                    }
+                    className={`text-xs py-2 rounded border ${
+                      checkin.eatingPattern === option.value
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Protein */}
+          <div>
+          <p className="text-xs text-gray-600 mb-2 flex items-center">
+            Protein
+            <span className="text-base">{getHabitIcon('protein_daily')}</span>
+            <InfoTooltip text={`Your target is ${profile?.plan?.proteinTargetG || 180}g/day based on your bodyweight goal`} />
+          </p>
+            <div className="flex gap-2">
+              {["Yes", "Almost", "No"].map((option) => (
+                <button
+                  key={option}
+                  onClick={() =>
+                    setCheckin((prev) => ({
+                      ...prev,
+                      proteinHit: option.toLowerCase(),
+                    }))
+                  }
+                  className={`flex-1 py-2 rounded border text-sm ${
+                    checkin.proteinHit === option.toLowerCase()
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Tier 2: Recovery & Movement */}
+        <div className="space-y-3 mb-4 pt-4 border-t border-gray-100">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+            <p className="text-xs text-gray-600 mb-2 flex items-center">
+              Sleep
+              <span className="text-base">{getHabitIcon('sleep_7plus')}</span>
+              <InfoTooltip text="7+ hours, no screens 30min before bed, lights out at a reasonable time" />
+            </p>
+              <div className="flex gap-2">
+                {["Yes", "No"].map((option) => (
+                  <button
+                    key={option}
+                    onClick={() =>
+                      setCheckin((prev) => ({
+                        ...prev,
+                        sleepHit: option.toLowerCase(),
+                      }))
+                    }
+                    className={`flex-1 py-2 rounded border text-sm ${
+                      checkin.sleepHit === option.toLowerCase()
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-600 mb-2 flex items-center">
+                Headspace
+                <InfoTooltip text="An overall sense of how you're feeling today" />
+              </p>
+              <div className="flex gap-2">
+                {["Great!", "Decent", "Off"].map((option) => (
+                  <button
+                    key={option}
+                    onClick={() =>
+                      setCheckin((prev) => ({
+                        ...prev,
+                        headspace: option.toLowerCase(),
+                      }))
+                    }
+                    className={`flex-1 py-2 rounded border text-xs ${
+                      checkin.headspace === option.toLowerCase()
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-gray-600 mb-2 flex items-center">
+                Bonus Movement
+                <InfoTooltip text="Any intentional activity beyond your main focus. Examples: parking farther away, taking the stairs, gardening, walking the dog, cleaning, walking during calls." />
+              </p>
+              <div className="flex gap-2">
+                {["Yes", "No"].map((option) => (
+                  <button
+                    key={option}
+                    onClick={() =>
+                      setCheckin((prev) => ({
+                        ...prev,
+                        movedToday: option.toLowerCase(),
+                      }))
+                    }
+                    className={`flex-1 py-2 rounded border text-sm ${
+                      checkin.movedToday === option.toLowerCase()
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-600 mb-2 flex items-center">
+                Hydration
+                <InfoTooltip text={`Your target is ${profile?.plan?.hydrationTargetOz || 100}oz/day`} />
+              </p>
+              <div className="flex gap-2">
+                {["Yes", "No"].map((option) => (
+                  <button
+                    key={option}
+                    onClick={() =>
+                      setCheckin((prev) => ({
+                        ...prev,
+                        hydrationHit: option.toLowerCase(),
+                      }))
+                    }
+                    className={`flex-1 py-2 rounded border text-sm ${
+                      checkin.hydrationHit === option.toLowerCase()
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* NEW: Primary Habit Duration Picker */}
+        <div className="pt-4 border-t border-gray-100 mb-4">
+          <p className="text-xs text-gray-600 mb-2 flex items-center">
+            About how long did you do your commitment yesterday?
+            <InfoTooltip text="This helps us know when you're ready to level up. Be honest!" />
+          </p>
+          <div className="grid grid-cols-4 gap-2">
+            {["1-3", "3-5", "5-10", "10-15", "15-20", "20-30", "30-45", "45+"].map((range) => (
+              <button
+                key={range}
+                onClick={() =>
+                  setCheckin((prev) => ({
+                    ...prev,
+                    primaryHabitDuration: range,
+                  }))
+                }
+                className={`text-xs py-2 rounded border ${
+                  checkin.primaryHabitDuration === range
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-gray-300 text-gray-700 hover:bg-blue-50"
+                }`}
+              >
+                {range} min
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tier 3: Optional Note */}
+        <div className="pt-4 border-t border-gray-100">
+          {!checkin.note || checkin.note === "" ? (
+            <button
+              type="button"
+              onClick={() => setCheckin((prev) => ({ ...prev, note: " " }))}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              + Add a note?
+            </button>
+          ) : (
+            <div>
+              <p className="text-xs text-gray-600 mb-2">Optional note</p>
+              <textarea
+                value={checkin.note || ""}
+                onChange={(e) =>
+                  setCheckin((prev) => ({ ...prev, note: e.target.value }))
+                }
+                placeholder="Anything worth remembering about yesterday..."
+                className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900"
+                rows={2}
+              />
+              <button
+                type="button"
+                onClick={() => setCheckin((prev) => ({ ...prev, note: "" }))}
+                className="text-xs text-gray-500 hover:text-gray-700 mt-1"
+              >
+                Remove note
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <button
+          onClick={handleCheckinSubmit}
+          disabled={
+            !checkin.headspace ||
+            !checkin.proteinHit ||
+            !checkin.hydrationHit ||
+            !checkin.energyBalance ||
+            !checkin.eatingPattern
+          }
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 mt-4 transition-colors duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Save Check-In
+          </button>
+          </motion.div>
+      )
+    )}
+</AnimatePresence>
 {/* 2. Active Habits Stack */}
 {(habitStack.length > 0 || currentFocus) && (
   <motion.div
@@ -2245,313 +2702,6 @@ await logHabitEvent(email, {
     </p>
   </motion.div>
 )}
-        {/* 3. Morning Check-In */}
-        {!hasCompletedCheckin() && (
-          <motion.div
-            variants={itemVariants}
-            initial="visible"
-            className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
-          >
-            <p className="text-xs text-gray-500 mb-4 pb-3 border-b border-gray-100">
-              Accept where you've been, plan for where you're going. How'd you show up yesterday?
-            </p>
-            
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Daily Check-In
-            </h2>
-
-            {/* Tier 1: Nutrition Foundation */}
-            <div className="space-y-3 mb-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                <p className="text-xs text-gray-600 mb-2 flex items-center gap-1">
-  Energy Balance
-  {(() => {
-    const icon = getHabitIcon('energy_balance');
-    return icon ? <span className="text-base">{icon}</span> : null;
-  })()}
-  <InfoTooltip text="Did you undereat, eat as intended, overeat, or have an indulgent day yesterday?" />
-</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {["Light", "Normal", "Heavy", "Indulgent"].map((option) => (
-                      <button
-                        key={option}
-                        onClick={() =>
-                          setCheckin((prev) => ({
-                            ...prev,
-                            energyBalance: option.toLowerCase(),
-                          }))
-                        }
-                        className={`text-xs py-2 rounded border ${
-                          checkin.energyBalance === option.toLowerCase()
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                        }`}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                <p className="text-xs text-gray-600 mb-2 flex items-center">
-  Eating Pattern
-  <span className="text-base">{getHabitIcon('no_late_eating')}</span>
-  <InfoTooltip text="Structured whole food meals with protein + fiber score higher than directionless meals do. Overall, how did you eat yesterday?" />
-</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {[
-                      { value: "meals", label: "Structured" },
-                      { value: "mixed", label: "Mixed" },
-                      { value: "grazing", label: "Directionless" },
-                      { value: "none", label: "No attention" },
-                    ].map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() =>
-                          setCheckin((prev) => ({
-                            ...prev,
-                            eatingPattern: option.value,
-                          }))
-                        }
-                        className={`text-xs py-2 rounded border ${
-                          checkin.eatingPattern === option.value
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Protein */}
-              <div>
-              <p className="text-xs text-gray-600 mb-2 flex items-center">
-  Protein
-  <span className="text-base">{getHabitIcon('protein_daily')}</span>
-  <InfoTooltip text={`Your target is ${profile?.plan?.proteinTargetG || 180}g/day based on your bodyweight goal`} />
-</p>
-                <div className="flex gap-2">
-                  {["Yes", "Almost", "No"].map((option) => (
-                    <button
-                      key={option}
-                      onClick={() =>
-                        setCheckin((prev) => ({
-                          ...prev,
-                          proteinHit: option.toLowerCase(),
-                        }))
-                      }
-                      className={`flex-1 py-2 rounded border text-sm ${
-                        checkin.proteinHit === option.toLowerCase()
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Tier 2: Recovery & Movement */}
-            <div className="space-y-3 mb-4 pt-4 border-t border-gray-100">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                <p className="text-xs text-gray-600 mb-2 flex items-center">
-  Sleep
-  <span className="text-base">{getHabitIcon('sleep_7plus')}</span>
-  <InfoTooltip text="7+ hours, no screens 30min before bed, lights out at a reasonable time" />
-</p>
-                  <div className="flex gap-2">
-                    {["Yes", "No"].map((option) => (
-                      <button
-                        key={option}
-                        onClick={() =>
-                          setCheckin((prev) => ({
-                            ...prev,
-                            sleepHit: option.toLowerCase(),
-                          }))
-                        }
-                        className={`flex-1 py-2 rounded border text-sm ${
-                          checkin.sleepHit === option.toLowerCase()
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                        }`}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs text-gray-600 mb-2 flex items-center">
-                    Headspace
-                    <InfoTooltip text="An overall sense of how you're feeling today" />
-                  </p>
-                  <div className="flex gap-2">
-                    {["Great!", "Decent", "Off"].map((option) => (
-                      <button
-                        key={option}
-                        onClick={() =>
-                          setCheckin((prev) => ({
-                            ...prev,
-                            headspace: option.toLowerCase(),
-                          }))
-                        }
-                        className={`flex-1 py-2 rounded border text-xs ${
-                          checkin.headspace === option.toLowerCase()
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                        }`}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-gray-600 mb-2 flex items-center">
-                    Bonus Movement
-                    <InfoTooltip text="Any intentional activity beyond your main focus. Examples: parking farther away, taking the stairs, gardening, walking the dog, cleaning, walking during calls." />
-                  </p>
-                  <div className="flex gap-2">
-                    {["Yes", "No"].map((option) => (
-                      <button
-                        key={option}
-                        onClick={() =>
-                          setCheckin((prev) => ({
-                            ...prev,
-                            movedToday: option.toLowerCase(),
-                          }))
-                        }
-                        className={`flex-1 py-2 rounded border text-sm ${
-                          checkin.movedToday === option.toLowerCase()
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                        }`}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs text-gray-600 mb-2 flex items-center">
-                    Hydration
-                    <InfoTooltip text={`Your target is ${profile?.plan?.hydrationTargetOz || 100}oz/day`} />
-                  </p>
-                  <div className="flex gap-2">
-                    {["Yes", "No"].map((option) => (
-                      <button
-                        key={option}
-                        onClick={() =>
-                          setCheckin((prev) => ({
-                            ...prev,
-                            hydrationHit: option.toLowerCase(),
-                          }))
-                        }
-                        className={`flex-1 py-2 rounded border text-sm ${
-                          checkin.hydrationHit === option.toLowerCase()
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                        }`}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* NEW: Primary Habit Duration Picker */}
-            <div className="pt-4 border-t border-gray-100 mb-4">
-              <p className="text-xs text-gray-600 mb-2 flex items-center">
-                About how long did you do your commitment yesterday?
-                <InfoTooltip text="This helps us know when you're ready to level up. Be honest!" />
-              </p>
-              <div className="grid grid-cols-4 gap-2">
-                {["1-3", "3-5", "5-10", "10-15", "15-20", "20-30", "30-45", "45+"].map((range) => (
-                  <button
-                    key={range}
-                    onClick={() =>
-                      setCheckin((prev) => ({
-                        ...prev,
-                        primaryHabitDuration: range,
-                      }))
-                    }
-                    className={`text-xs py-2 rounded border ${
-                      checkin.primaryHabitDuration === range
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                  >
-                    {range} min
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Tier 3: Optional Note */}
-            <div className="pt-4 border-t border-gray-100">
-              {!checkin.note || checkin.note === "" ? (
-                <button
-                  type="button"
-                  onClick={() => setCheckin((prev) => ({ ...prev, note: " " }))}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  + Add a note?
-                </button>
-              ) : (
-                <div>
-                  <p className="text-xs text-gray-600 mb-2">Optional note</p>
-                  <textarea
-                    value={checkin.note || ""}
-                    onChange={(e) =>
-                      setCheckin((prev) => ({ ...prev, note: e.target.value }))
-                    }
-                    placeholder="Anything worth remembering about yesterday..."
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900"
-                    rows={2}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setCheckin((prev) => ({ ...prev, note: "" }))}
-                    className="text-xs text-gray-500 hover:text-gray-700 mt-1"
-                  >
-                    Remove note
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Save Button */}
-            <button
-              onClick={handleCheckinSubmit}
-              disabled={
-                !checkin.headspace ||
-                !checkin.proteinHit ||
-                !checkin.hydrationHit ||
-                !checkin.energyBalance ||
-                !checkin.eatingPattern
-              }
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 mt-4 transition-colors duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Save Check-In
-            </button>
-          </motion.div>
-        )}
-
         {/* Yesterday's Accountability */}
         <motion.div
           variants={itemVariants}
@@ -2987,6 +3137,30 @@ await logHabitEvent(email, {
               <div className="flex flex-col gap-2 mt-3">
               <button
   onClick={async () => {
+    try {
+      // Clear localStorage
+      localStorage.removeItem("nelsonUser");
+      
+      // Sign out of Firebase Auth
+      const { auth } = await import("@/app/firebase/config");
+      const { signOut } = await import("firebase/auth");
+      await signOut(auth);
+      
+      showToast({ message: "Signed out", type: "info" });
+      
+      // Redirect to login
+      router.push("/login");
+    } catch (err) {
+      console.error("Sign out failed:", err);
+      router.push("/login");
+    }
+  }}
+  className="bg-gray-700 hover:bg-gray-800 text-white rounded-md py-1 text-sm font-bold"
+>
+  🚪 Sign Out
+</button>
+              <button
+  onClick={async () => {
     const email = getEmail();
     if (email) {
       await runBackfill(email);
@@ -3038,6 +3212,47 @@ await logHabitEvent(email, {
     const email = getEmail();
     if (!email) return;
     
+    try {
+      // Create 99 fake check-ins
+      const batch = writeBatch(db);
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 99);
+      
+      for (let i = 0; i < 99; i++) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + i);
+        const dateStr = date.toLocaleDateString("en-CA");
+        
+        const checkinRef = doc(db, "users", email, "checkins", dateStr);
+        batch.set(checkinRef, {
+          date: dateStr,
+          headspace: "decent",
+          proteinHit: "yes",
+          hydrationHit: "yes",
+          movedToday: "yes",
+          sleepHit: "yes",
+          energyBalance: "normal",
+          eatingPattern: "meals",
+          createdAt: date.toISOString()
+        });
+      }
+      
+      await batch.commit();
+      showToast({ message: "Created 49 check-ins!", type: "success" });
+      loadDashboardData();
+    } catch (err) {
+      console.error("Failed to create check-ins:", err);
+    }
+  }}
+  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+>
+  Seed 49 Check-ins
+</button>
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
     // Create a fake streak saver earned event
     await logHabitEvent(email, {
       type: "streak_saver_earned",
@@ -3049,7 +3264,7 @@ await logHabitEvent(email, {
     // Create a fake streak saver used event
     await logHabitEvent(email, {
       type: "streak_saver_used",
-      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      date: getLocalDateOffset(2),
       streakLength: 10,
       saversRemaining: 0,
     });
@@ -3093,75 +3308,91 @@ await logHabitEvent(email, {
     const email = getEmail();
     if (!email) return;
     
-    // Get current target from currentFocus
-    const focusRef = doc(db, "users", email, "momentum", "currentFocus");
-    const focusSnap = await getDoc(focusRef);
-    
-    if (!focusSnap.exists()) {
-      showToast({ message: "No current focus found", type: "error" });
-      return;
-    }
-    
-    const currentHabitKey = focusSnap.data().habitKey;
-    const targetMin = getTargetMinutes(currentHabitKey);
-    
-    // Create 7 days of BOTH sessions AND momentum docs
-    for (let i = 6; i >= 1; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateKey = d.toISOString().split("T")[0];
+    try {
+      // 1. BACKDATE ACCOUNT
+      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      const tenDaysAgoISO = tenDaysAgo.toISOString();
+      const tenDaysAgoDate = tenDaysAgo.toLocaleDateString("en-CA");
       
-      // Create session
-      await setDoc(doc(collection(db, "users", email, "sessions"), `walk_${dateKey}`), {
-        id: `walk_${dateKey}`,
-        date: dateKey,
-        type: "walk",
-        activityName: `Walk ${targetMin} minutes daily`,
-        durationSec: targetMin * 60,
-        durationMin: targetMin,
-        completedAt: new Date(d).toISOString(),
-        createdAt: new Date(d).toISOString(),
-      });
+      await setDoc(doc(db, "users", email), {
+        createdAt: tenDaysAgoISO
+      }, { merge: true });
       
-      // Create momentum doc with new structure
-      await setDoc(doc(db, "users", email, "momentum", dateKey), {
-        date: dateKey,
-        primary: {
-          habitKey: currentHabitKey,
-          done: true, // Always true for these test days
-        },
-        stack: {},
-        foundations: {
-          protein: true,
-          hydration: true,
-          sleep: true,
-          nutrition: true,
-          movement: true,
-        },
-        checkinType: "real",
-        dailyScore: 100,
-        rawMomentumScore: 100,
-        momentumScore: 100,
-        momentumMessage: "Test data",
-        visualState: "solid",
-        primaryHabitHit: true,
-        stackedHabitsCompleted: 0,
-        totalStackedHabits: 0,
-        moved: true,
-        hydrated: true,
-        slept: true,
-        nutritionScore: 12,
-        currentStreak: i,
-        lifetimeStreak: i,
-        streakSavers: 0,
-        createdAt: new Date(d).toISOString(),
-      });
+      // 2. CREATE METADATA DOC (THIS WAS MISSING!)
+      await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
+        firstCheckinDate: tenDaysAgoDate,
+        createdAt: tenDaysAgoISO,
+      }, { merge: true });
+      
+      // 3. GET CURRENT FOCUS
+      const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+      const focusSnap = await getDoc(focusRef);
+      
+      if (!focusSnap.exists()) {
+        showToast({ message: "No current focus found", type: "error" });
+        return;
+      }
+      
+      const currentHabitKey = focusSnap.data().habitKey;
+      const targetMin = extractMinutes(currentHabitKey) || 10;
+      
+      // 4. CREATE 7 DAYS OF DATA
+      for (let i = 6; i >= 1; i--) {
+        const dateKey = getLocalDateOffset(i);
+        
+        // Session
+        await setDoc(doc(db, "users", email, "sessions", `walk_${dateKey}`), {
+          id: `walk_${dateKey}`,
+          date: dateKey,
+          type: "walk",
+          activityName: `Walk ${targetMin} minutes daily`,
+          durationSec: targetMin * 60,
+          durationMin: targetMin,
+          completedAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+          createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+        });
+        
+        // Momentum doc
+        await setDoc(doc(db, "users", email, "momentum", dateKey), {
+          date: dateKey,
+          primary: { habitKey: currentHabitKey, done: true },
+          stack: {},
+          foundations: {
+            protein: true,
+            hydration: true,
+            sleep: true,
+            nutrition: true,
+            movement: true,
+          },
+          checkinType: "real",
+          dailyScore: 100,
+          rawMomentumScore: 100,
+          momentumScore: 100,
+          momentumMessage: "Test data",
+          visualState: "solid",
+          primaryHabitHit: true,
+          stackedHabitsCompleted: 0,
+          totalStackedHabits: 0,
+          moved: true,
+          hydrated: true,
+          slept: true,
+          nutritionScore: 12,
+          currentStreak: 7 - i,
+          lifetimeStreak: 7 - i,
+          streakSavers: 0,
+          createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+        });
+      }
+      
+      showToast({ message: "7 days created + account backdated", type: "success" });
+      
+      // 5. RELOAD
+      await loadDashboardData();
+      
+    } catch (err) {
+      console.error("Trigger level-up failed:", err);
+      showToast({ message: "Failed", type: "error" });
     }
-    
-    showToast({ message: `Created 7 days of ${targetMin}min walks + momentum`, type: "success" });
-    
-    // Reload dashboard to trigger eligibility check
-    setTimeout(() => loadDashboardData(), 1000);
   }}
   className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
 >
@@ -3172,30 +3403,39 @@ await logHabitEvent(email, {
     const email = getEmail();
     if (!email) return;
     
-    // Reset to walk_10min
-    await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
-      habit: "Walk 10 minutes daily",
-      habitKey: "walk_10min",
-      startedAt: getLocalDate(),
-      daysOnThisHabit: 7,
-      eligibleForLevelUp: false,
-      createdAt: new Date().toISOString(),
-    });
-    
-    // Clear level-up prompts from commitment
-    const commitRef = doc(db, "users", email, "momentum", "commitment");
-    await setDoc(commitRef, {
-      levelUpPrompts: {},
-    }, { merge: true });
-    
-    // Delete all sessions
-    const sessionsSnap = await getDocs(collection(db, "users", email, "sessions"));
-    for (const doc of sessionsSnap.docs) {
-      await deleteDoc(doc.ref);
+    try {
+      // Use the service to create proper currentFocus
+      const focusData: CurrentFocus = {
+        habit: "Walk 10 minutes daily",
+        habitKey: "walk_10min",
+        level: 1,
+        target: 10,
+        startedAt: getLocalDate(),
+        lastLevelUpAt: null,
+        consecutiveDays: 0,
+        eligibleForLevelUp: false,
+      };
+      
+      await setCurrentFocusService(email, focusData);
+      
+      // Clear level-up prompts from commitment
+      const commitRef = doc(db, "users", email, "momentum", "commitment");
+      await setDoc(commitRef, {
+        levelUpPrompts: {},
+      }, { merge: true });
+      
+      // Delete all sessions
+      const sessionsSnap = await getDocs(collection(db, "users", email, "sessions"));
+      for (const doc of sessionsSnap.docs) {
+        await deleteDoc(doc.ref);
+      }
+      
+      showToast({ message: "Reset to walk_10min, cleared sessions", type: "success" });
+      loadDashboardData();
+    } catch (err) {
+      console.error("Reset failed:", err);
+      showToast({ message: "Reset failed", type: "error" });
     }
-    
-    showToast({ message: "Reset to walk_10min, cleared sessions", type: "success" });
-    loadDashboardData();
   }}
   className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
 >
@@ -3215,6 +3455,140 @@ await logHabitEvent(email, {
                 >
                   Recalculate Stats
                 </button>
+                <button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    const today = getLocalDate();
+    
+    // Delete today's momentum doc
+    const todayRef = doc(db, "users", email, "momentum", today);
+    await deleteDoc(todayRef);
+    
+    showToast({ message: "Cleared today's check-in", type: "success" });
+    
+    // Reload dashboard
+    setTimeout(() => loadDashboardData(), 500);
+  }}
+  className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-md py-1 text-sm"
+>
+  Clear Today's Check-In
+</button>
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    try {
+      // 1. Delete all momentum docs except config docs
+      const momentumSnap = await getDocs(collection(db, "users", email, "momentum"));
+      for (const d of momentumSnap.docs) {
+        // Only delete date-formatted docs (YYYY-MM-DD)
+        if (d.id.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          await deleteDoc(d.ref);
+        }
+      }
+      
+      // 2. Delete all sessions
+      const sessionsSnap = await getDocs(collection(db, "users", email, "sessions"));
+      for (const d of sessionsSnap.docs) {
+        await deleteDoc(d.ref);
+      }
+      
+      // 3. Delete all habit events
+      const eventsSnap = await getDocs(collection(db, "users", email, "habitEvents"));
+      for (const d of eventsSnap.docs) {
+        await deleteDoc(d.ref);
+      }
+      
+      // 4. Reset currentFocus to walk_10min
+      await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
+        habitKey: "walk_10min",
+        habit: "Walk 10 minutes",
+        level: 1,
+        target: 10,
+        startedAt: getLocalDate(),
+        lastLevelUpAt: null,
+        consecutiveDays: 0,
+        eligibleForLevelUp: false,
+      });
+      
+      // 5. Reset commitment to walk_10min
+      const sevenDaysFromNow = new Date();
+      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+      
+      await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+        habit: "Walk 10 minutes",
+        habitKey: "walk_10min",
+        acceptedAt: getLocalDate(),
+        endsAt: sevenDaysFromNow.toLocaleDateString("en-CA"),
+        isActive: true,
+        levelUpPrompts: {},
+      });
+      
+      // 6. Clear habit stack
+      await setDoc(doc(db, "users", email, "momentum", "habitStack"), {
+        habits: [],
+      });
+      
+      showToast({ message: "Fresh start ready!", type: "success" });
+      setTimeout(() => window.location.reload(), 1000);
+      
+    } catch (err) {
+      console.error("Reset failed:", err);
+      showToast({ message: "Reset failed", type: "error" });
+    }
+  }}
+  className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
+>
+  🔄 Fresh Start
+</button>
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    // Delete today's check-in first
+    const today = getLocalDate();
+    await deleteDoc(doc(db, "users", email, "momentum", today));
+    
+    // Now simulate it's 11:58pm
+    const lateNight = new Date();
+    lateNight.setHours(23, 58, 0, 0);
+    
+    console.log("🌙 Simulating check-in at:", lateNight.toString());
+    console.log("📅 Local date should be:", lateNight.toLocaleDateString("en-CA"));
+    
+    // The date we'll write to
+    const dateToWrite = lateNight.toLocaleDateString("en-CA");
+    
+    await writeDailyMomentum({
+      email,
+      date: dateToWrite,
+      checkin: {
+        headspace: "sleepy",
+        proteinHit: "yes",
+        hydrationHit: "yes", 
+        movedToday: "yes",
+        sleepHit: "yes",
+        energyBalance: "normal",
+        eatingPattern: "meals",
+      },
+      currentFocus: currentFocus,
+      habitStack: habitStack,
+      accountAgeDays: 7,
+    });
+    
+    console.log("✅ Written to Firestore date:", dateToWrite);
+    showToast({ message: `Check-in written to ${dateToWrite}`, type: "success" });
+    
+    loadDashboardData();
+  }}
+  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+>
+  🌙 Test 11:58pm Check-In
+</button>
               </div>            </details>
           </div>
         )}

@@ -48,8 +48,8 @@ const [showAllWorkouts, setShowAllWorkouts] = useState(false);
     try {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth();
-      const startDate = new Date(year, month, 1).toISOString().split("T")[0];
-      const endDate = new Date(year, month + 1, 0).toISOString().split("T")[0];
+      const startDate = new Date(year, month, 1).toLocaleDateString("en-CA");
+      const endDate = new Date(year, month + 1, 0).toLocaleDateString("en-CA");
 
       // Load momentum data
       const momentumRef = collection(db, "users", email, "momentum");
@@ -523,8 +523,8 @@ setHabitEvents(monthEvents);
       try {
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth();
-        const startDate = new Date(year, month, 1).toISOString().split("T")[0];
-        const endDate = new Date(year, month + 1, 0).toISOString().split("T")[0];
+        const startDate = new Date(year, month, 1).toLocaleDateString("en-CA");
+        const endDate = new Date(year, month + 1, 0).toLocaleDateString("en-CA");
   
         const sessionsRef = collection(db, "users", email, "sessions");
         const q = query(
