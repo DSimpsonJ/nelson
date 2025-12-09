@@ -6,6 +6,7 @@ import { getEmail } from "../utils/getEmail";
 import { buildInitialPlanFromIntake } from "../utils/buildInitialPlanFromIntake";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { setCurrentFocus } from "../services/currentFocus";
 
 type Question = {
   id: string;
@@ -122,23 +123,45 @@ export default function IntakePage() {
   const finalizeIntake = async () => {
     try {
       const email = getEmail();
-      if (!email) return;
+      if (!email) {
+        console.error("❌ No email found");
+        return;
+      }
       
       console.log("📌 Saving intake answers:", answers);
       
       const plan = buildInitialPlanFromIntake(answers as any);
       
       console.log("📌 Generated plan:", plan);
-
+  
+      // 1. Save intake answers
       await setDoc(doc(db, "users", email, "profile", "intake"), {
         ...answers,
-        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
       });
-
+  
+      // 2. Save plan (targets for hydration, protein, movement)
       await setDoc(doc(db, "users", email, "profile", "plan"), plan);
+  
+      // 3. Create initial currentFocus (starting movement habit)
+      const targetMinutes = plan.primaryHabit.targetMinutes;
+const ladder = [10, 12, 15, 20, 25, 30, 45]; // Your movement ladder
+const levelIndex = ladder.indexOf(targetMinutes);
+const level = levelIndex >= 0 ? levelIndex + 1 : 1; // 1-indexed
 
-      console.log("✅ Intake and plan saved");
-      router.push("/dashboard");
+await setCurrentFocus(email, {
+  habitKey: `walk_${targetMinutes}min`,
+  habit: `Walk ${targetMinutes} minutes`,
+  level: level,
+  target: targetMinutes,
+  startedAt: new Date().toISOString(),
+  lastLevelUpAt: null, // First habit, no level-up yet
+  consecutiveDays: 0,
+  eligibleForLevelUp: false,
+});
+  
+console.log("✅ Intake complete: profile saved, plan created, currentFocus initialized");
+router.push("/plan-overview"); // 🆕 Changed from /welcome
     } catch (err) {
       console.error("❌ Failed to save intake:", err);
     }

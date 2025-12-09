@@ -65,6 +65,7 @@ import { getLocalDate, getLocalDateOffset, daysBetween } from "@/app/utils/date"
 import { getRewardForEvent, type RewardPayload } from "@/app/services/rewardEngine";
 import RewardRenderer from "@/app/components/rewards/RewardRenderer";
 import CheckinSuccessAnimation from "@/app/components/rewards/CheckinSuccessAnimation";
+import FirstTimeDashboard from "./FirstTimeDashboard";
 
 /** ---------- Types ---------- */
 
@@ -89,6 +90,7 @@ type UserProfile = {
   firstName: string;
   email: string;
   plan?: Plan;
+  isActivated?: boolean; // 🆕 Add this
 };
 
 type WorkoutDetails = {
@@ -516,9 +518,12 @@ await logHabitEvent(email, {
       const userSnap = await getDoc(userRef);
 
       let firstName = "there";
+      let isActivated = false; // 🆕 Default to false
+      
       if (userSnap.exists()) {
         const userData = userSnap.data();
         firstName = userData.firstName ?? "there";
+        isActivated = userData.isActivated ?? false; // 🆕 Load activation status
       }
 
       // ---- Load NEW plan structure from profile/plan ----
@@ -537,8 +542,8 @@ await logHabitEvent(email, {
         firstName,
         email,
         plan: plan || undefined,
+        isActivated, // 🆕 Add to profile state
       });
-
       // ---- Load momentum data ----
       const focusRef = doc(db, "users", email, "momentum", "currentFocus");
       const focusSnap = await getDoc(focusRef);
@@ -1065,8 +1070,41 @@ const commitRef = doc(db, "users", email, "momentum", "commitment");
 const commitSnap = await getDoc(commitRef);
 const commitmentData = commitSnap.exists() ? commitSnap.data() : null;
 
+// Declare this FIRST
 let isCommitmentComplete = false;
 
+// 🆕 CREATE COMMITMENT ON FIRST CHECK-IN
+const isFirstCheckin = !commitSnap.exists();
+
+if (isFirstCheckin && currentHabitData) {
+  const today = new Date(localToday + "T00:00:00");
+  const expiresAt = new Date(today);
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  await setDoc(commitRef, {
+    accepted: true,
+    weekStartedAt: today.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    targetLevel: currentHabitData.level || 1,
+    targetHabit: currentHabitData.habit,
+    duration: 7,
+    celebrated: false,
+    createdAt: new Date().toISOString(),
+  });
+
+  console.log("🎯 First check-in: commitment created");
+  
+  // 🆕 Mark user as activated (ADD THIS BLOCK)
+  const userRef = doc(db, "users", email);
+  await setDoc(userRef, {
+    isActivated: true,
+    activatedAt: new Date().toISOString(),
+  }, { merge: true });
+  
+  console.log("✅ User activated");
+}
+
+// Now check if commitment is complete
 if (commitmentData?.expiresAt && commitmentData?.accepted && !commitmentData?.celebrated) {
   const expiresDate = new Date(commitmentData.expiresAt);
   const todayDate = new Date(localToday + "T00:00:00");
@@ -1557,7 +1595,32 @@ useEffect(() => {
       </main>
     );
   }
-
+  
+  const isFirstTimeUser = profile?.isActivated === false;
+  
+  if (isFirstTimeUser) {
+    // 🆕 ADD THIS CHECK
+    if (!checkin || !profile || !currentFocus) {
+      return (
+        <main className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+          <p className="text-gray-500">Loading dashboard…</p>
+        </main>
+      );
+    }
+    
+    return (
+      <FirstTimeDashboard 
+        profile={profile}
+        currentFocus={currentFocus}
+        checkin={checkin}
+        setCheckin={setCheckin}
+        handleCheckinSubmit={handleCheckinSubmit}
+        checkinSuccess={checkinSuccess}
+        setCheckinSuccess={setCheckinSuccess}
+        checkinSubmitted={checkinSubmitted}
+      />
+    );
+  }
   return (
     <motion.main
       variants={containerVariants}
@@ -2493,7 +2556,7 @@ await logHabitEvent(email, {
 
             <div>
               <p className="text-xs text-gray-600 mb-2 flex items-center">
-                Headspace
+                Mindset
                 <InfoTooltip text="An overall sense of how you're feeling today" />
               </p>
               <div className="flex gap-2">

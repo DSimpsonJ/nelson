@@ -49,13 +49,14 @@ export default function SignupPage() {
       });
     
       // ✅ Store user info in Firestore
-      await setDoc(doc(db, "users", form.email), {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        birthday: form.birthday,
-        createdAt: new Date().toISOString(),
-      });
+await setDoc(doc(db, "users", form.email), {
+  firstName: form.firstName,
+  lastName: form.lastName,
+  email: form.email,
+  birthday: form.birthday,
+  createdAt: new Date().toISOString(),
+  isActivated: false, // 🆕 New users start inactive
+});
     
       // ✅ Persist user info locally so getEmail() can find it later
       localStorage.setItem(
@@ -63,8 +64,8 @@ export default function SignupPage() {
         JSON.stringify({ email: form.email })
       );
     
-      // ✅ Redirect to intake
-      router.push("/intake");
+      // ✅ Redirect to welcome screen
+router.push("/welcome"); // 🆕 Changed from /intake
     } catch (err: any) {
       setError(err.message || "Signup failed. Please try again.");
     } finally {

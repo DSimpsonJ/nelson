@@ -69,21 +69,23 @@
       "id": "commitment_sedentary",
       "type": "singleChoice",
       "text": "Realistically, how much time will you commit to moving your body EVERY day? Start small because consistency matters more than duration.",
+      "disclaimer": "You can always do more, but commit to what you'll do even on your worst days.",
       "options": [
-        { "label": "2-3 minutes", "value": "3" },
-        { "label": "3-5 minutes", "value": "5" },
-        { "label": "5-8 minutes", "value": "8" }
+        { "label": "2-5 minutes", "value": "2" },
+        { "label": "5-8 minutes", "value": "5" },
+        { "label": "8-10 minutes", "value": "8" }
       ],
       "next": "sleepHours"
     },
     {
       "id": "commitment_lightly_active",
       "type": "singleChoice",
-      "text": "How much time will you commit to moving your body EVERY day? Be real because consistency matters more than duration.",
+      "text": "How much time will you commit to moving your body EVERY day? This is your minimum, not your maximum.",
+      "disclaimer": "You can always do more, but commit to what you'll do even on your worst days.",
       "options": [
-        { "label": "5-10 minutes", "value": "10" },
-        { "label": "10-15 minutes", "value": "15" },
-        { "label": "15-20 minutes", "value": "20" }
+        { "label": "5-10 minutes", "value": "5" },
+        { "label": "10-15 minutes", "value": "10" },
+        { "label": "15-20 minutes", "value": "15" }
       ],
       "next": "sleepHours"
     },
@@ -91,10 +93,11 @@
       "id": "commitment_regularly_active",
       "type": "singleChoice",
       "text": "Ok, and how much time will you commit to moving your body EVERY day?",
+      "disclaimer": "You can always do more, but commit to what you'll do even on your worst days.",
       "options": [
-        { "label": "10-20 minutes", "value": "20" },
-        { "label": "15-25 minutes", "value": "25" },
-        { "label": "20-30 minutes", "value": "30" }
+        { "label": "10-15 minutes", "value": "10" },
+        { "label": "15-20 minutes", "value": "15" },
+        { "label": "20-30 minutes", "value": "20" }
       ],
       "next": "sleepHours"
     },
@@ -104,10 +107,10 @@
       "text": "Alright, so how much time will you commit to moving your body EVERY day?",
       "disclaimer": "Note: Gym programs are coming soon. For now, you'll set a daily movement goal and log any workouts you do.",
       "options": [
-        { "label": "15-25 minutes", "value": "25" },
-        { "label": "20-30 minutes", "value": "30" },
-        { "label": "30-45 minutes", "value": "45" },
-        { "label": "45+ minutes", "value": "60" }
+        { "label": "15-25 minutes", "value": "15" },
+        { "label": "20-30 minutes", "value": "20" },
+        { "label": "30-45 minutes", "value": "30" },
+        { "label": "45+ minutes", "value": "45" }
       ],
       "next": "sleepHours"
     },

@@ -109,7 +109,7 @@ export default function LoginPage() {
 
       <p className="mt-4 text-sm text-gray-600">
         Need an account?{" "}
-        <a href="/signup" className="text-blue-600 underline">Sign up</a>
+        <a href="/" className="text-blue-600 underline">/</a>
       </p>
     </div>
   );
