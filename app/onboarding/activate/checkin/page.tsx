@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 import { getEmail } from "@/app/utils/getEmail";
 import { getLocalDate } from "@/app/utils/date";
@@ -20,14 +20,60 @@ interface CheckInData {
   bonusMovement: Rating | null;
 }
 
-const categories = [
+const ratingColors = {
+  elite: "from-green-500/20 to-green-600/10 border-green-500/40 hover:border-green-500/60",
+  solid: "from-blue-500/20 to-blue-600/10 border-blue-500/40 hover:border-blue-500/60",
+  "not-great": "from-amber-500/20 to-amber-600/10 border-amber-500/40 hover:border-amber-500/60",
+  off: "from-slate-600/20 to-slate-700/10 border-slate-500/40 hover:border-slate-500/60",
+};
+
+export default function CheckInPage() {
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [checkInData, setCheckInData] = useState<CheckInData>({
+    nutritionPattern: null,
+    energyBalance: null,
+    protein: null,
+    hydration: null,
+    sleep: null,
+    mindset: null,
+    bonusMovement: null,
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [proteinRange, setProteinRange] = useState("140-220g");
+  
+  useEffect(() => {
+    const loadProteinRange = async () => {
+      const email = getEmail();
+      if (!email) return;
+  
+      try {
+        const userDoc = await getDoc(doc(db, "users", email));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          const weight = data.weight || 170;
+          const cappedWeight = Math.min(weight, 240);
+          const proteinMin = Math.round(cappedWeight * 0.6);
+          const proteinMax = Math.round(cappedWeight * 1.0);
+          setProteinRange(`${proteinMin}-${proteinMax}g`);
+        }
+      } catch (err) {
+        console.error("Error loading protein range:", err);
+      }
+    };
+  
+    loadProteinRange();
+  }, []);
+
+  // Categories array moved inside component to access proteinRange
+  const categories = [
     {
       id: "nutritionPattern" as keyof CheckInData,
       title: "Nutrition Pattern",
       description: "How was the structure and overall quality of your meals yesterday?",
       examples: {
-        elite: "Planned, whole foods, zero deviation. Happens when conditions align perfectly.",
-        solid: "Wise, intentional choices. Mostly whole foods, minimal snacking. The sustainable win.",
+        elite: "Planned, whole foods, zero deviation. Conditions aligned perfectly.",
+        solid: "Wise, intentional choices. Mostly whole foods, minimal snacking. A sustainable win.",
         notGreat: "Random, unstructured eating with more processed foods than usual. Easy to course-correct.",
         off: "Chaotic eating, heavy on treats or convenience foods. Observe it. Log it. Move forward.",
       },
@@ -46,7 +92,7 @@ const categories = [
     {
       id: "protein" as keyof CheckInData,
       title: "Protein Intake",
-      description: "Do you think you hit your protein range yesterday?",
+      description: `Do you think you hit your protein range yesterday? (${proteinRange})`,
       examples: {
         elite: "Top end or exceeded range. Tracked every gram, hit the target.",
         solid: "Paid attention, hit the range. Had protein at every meal.",
@@ -93,33 +139,12 @@ const categories = [
         description: "Separate from your workout: did you walk, take stairs, stand, stay active?",
         examples: {
           elite: "Highly active. Took every chance to move. Stairs, walks, standing frequently.",
-          solid: "Moderately active. Stayed aware and took chances to move.",
+          solid: "Moderately active. Stayed aware and took opportunities to move.",
           notGreat: "Mostly sedentary. Not much extra movement. Easy to add more today.",
           off: "Very sedentary. Sitting or lying down most of the day. Today is a reset.",
         },
       },
   ];
-
-const ratingColors = {
-  elite: "from-green-500/20 to-green-600/10 border-green-500/40 hover:border-green-500/60",
-  solid: "from-blue-500/20 to-blue-600/10 border-blue-500/40 hover:border-blue-500/60",
-  "not-great": "from-amber-500/20 to-amber-600/10 border-amber-500/40 hover:border-amber-500/60",
-  off: "from-slate-600/20 to-slate-700/10 border-slate-500/40 hover:border-slate-500/60",
-};
-
-export default function CheckInPage() {
-  const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [checkInData, setCheckInData] = useState<CheckInData>({
-    nutritionPattern: null,
-    energyBalance: null,
-    protein: null,
-    hydration: null,
-    sleep: null,
-    mindset: null,
-    bonusMovement: null,
-  });
-  const [submitting, setSubmitting] = useState(false);
 
   const currentCategory = categories[currentStep];
   const progress = ((currentStep + 1) / categories.length) * 100;

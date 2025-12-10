@@ -84,7 +84,7 @@ export default function IdentityPage() {
             Most healthy, consistent people average <span className="text-amber-300 font-semibold">Solid</span>.
           </p>
           <p className="text-white/70 text-sm text-center">
-            Solid is success. Solid builds momentum. Elite days are rare and happen when everything clicks. Off days? Note it, learn from it, move on.
+            Solid is success and builds momentum. Elite days rarely happen when everything clicks. Off day? Note it, learn from it, forgive it, move forward.
           </p>
         </motion.div>
 

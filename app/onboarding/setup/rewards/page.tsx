@@ -30,7 +30,7 @@ export default function RewardsPage() {
           transition={{ delay: 0.3 }}
           className="text-white/70 mb-10 text-center"
         >
-          Hit milestones, get celebrated.
+          Be consistent, get celebrated.
         </motion.p>
 
         {/* Rewards list */}
@@ -45,7 +45,7 @@ export default function RewardsPage() {
               <div className="text-4xl">🔥</div>
               <div>
                 <h3 className="text-white font-semibold">Check-in streaks</h3>
-                <p className="text-white/60 text-sm">3, 7, 14, 30, 100 days in a row</p>
+                <p className="text-white/60 text-sm">How many consecutive days will you show up? </p>
               </div>
             </div>
           </div>
@@ -55,7 +55,7 @@ export default function RewardsPage() {
               <div className="text-4xl">⬆️</div>
               <div>
                 <h3 className="text-white font-semibold">Habit level-ups</h3>
-                <p className="text-white/60 text-sm">When you increase your movement commitment</p>
+                <p className="text-white/60 text-sm">Are you ready to grow your daily commitment?</p>
               </div>
             </div>
           </div>
@@ -64,8 +64,8 @@ export default function RewardsPage() {
             <div className="flex items-center gap-4">
               <div className="text-4xl">✨</div>
               <div>
-                <h3 className="text-white font-semibold">Elite performances</h3>
-                <p className="text-white/60 text-sm">Special moments when everything clicks</p>
+                <h3 className="text-white font-semibold">Momentum milestones</h3>
+                <p className="text-white/60 text-sm">Can you stay Solid enough to hit 80%? </p>
               </div>
             </div>
           </div>
