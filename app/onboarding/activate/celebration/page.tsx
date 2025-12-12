@@ -12,7 +12,7 @@ export default function CelebrationPage() {
     // Auto-advance after 3 seconds
     const timer = setTimeout(() => {
       router.push("/onboarding/activate/commitment");
-    }, 3000);
+    }, 7000);
 
     return () => clearTimeout(timer);
   }, [router]);
@@ -39,8 +39,8 @@ export default function CelebrationPage() {
                 rotate: 360,
               }}
               transition={{
-                duration: 2 + Math.random() * 2,
-                delay: Math.random() * 0.5,
+                duration: 3 + Math.random() * 3,
+                delay: Math.random() * 2,
                 ease: "linear",
               }}
             >

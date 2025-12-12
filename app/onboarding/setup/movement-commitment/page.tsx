@@ -30,17 +30,23 @@ export default function MovementCommitmentPage() {
         { merge: true }
       );
 
-      // Write to momentum/currentFocus
-      await setDoc(
-        doc(db, "users", email, "momentum", "currentFocus"),
-        {
-          habitType: "movement",
-          currentLevel: selectedTime,
-          initialTarget: selectedTime,
-          createdAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      // Write to momentum/currentFocus with NEW schema
+// Write to momentum/currentFocus with NEW schema
+await setDoc(
+    doc(db, "users", email, "momentum", "currentFocus"),
+    {
+      habit: `Move ${selectedTime} minutes daily`,
+      habitKey: `movement_${selectedTime}min`,
+      level: 1,
+      target: selectedTime,
+      startedAt: new Date().toLocaleDateString("en-CA"), // YYYY-MM-DD
+      lastLevelUpAt: null,
+      consecutiveDays: 0,
+      eligibleForLevelUp: false,
+      createdAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
 
       // Also update user doc for easy access
       await setDoc(

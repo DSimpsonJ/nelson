@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 import { getEmail } from "@/app/utils/getEmail";
 import { getLocalDate } from "@/app/utils/date";
@@ -14,21 +14,27 @@ export default function CommitmentPage() {
 
   const handleCommit = async () => {
     setLoading(true);
-
+  
     try {
       const email = getEmail();
       if (!email) {
         router.replace("/");
         return;
       }
-
+  
       const today = getLocalDate();
       
       // Calculate end date (6 days from now = 7-day commitment)
       const startDate = new Date();
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + 6);
-
+  
+      // Get movement commitment from plan
+      const planDoc = await getDoc(doc(db, "users", email, "profile", "plan"));
+      const movementMinutes = planDoc.exists() 
+        ? (planDoc.data().movementCommitment || 10)
+        : 10;
+  
       // Create 7-day commitment
       await setDoc(doc(db, "users", email, "momentum", "commitment"), {
         startDate: today,
@@ -37,8 +43,13 @@ export default function CommitmentPage() {
         status: "active",
         daysCompleted: 1, // First check-in counts
         targetDays: 7,
+        // NEW FIELDS for dashboard display:
+        habitOffered: `Move ${movementMinutes} minutes daily`,
+        habitKey: `movement_${movementMinutes}min`,
+        accepted: true,
+        isActive: true,
       });
-
+  
       // Redirect to dashboard
       router.push("/dashboard");
     } catch (err) {
@@ -83,22 +94,22 @@ export default function CommitmentPage() {
           Let's make this official.
         </motion.p>
 
-        {/* The ask */}
-        <motion.div
+       {/* The ask */}
+       <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
           className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-8 mb-8"
         >
-          <h2 className="text-2xl font-bold text-white mb-4">
+          <h2 className="text-2xl font-bold text-white mb-4 text-center">
             Commit to 7 days
           </h2>
 
-          <p className="text-white/80 mb-6">
-            Check in daily for the next 7 days. That's it.
+          <p className="text-white/80 mb-6 text-center">
+            Check in daily for the next week. That's it.
           </p>
 
-          <div className="space-y-3 text-left">
+          <div className="space-y-3 max-w-xs mx-auto">
             <div className="flex items-start gap-3">
               <span className="text-amber-300 flex-shrink-0 text-xl">✓</span>
               <span className="text-white/80">

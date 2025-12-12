@@ -352,6 +352,12 @@ export default function DashboardPage() {
   const [checkinSuccess, setCheckinSuccess] = useState(false);
 
   const hasCompletedCheckin = (): boolean => {
+    // New schema: check momentum doc
+    if (todayMomentum && todayMomentum.date === today) {
+      return true;
+    }
+    
+    // Old schema: backwards compatibility
     if (!todayCheckin) return false;
     
     const hasRequiredFields = !!(
@@ -360,9 +366,7 @@ export default function DashboardPage() {
       todayCheckin.hydrationHit
     );
     
-    const isToday = todayCheckin.date === today;
-    
-    return hasRequiredFields && isToday;
+    return hasRequiredFields && todayCheckin.date === today;
   };
 
   const getPrimaryHabit = (plan?: Plan): { habit: string; habitKey: string } => {
@@ -575,9 +579,8 @@ if (stackSnap.exists()) {
 const commitRef = doc(db, "users", email, "momentum", "commitment");
 const commitSnap = await getDoc(commitRef);
 const commitmentData = commitSnap.exists() ? commitSnap.data() : null;
-console.log("[Dashboard] commitment loaded:", commitmentData);
+console.log("[DEBUG] Commitment loaded:", commitmentData);
 setCommitment(commitmentData);
-
 // Show commitment modal if no commitment exists OR if it's expired
 const shouldShowCommitmentModal = 
   !commitSnap.exists() || 
@@ -585,11 +588,17 @@ const shouldShowCommitmentModal =
 
 setShowCommitment(shouldShowCommitmentModal);
 
-      const todayMomentumRef = doc(db, "users", email, "momentum", today);
-      const todayMomentumSnap = await getDoc(todayMomentumRef);
-      if (todayMomentumSnap.exists()) {
-        setTodayMomentum(todayMomentumSnap.data());
-      }
+const todayMomentumRef = doc(db, "users", email, "momentum", today);
+const todayMomentumSnap = await getDoc(todayMomentumRef);
+if (todayMomentumSnap.exists()) {
+  const momentumData = todayMomentumSnap.data();
+  setTodayMomentum(momentumData);
+  console.log("[DEBUG] Streak loaded:", momentumData.currentStreak); 
+  // 🆕 If there's ANY momentum doc for today, mark check-in as done
+  if (momentumData.date === today) {
+    setCheckinSubmitted(true);
+  }
+}
 
       const momentumColRef = collection(db, "users", email, "momentum");
       const momentumSnaps = await getDocs(momentumColRef);
@@ -620,25 +629,30 @@ setShowCommitment(shouldShowCommitmentModal);
 
       await loadRecentCheckins(email);
 
-const streakColRef = collection(db, "users", email, "checkins");
-const streakSnaps = await getDocs(streakColRef);
-const allCheckins = streakSnaps.docs.map(
-  (d) => d.data() as { date: string }
-);
+// Get streak from today's momentum doc (new system)
+if (todayMomentumSnap.exists()) {
+  const todayData = todayMomentumSnap.data();
+  const streakValue = todayData.currentStreak || 0;
+  setCheckinStreak(streakValue);
+  
+  // Get streak savers from momentum doc
+  const savers = todayData.streakSavers || 0;
+  setStreakSavers(savers);
+} else {
+  setCheckinStreak(0);
+  setStreakSavers(0);
+}
 
-const streakValue = calculateCheckinStreak(allCheckins);
-setCheckinStreak(streakValue);
+// Detect missed days from momentum collection
+const missedDaysColRef = collection(db, "users", email, "momentum");
+const missedDaysSnaps = await getDocs(missedDaysColRef);
+const allMomentumDocs = missedDaysSnaps.docs
+  .map(d => ({ date: d.data().date }))
+  .filter(d => d.date && d.date.match(/^\d{4}-\d{2}-\d{2}$/)) // Only date-formatted docs
+  .sort((a, b) => b.date.localeCompare(a.date));
 
-// Load streak savers from Firestore
-const streakRef = doc(db, "users", email, "metadata", "streakData");
-const streakSnap = await getDoc(streakRef);
-const savers = streakSnap.exists() ? streakSnap.data().streakSavers || 0 : 0;
-setStreakSavers(savers);
-
-// Detect missed days using allCheckins (not recentCheckins state)
-const sortedCheckins = [...allCheckins].sort((a, b) => b.date.localeCompare(a.date));
-if (sortedCheckins.length > 0) {
-  const lastCheckin = new Date(sortedCheckins[0].date + "T00:00:00");
+if (allMomentumDocs.length > 0) {
+  const lastCheckin = new Date(allMomentumDocs[0].date + "T00:00:00");
   const todayDate = new Date();
   todayDate.setHours(0, 0, 0, 0);
   
@@ -1038,43 +1052,55 @@ console.log("🎯 Check-in count:", allCheckinsCount);
         });
       }
   
-      // Write complete daily momentum document
-      const momentumDoc = await writeDailyMomentum({
-        email,
-        date: localToday,
-        checkin: data,
-        currentFocus: {
-          habitKey: currentHabitData.habitKey,
-          habit: currentHabitData.habit,
-        },
-        habitStack,
-        sessionData: todaySession ? {
-          hasSessionToday: true,
-          todaySession: { durationMin: todaySession.durationMin },
-          targetMinutes: targetMin,
-        } : undefined,
-        goal: profile?.plan?.goal || "fat_loss",
-        accountAgeDays,
-      });
-      
-      // Merge in the streak data we calculated
-await setDoc(doc(db, "users", email, "momentum", localToday), {
-  ...momentumDoc,
-  currentStreak,
-  lifetimeStreak,
-  streakSavers,
-}, { merge: true });
+      // Convert binary check-in data to behavior grades
+      const behaviorGrades = [
+        { name: "Protein", grade: data.proteinHit === "yes" ? 80 : 0 },
+        { name: "Hydration", grade: data.hydrationHit === "yes" ? 80 : 0 },
+        { name: "Sleep", grade: data.sleepHit === "yes" ? 80 : 0 },
+        { name: "Mindset", grade: data.headspace === "great" ? 100 : data.headspace === "good" ? 80 : data.headspace === "okay" ? 50 : 0 }, // ← Changed 60 to 50
+        { name: "Energy Balance", grade: data.energyBalance === "light" || data.energyBalance === "normal" ? 80 : 50 }, // ← Changed 60 to 50
+        { name: "Eating Pattern", grade: data.eatingPattern === "meals" ? 80 : 50 }, // ← Changed 60 to 50
+      ];
 
+// Add movement grade if workout session exists
+if (todaySession && todaySession.durationMin >= targetMin) {
+  behaviorGrades.push({ name: "Movement", grade: 100 });
+} else if (data.movedToday === "yes") {
+  behaviorGrades.push({ name: "Movement", grade: 60 }); // Bonus activity but no workout
+}
+
+const momentumDoc = await writeDailyMomentum({
+  email,
+  date: localToday,
+  behaviorGrades,  // ← NEW
+  currentFocus: {
+    habitKey: currentHabitData.habitKey,
+    habit: currentHabitData.habit,
+  },
+  habitStack,
+  goal: profile?.plan?.goal || "fat_loss",
+  accountAgeDays,
+});
+      
 // ✅ CHECK FOR COMMITMENT COMPLETE (priority over streaks)
 const commitRef = doc(db, "users", email, "momentum", "commitment");
 const commitSnap = await getDoc(commitRef);
 const commitmentData = commitSnap.exists() ? commitSnap.data() : null;
+      // Merge in the streak data we calculated
+      const isFirstCheckin = !commitSnap.exists();
+      await setDoc(doc(db, "users", email, "momentum", localToday), {
+        ...momentumDoc,
+        currentStreak,
+        lifetimeStreak,
+        streakSavers,
+        isFirstCheckIn: isFirstCheckin, // 🆕 ADD THIS LINE
+      }, { merge: true });
+
 
 // Declare this FIRST
 let isCommitmentComplete = false;
 
 // 🆕 CREATE COMMITMENT ON FIRST CHECK-IN
-const isFirstCheckin = !commitSnap.exists();
 
 if (isFirstCheckin && currentHabitData) {
   const today = new Date(localToday + "T00:00:00");
@@ -1082,6 +1108,8 @@ if (isFirstCheckin && currentHabitData) {
   expiresAt.setDate(expiresAt.getDate() + 7);
 
   await setDoc(commitRef, {
+    habitOffered: currentHabitData.habit,      // 🆕 ADD THIS
+    habitKey: currentHabitData.habitKey,       // 🆕 ADD THIS
     accepted: true,
     weekStartedAt: today.toISOString(),
     expiresAt: expiresAt.toISOString(),
@@ -1192,14 +1220,16 @@ setCheckinSuccess(true);
       const email = getEmail();
       if (!email) return;
   
+      const today = new Date().toLocaleDateString("en-CA");
+  
+      // Delete today's check-in doc
       await deleteDoc(doc(db, "users", email, "checkins", today));
   
-      setTodayCheckin(null);
-      setCheckinSubmitted(false);
+      // Delete today's momentum doc (IMPORTANT - otherwise momentum shows as complete)
+      await deleteDoc(doc(db, "users", email, "momentum", today));
   
-      setTimeout(() => {
-        loadDashboardData();
-      }, 150);
+      // Reload dashboard data (this will refresh todayCheckin and all state)
+      await loadDashboardData();
   
       showToast({
         message: "Today's check-in reset",
@@ -1626,7 +1656,7 @@ useEffect(() => {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="min-h-screen bg-gray-50 p-6"
+      className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6"
     >
       <RewardRenderer 
       reward={pendingReward} 
@@ -1636,541 +1666,456 @@ useEffect(() => {
         variants={containerVariants}
         className="max-w-3xl mx-auto space-y-6"
       >
-        {/* 1. Welcome Header */}
-        <motion.div
-          variants={itemVariants}
-          className="bg-white rounded-2xl shadow-sm p-6 mb-6"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex flex-col">
-              <h1 className="text-2xl font-bold text-gray-900">
-                Hey {profile?.firstName || "there"}.
-              </h1>
-              {missedDays > 0 && !hasCompletedCheckin() ? (
-  <div className="mt-3">
-    <p className="text-gray-900 font-semibold mb-2">
-      I missed you. It's been {missedDays} {missedDays === 1 ? "day" : "days"}.
-    </p>
-    
-    {missedDays <= streakSavers ? (
-      <>
-        <p className="text-sm text-gray-700 mb-3">
-          Use {missedDays} streak {missedDays === 1 ? "saver" : "savers"} to keep your streak alive? ({streakSavers} available)
-        </p>
-        
-        <div className="flex gap-2">
-          <button
-            onClick={async () => {
-              const email = getEmail();
-              if (!email) return;
-              
-              const streakRef = doc(db, "users", email, "metadata", "streakData");
-              await setDoc(streakRef, {
-                streakSavers: streakSavers - missedDays,
-                lastSaved: new Date().toISOString(),
-              }, { merge: true });
-              
-              // Create placeholder check-ins for missed days to preserve streak
-if (!email) return;
-
-const today = new Date();
-for (let i = 1; i <= missedDays; i++) {
-  const dateStr = getLocalDateOffset(i);
-
-  await setDoc(doc(db, "users", email, "checkins", dateStr), {
-    date: dateStr,
-    streakSaver: true,
-    createdAt: new Date().toISOString(),
-  });
-}
-
-setStreakSavers(streakSavers - missedDays);
-setMissedDays(0);
-// Log the streak saver usage event
-await logHabitEvent(email, {
-  type: "streak_saver_used",
-  date: getLocalDate(),
-  streakLength: checkinStreak,
-  saversRemaining: streakSavers - missedDays,
-});
-
-// Don't reload - just update state manually
-// The streak is preserved, no need to recalculate
-
-            }}
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg py-2 transition"
-          >
-            Save Streak
-          </button>
+       {/* 1. Welcome Header */}
+<motion.div
+  variants={itemVariants}
+  className="bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 mb-6"
+>
+  <div className="flex items-start justify-between mb-4">
+    <div className="flex flex-col">
+      <h1 className="text-2xl font-bold text-white">
+        Hey {profile?.firstName || "there"}.
+      </h1>
+      {missedDays > 0 && !hasCompletedCheckin() ? (
+        <div className="mt-3">
+          <p className="text-white font-semibold mb-2">
+            I missed you. It's been {missedDays} {missedDays === 1 ? "day" : "days"}.
+          </p>
           
-          <button
-            onClick={() => {
-              setMissedDays(0);
-              setCheckinStreak(0);
-            }}
-            className="flex-1 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
-          >
-            Start Fresh
-          </button>
-        </div>
-      </>
-    ) : (
-      <>
-        <p className="text-sm text-gray-700 mb-3">
-          You need {missedDays} savers but only have {streakSavers}. Your streak has been reset.
-        </p>
-        <button
-          onClick={() => setMissedDays(0)}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg py-2 transition"
-        >
-          Start Fresh
-        </button>
-      </>
-    )}
-  </div>
-) : hasCompletedCheckin() ? (
-  <p className="text-gray-600 mt-1">You checked in today, nice job. That's the kind of consistency that compounds.</p>
-) : (
-  <p className="text-gray-600 mt-1">Welcome back. Ready to build?</p>
-)}
-
-{checkinStreak > 0 && missedDays === 0 && (() => {
-  const { icon, message } = getStreakMessage(checkinStreak);
-  return (
-    <div className="flex items-center gap-2 text-sm font-medium text-amber-600 mt-2">
-      <span>{icon}</span>
-      <span>{message}</span>
-    </div>
-  );
-})()}
-
-              <p className="text-[11px] tracking-widest uppercase text-gray-400 font-semibold mt-2">
-                Patience • Perseverance • Progress
-              </p>
-            </div>
-
-            <div className="mt-1 mr-2 w-32 sm:w-36 md:w-40">
-              <Image
-                src="/logo.png"
-                alt="Nelson Logo"
-                width={160}
-                height={90}
-                className="w-full h-auto"
-                priority
-              />
-            </div>
-          </div>
-
-          {/* Commitment/Level-Up Section */}
-<div className="mt-4 pt-4 border-t border-gray-200 transition-all duration-500 ease-in-out">
-  {/* LEVEL-UP PROMPT - Shows when eligible, overrides commitment display */}
-  {showLevelUp && levelUpEligible ? (
-    <div className="transition-all duration-500 ease-in-out">
-      {levelUpStage === "prompt" && (
-  <div className="animate-fadeIn">
-    <p className="text-gray-800 mb-1 text-sm">
-      You're ready to level up!
-    </p>
-    <p className="text-gray-900 mb-2 font-semibold text-lg">
-      You're averaging {averageDuration} minutes over the last 7 days
-    </p>
-    <p className="text-gray-700 mb-4 text-sm">
-      What feels doable for the next 7 days?
-    </p>
-    
-    <div className="flex flex-col gap-2">
-      <button
-        onClick={handleLevelUpAccept}
-        disabled={saving}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition disabled:opacity-50"
-      >
-        {saving ? "Saving..." : `Level Up to ${(() => {
-          const current = getTargetMinutes(currentFocus?.habitKey || "");
-          const next = current === 5 ? 10 : current === 10 ? 12 : current === 12 ? 15 : current === 15 ? 20 : current === 20 ? 25 : current === 25 ? 30 : current + 5;
-          return next;
-        })()} Minutes`}
-      </button>
-      
-      <button
-        onClick={() => {
-          setShowLevelUp(false);
-          showToast({ message: "You got it. Keep building at your current pace.", type: "success" });
-        }}
-        className="w-full bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
-      >
-        Stay at This Level
-      </button>
-      
-      <button
-        onClick={() => setLevelUpStage("adjust")}
-        className="w-full bg-white hover:bg-gray-50 text-blue-600 font-semibold rounded-lg py-2 border-2 border-blue-300 transition"
-      >
-        Adjust My Plan
-      </button>
-    </div>
-  </div>
-)}
-{levelUpStage === "adjust" && (
-  <div className="animate-fadeIn">
-    <p className="text-gray-800 mb-3 font-semibold">
-      Sounds good. Sustainability beats intensity every time.
-    </p>
-    <p className="text-gray-700 mb-3 text-sm">
-      What feels more manageable right now?
-    </p>
-
-    <div className="space-y-2">
-      {(() => {
-        const currentMinutes = extractMinutes(currentFocus?.habitKey || "walk_10min") || 10;
-        const ladder = [5, 10, 12, 15, 20, 25, 30];
-        
-        // Only show options BELOW current level
-        const lowerOptions = ladder.filter(min => min < currentMinutes);
-        
-        if (lowerOptions.length === 0) {
-          return (
-            <p className="text-sm text-gray-600 p-3 bg-gray-50 rounded-lg">
-              You're already at the starting level! Keep building consistency here.
-            </p>
-          );
-        }
-        
-        return lowerOptions.reverse().map((minutes) => (
-          <button
-            key={minutes}
-            onClick={async () => {
-              setSaving(true);
-              try {
-                const email = getEmail();
-                if (!email) return;
-
-                // Update currentFocus to lower level
-                const newHabitKey = `walk_${minutes}min`;
-                const newHabit = `Walk ${minutes} minutes`;
-                
-                const focusData: CurrentFocus = {
-                  habitKey: newHabitKey,
-                  habit: newHabit,
-                  level: ladder.indexOf(minutes) + 1,
-                  target: minutes,
-                  startedAt: currentFocus?.startedAt || getLocalDate(),
-                  lastLevelUpAt: getLocalDate(), // Mark as adjusted
-                  consecutiveDays: 0,
-                  eligibleForLevelUp: false,
-                };
-                
-                await setCurrentFocusService(email, focusData);
-                
-                // Log the adjustment
-                await logHabitEvent(email, {
-                  type: "level_up", // Could create "level_adjust" type later
-                  date: getLocalDate(),
-                  habitKey: newHabitKey,
-                  habitName: newHabit,
-                  fromLevel: currentFocus?.level,
-                  toLevel: focusData.level,
-                });
-                
-                // Update commitment to reflect new habit
-                await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                  habitOffered: newHabit,
-                  habitKey: newHabitKey,
-                  acceptedAt: getLocalDate(),
-                  isActive: true,
-                }, { merge: true });
-                
-                setShowLevelUp(false);
-                showToast({ 
-                  message: "Plan adjusted. Focus on consistency at this level.", 
-                  type: "success" 
-                });
-                
-                loadDashboardData();
-                
-              } catch (err) {
-                console.error("Failed to adjust plan:", err);
-                showToast({ message: "Failed to adjust plan", type: "error" });
-              } finally {
-                setSaving(false);
-              }
-            }}
-            disabled={saving}
-            className="w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-50"
-          >
-            <p className="font-semibold text-gray-900 text-sm">Walk {minutes} minutes daily</p>
-            <p className="text-xs text-gray-600">
-              {minutes === 5 ? "Start small, build the habit" : "Dial it back, stay consistent"}
-            </p>
-          </button>
-        ));
-      })()}
-    </div>
-
-    <button
-      onClick={() => setLevelUpStage("prompt")}
-      className="w-full mt-3 text-sm text-gray-600 hover:text-gray-900"
-    >
-      ← Back
-    </button>
-  </div>
-)}
-    </div>
-  ) : showCommitment && currentFocus ? (
-    <div className="transition-all duration-500 ease-in-out">
-      {commitmentStage === "initial" && (
-        <div className="animate-fadeIn">
-          <p className="text-gray-800 mb-1 text-sm">
-            {currentFocus.suggested && currentFocus.habitKey !== "custom_habit" && currentFocus.habitKey?.includes("movement_") 
-              ? "Based on your intake, I recommend:" 
-              : "Your focus:"}
-          </p>
-          <p className="text-gray-900 mb-3 font-semibold text-lg">
-            {currentFocus.habit}
-          </p>
-          <p className="text-gray-700 mb-4 text-sm">
-            Can you commit to this for 7 days, rain or shine?
-          </p>
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={async () => {
-                setSaving(true);
-                try {
-                  const email = getEmail();
-                  if (!email) return;
-
-                  const weekId = getISOWeekId(new Date());
-                  const expiresAt = new Date();
-                  expiresAt.setDate(expiresAt.getDate() + 7);
-
-                  // Save commitment
-                  await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                    habitOffered: currentFocus.habit,
-                    habitKey: currentFocus.habitKey,
-                    accepted: true,
-                    acceptedAt: new Date().toISOString(),
-                    weekStarted: weekId,
-                    expiresAt: expiresAt.toISOString(),
-                    createdAt: new Date().toISOString(),
-                  });
-
-                  const focusData: CurrentFocus = {
-                    habit: currentFocus.habit,
-                    habitKey: currentFocus.habitKey,
-                    level: 1,
-                    target: extractMinutes(currentFocus.habitKey) ?? 10,
-                    startedAt: today,
-                    lastLevelUpAt: null,
-                    consecutiveDays: 0,
-                    eligibleForLevelUp: false,
-                  };
-                  await setCurrentFocusService(email, focusData);
-
-                  setShowCommitment(false);
-                  loadDashboardData();
-                } catch (err) {
-                  console.error("Failed to save commitment:", err);
-                } finally {
-                  setSaving(false);
-                }
-              }}
-              disabled={saving}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "I'm In"}
-            </button>
-            
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCommitmentStage("reason")}
-                className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
-              >
-                Not Yet
-              </button>
-              
-              {currentFocus.suggested && (
-                <button
-                  onClick={() => setCommitmentStage("choose")}
-                  className="flex-1 bg-white hover:bg-gray-50 text-blue-600 font-semibold rounded-lg py-2 border-2 border-blue-300 transition"
-                >
-                  Choose Different
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {commitmentStage === "reason" && (
-        <div className="animate-fadeIn">
-          <p className="text-gray-800 mb-3 font-semibold">
-            I respect that. Let's figure out what would work better.
-          </p>
-          <p className="text-gray-700 mb-3 text-sm">What's making this feel difficult?</p>
-
-          <div className="space-y-2 mb-3">
-            <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 cursor-pointer text-sm">
-              <input
-                type="radio"
-                name="reason"
-                value="time_too_big"
-                checked={commitmentReason === "time_too_big"}
-                onChange={(e) => setCommitmentReason(e.target.value)}
-                className="w-4 h-4"
-              />
-              <span className="text-gray-800">The time commitment feels too big</span>
-            </label>
-
-            <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 cursor-pointer text-sm">
-              <input
-                type="radio"
-                name="reason"
-                value="different_habit"
-                checked={commitmentReason === "different_habit"}
-                onChange={(e) => setCommitmentReason(e.target.value)}
-                className="w-4 h-4"
-              />
-              <span className="text-gray-800">I'd rather focus on a different habit first</span>
-            </label>
-
-            <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 cursor-pointer text-sm">
-              <input
-                type="radio"
-                name="reason"
-                value="something_else"
-                checked={commitmentReason === "something_else"}
-                onChange={(e) => setCommitmentReason(e.target.value)}
-                className="w-4 h-4"
-              />
-              <span className="text-gray-800">Something else is in the way</span>
-            </label>
-          </div>
-
-          <button
-            onClick={async () => {
-              if (!commitmentReason) return;
-
-              setSaving(true);
-              try {
-                const email = getEmail();
-                if (!email) return;
-
-                await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                  habitOffered: currentFocus.habit,
-                  habitKey: currentFocus.habitKey,
-                  accepted: false,
-                  reason: commitmentReason,
-                  createdAt: new Date().toISOString(),
-                });
-
-                if (commitmentReason === "time_too_big" || commitmentReason === "different_habit") {
-                  setCommitmentStage("alternative");
-                } else {
-                  // "Something else" - just go back to choose
-                  setCommitmentStage("choose");
-                  setCommitmentReason("");
-                }
-              } catch (err) {
-                console.error("Failed to save reason:", err);
-              } finally {
-                setSaving(false);
-              }
-            }}
-            disabled={!commitmentReason || saving}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? "Saving..." : "Continue"}
-          </button>
-        </div>
-      )}
-
-      {commitmentStage === "alternative" && (
-        <div className="animate-fadeIn">
-          {commitmentReason === "time_too_big" ? (
+          {missedDays <= streakSavers ? (
             <>
-              <p className="text-gray-800 mb-3 font-semibold">
-                No problem. Would 5 minutes work better?
+              <p className="text-sm text-white/80 mb-3">
+                Use {missedDays} streak {missedDays === 1 ? "saver" : "savers"} to keep your streak alive? ({streakSavers} available)
               </p>
-              <p className="text-gray-700 mb-3 text-sm">
-                Sometimes starting smaller is the key. Can you commit to a 5-minute walk every day for 7 days?
-              </p>
-
-              <div className="flex gap-3">
+              
+              <div className="flex gap-2">
                 <button
                   onClick={async () => {
-                    setSaving(true);
-                    try {
-                      const email = getEmail();
-                      if (!email) return;
+                    const email = getEmail();
+                    if (!email) return;
+                    
+                    const streakRef = doc(db, "users", email, "metadata", "streakData");
+                    await setDoc(streakRef, {
+                      streakSavers: streakSavers - missedDays,
+                      lastSaved: new Date().toISOString(),
+                    }, { merge: true });
+                    
+                    // Create placeholder check-ins for missed days to preserve streak
+                    if (!email) return;
 
-                      const weekId = getISOWeekId(new Date());
-                      const expiresAt = new Date();
-                      expiresAt.setDate(expiresAt.getDate() + 7);
+                    const today = new Date();
+                    for (let i = 1; i <= missedDays; i++) {
+                      const dateStr = getLocalDateOffset(i);
 
-                      await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                        habitOffered: currentFocus.habit,
-                        habitKey: currentFocus.habitKey,
-                        accepted: false,
-                        reason: commitmentReason,
-                        alternativeOffered: "Walk 5 minutes daily",
-                        alternativeAccepted: true,
-                        acceptedAt: new Date().toISOString(),
-                        weekStarted: weekId,
-                        expiresAt: expiresAt.toISOString(),
+                      await setDoc(doc(db, "users", email, "checkins", dateStr), {
+                        date: dateStr,
+                        streakSaver: true,
                         createdAt: new Date().toISOString(),
-                      }, { merge: true });
-
-                      const focusData: CurrentFocus = {
-                        habit: "Walk 5 minutes daily",
-                        habitKey: "walk_5min",
-                        level: 1,
-                        target: 5,
-                        startedAt: getLocalDate(),
-                        lastLevelUpAt: null,
-                        consecutiveDays: 0,
-                        eligibleForLevelUp: false,
-                      };
-                      await setCurrentFocusService(email, focusData);
-
-                      setShowCommitment(false);
-                      loadDashboardData();
-                    } catch (err) {
-                      console.error("Failed to save alternative:", err);
-                    } finally {
-                      setSaving(false);
+                      });
                     }
+
+                    setStreakSavers(streakSavers - missedDays);
+                    setMissedDays(0);
+                    // Log the streak saver usage event
+                    await logHabitEvent(email, {
+                      type: "streak_saver_used",
+                      date: getLocalDate(),
+                      streakLength: checkinStreak,
+                      saversRemaining: streakSavers - missedDays,
+                    });
                   }}
-                  disabled={saving}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg py-2 transition"
                 >
-                  {saving ? "Saving..." : "Yes, 5 Minutes"}
+                  Save Streak
                 </button>
+                
                 <button
                   onClick={() => {
-                    setShowCommitment(false);
-                    loadDashboardData();
+                    setMissedDays(0);
+                    setCheckinStreak(0);
                   }}
-                  className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
                 >
-                  I'll Think About It
+                  Start Fresh
                 </button>
               </div>
             </>
           ) : (
             <>
-              <p className="text-gray-800 mb-3 font-semibold">
-                No problem. What would you rather focus on?
+              <p className="text-sm text-white/80 mb-3">
+                You need {missedDays} savers but only have {streakSavers}. Your streak has been reset.
               </p>
-              <p className="text-gray-700 mb-3 text-sm">Pick the habit that feels most important right now:</p>
+              <button
+                onClick={() => setMissedDays(0)}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg py-2 transition"
+              >
+                Start Fresh
+              </button>
+            </>
+          )}
+        </div>
+      ) : hasCompletedCheckin() ? (
+        <p className="text-white/60 mt-1">You checked in today, nice job. That's the kind of consistency that compounds.</p>
+      ) : (
+        <p className="text-white/60 mt-1">Welcome back. Ready to build?</p>
+      )}
 
-              <div className="space-y-2">
-                {[
-                  { habit: "Walk 10 minutes daily", key: "walk_10min", desc: "Build the movement habit" },
-                  { habit: "Hit your protein target daily", key: "protein_daily", desc: "Fuel muscle and recovery" },
-                  { habit: "Drink 100 oz of water daily", key: "hydration_100oz", desc: "Stay hydrated and energized" },
-                  { habit: "Sleep 7+ hours nightly", key: "sleep_7plus", desc: "Recover and rebuild" },
-                ].map((option) => (
+      {checkinStreak > 0 && missedDays === 0 && (() => {
+        const { icon, message } = getStreakMessage(checkinStreak);
+        return (
+          <div className="flex items-center gap-2 text-sm font-medium text-amber-400 mt-2">
+            <span>{icon}</span>
+            <span>{message}</span>
+          </div>
+        );
+      })()}
+
+      <p className="text-[11px] tracking-widest uppercase text-white/40 font-semibold mt-2">
+        Patience • Perseverance • Progress
+      </p>
+    </div>
+
+    <div className="mt-1 mr-2 w-32 sm:w-36 md:w-40">
+      <Image
+        src="/logo.png"
+        alt="Nelson Logo"
+        width={160}
+        height={90}
+        className="w-full h-auto"
+        priority
+      />
+    </div>
+  </div>
+
+  {/* Commitment/Level-Up Section */}
+  <div className="mt-4 pt-4 border-t border-slate-700 transition-all duration-500 ease-in-out">
+    {/* LEVEL-UP PROMPT - Shows when eligible, overrides commitment display */}
+    {showLevelUp && levelUpEligible ? (
+      <div className="transition-all duration-500 ease-in-out">
+        {levelUpStage === "prompt" && (
+          <div className="animate-fadeIn">
+            <p className="text-white/80 mb-1 text-sm">
+              You're ready to level up!
+            </p>
+            <p className="text-white mb-2 font-semibold text-lg">
+              You're averaging {averageDuration} minutes over the last 7 days
+            </p>
+            <p className="text-white/80 mb-4 text-sm">
+              What feels doable for the next 7 days?
+            </p>
+            
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleLevelUpAccept}
+                disabled={saving}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition disabled:opacity-50"
+              >
+                {saving ? "Saving..." : `Level Up to ${(() => {
+                  const current = getTargetMinutes(currentFocus?.habitKey || "");
+                  const next = current === 5 ? 10 : current === 10 ? 12 : current === 12 ? 15 : current === 15 ? 20 : current === 20 ? 25 : current === 25 ? 30 : current + 5;
+                  return next;
+                })()} Minutes`}
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowLevelUp(false);
+                  showToast({ message: "You got it. Keep building at your current pace.", type: "success" });
+                }}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
+              >
+                Stay at This Level
+              </button>
+              
+              <button
+                onClick={() => setLevelUpStage("adjust")}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-blue-400 font-semibold rounded-lg py-2 border-2 border-blue-500/50 transition"
+              >
+                Adjust My Plan
+              </button>
+            </div>
+          </div>
+        )}
+        {levelUpStage === "adjust" && (
+          <div className="animate-fadeIn">
+            <p className="text-white/80 mb-3 font-semibold">
+              Sounds good. Sustainability beats intensity every time.
+            </p>
+            <p className="text-white/80 mb-3 text-sm">
+              What feels more manageable right now?
+            </p>
+
+            <div className="space-y-2">
+              {(() => {
+                const currentMinutes = extractMinutes(currentFocus?.habitKey || "walk_10min") || 10;
+                const ladder = [5, 10, 12, 15, 20, 25, 30];
+                
+                const lowerOptions = ladder.filter(min => min < currentMinutes);
+                
+                if (lowerOptions.length === 0) {
+                  return (
+                    <p className="text-sm text-white/60 p-3 bg-slate-700/30 rounded-lg">
+                      You're already at the starting level! Keep building consistency here.
+                    </p>
+                  );
+                }
+                
+                return lowerOptions.reverse().map((minutes) => (
                   <button
-                    key={option.key}
+                    key={minutes}
+                    onClick={async () => {
+                      setSaving(true);
+                      try {
+                        const email = getEmail();
+                        if (!email) return;
+
+                        const newHabitKey = `walk_${minutes}min`;
+                        const newHabit = `Walk ${minutes} minutes`;
+                        
+                        const focusData: CurrentFocus = {
+                          habitKey: newHabitKey,
+                          habit: newHabit,
+                          level: ladder.indexOf(minutes) + 1,
+                          target: minutes,
+                          startedAt: currentFocus?.startedAt || getLocalDate(),
+                          lastLevelUpAt: getLocalDate(),
+                          consecutiveDays: 0,
+                          eligibleForLevelUp: false,
+                        };
+                        
+                        await setCurrentFocusService(email, focusData);
+                        
+                        await logHabitEvent(email, {
+                          type: "level_up",
+                          date: getLocalDate(),
+                          habitKey: newHabitKey,
+                          habitName: newHabit,
+                          fromLevel: currentFocus?.level,
+                          toLevel: focusData.level,
+                        });
+                        
+                        await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                          habitOffered: newHabit,
+                          habitKey: newHabitKey,
+                          acceptedAt: getLocalDate(),
+                          isActive: true,
+                        }, { merge: true });
+                        
+                        setShowLevelUp(false);
+                        showToast({ 
+                          message: "Plan adjusted. Focus on consistency at this level.", 
+                          type: "success" 
+                        });
+                        
+                        loadDashboardData();
+                        
+                      } catch (err) {
+                        console.error("Failed to adjust plan:", err);
+                        showToast({ message: "Failed to adjust plan", type: "error" });
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    disabled={saving}
+                    className="w-full text-left p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
+                  >
+                    <p className="font-semibold text-white text-sm">Walk {minutes} minutes daily</p>
+                    <p className="text-xs text-white/60">
+                      {minutes === 5 ? "Start small, build the habit" : "Dial it back, stay consistent"}
+                    </p>
+                  </button>
+                ));
+              })()}
+            </div>
+
+            <button
+              onClick={() => setLevelUpStage("prompt")}
+              className="w-full mt-3 text-sm text-white/60 hover:text-white"
+            >
+              ← Back
+            </button>
+          </div>
+        )}
+      </div>
+    ) : showCommitment && currentFocus ? (
+      <div className="transition-all duration-500 ease-in-out">
+        {commitmentStage === "initial" && (
+          <div className="animate-fadeIn">
+            <p className="text-white/80 mb-1 text-sm">
+              {currentFocus.suggested && currentFocus.habitKey !== "custom_habit" && currentFocus.habitKey?.includes("movement_") 
+                ? "Based on your intake, I recommend:" 
+                : "Your focus:"}
+            </p>
+            <p className="text-white mb-3 font-semibold text-lg">
+              {currentFocus.habit}
+            </p>
+            <p className="text-white/80 mb-4 text-sm">
+              Can you commit to this for 7 days, rain or shine?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    const email = getEmail();
+                    if (!email) return;
+
+                    const weekId = getISOWeekId(new Date());
+                    const expiresAt = new Date();
+                    expiresAt.setDate(expiresAt.getDate() + 7);
+
+                    await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                      habitOffered: currentFocus.habit,
+                      habitKey: currentFocus.habitKey,
+                      accepted: true,
+                      acceptedAt: new Date().toISOString(),
+                      weekStarted: weekId,
+                      expiresAt: expiresAt.toISOString(),
+                      createdAt: new Date().toISOString(),
+                    });
+
+                    const focusData: CurrentFocus = {
+                      habit: currentFocus.habit,
+                      habitKey: currentFocus.habitKey,
+                      level: 1,
+                      target: extractMinutes(currentFocus.habitKey) ?? 10,
+                      startedAt: today,
+                      lastLevelUpAt: null,
+                      consecutiveDays: 0,
+                      eligibleForLevelUp: false,
+                    };
+                    await setCurrentFocusService(email, focusData);
+
+                    setShowCommitment(false);
+                    loadDashboardData();
+                  } catch (err) {
+                    console.error("Failed to save commitment:", err);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "I'm In"}
+              </button>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCommitmentStage("reason")}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
+                >
+                  Not Yet
+                </button>
+                
+                {currentFocus.suggested && (
+                  <button
+                    onClick={() => setCommitmentStage("choose")}
+                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-blue-400 font-semibold rounded-lg py-2 border-2 border-blue-500/50 transition"
+                  >
+                    Choose Different
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {commitmentStage === "reason" && (
+          <div className="animate-fadeIn">
+            <p className="text-white/80 mb-3 font-semibold">
+              I respect that. Let's figure out what would work better.
+            </p>
+            <p className="text-white/80 mb-3 text-sm">What's making this feel difficult?</p>
+
+            <div className="space-y-2 mb-3">
+              <label className="flex items-center gap-3 p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 cursor-pointer text-sm bg-slate-700/30">
+                <input
+                  type="radio"
+                  name="reason"
+                  value="time_too_big"
+                  checked={commitmentReason === "time_too_big"}
+                  onChange={(e) => setCommitmentReason(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className="text-white/80">The time commitment feels too big</span>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 cursor-pointer text-sm bg-slate-700/30">
+                <input
+                  type="radio"
+                  name="reason"
+                  value="different_habit"
+                  checked={commitmentReason === "different_habit"}
+                  onChange={(e) => setCommitmentReason(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className="text-white/80">I'd rather focus on a different habit first</span>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 cursor-pointer text-sm bg-slate-700/30">
+                <input
+                  type="radio"
+                  name="reason"
+                  value="something_else"
+                  checked={commitmentReason === "something_else"}
+                  onChange={(e) => setCommitmentReason(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className="text-white/80">Something else is in the way</span>
+              </label>
+            </div>
+
+            <button
+              onClick={async () => {
+                if (!commitmentReason) return;
+
+                setSaving(true);
+                try {
+                  const email = getEmail();
+                  if (!email) return;
+
+                  await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                    habitOffered: currentFocus.habit,
+                    habitKey: currentFocus.habitKey,
+                    accepted: false,
+                    reason: commitmentReason,
+                    createdAt: new Date().toISOString(),
+                  });
+
+                  if (commitmentReason === "time_too_big" || commitmentReason === "different_habit") {
+                    setCommitmentStage("alternative");
+                  } else {
+                    setCommitmentStage("choose");
+                    setCommitmentReason("");
+                  }
+                } catch (err) {
+                  console.error("Failed to save reason:", err);
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={!commitmentReason || saving}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving..." : "Continue"}
+            </button>
+          </div>
+        )}
+
+        {commitmentStage === "alternative" && (
+          <div className="animate-fadeIn">
+            {commitmentReason === "time_too_big" ? (
+              <>
+                <p className="text-white/80 mb-3 font-semibold">
+                  No problem. Would 5 minutes work better?
+                </p>
+                <p className="text-white/80 mb-3 text-sm">
+                  Sometimes starting smaller is the key. Can you commit to a 5-minute walk every day for 7 days?
+                </p>
+
+                <div className="flex gap-3">
+                  <button
                     onClick={async () => {
                       setSaving(true);
                       try {
@@ -2185,8 +2130,8 @@ await logHabitEvent(email, {
                           habitOffered: currentFocus.habit,
                           habitKey: currentFocus.habitKey,
                           accepted: false,
-                          reason: "different_habit",
-                          alternativeOffered: option.habit,
+                          reason: commitmentReason,
+                          alternativeOffered: "Walk 5 minutes daily",
                           alternativeAccepted: true,
                           acceptedAt: new Date().toISOString(),
                           weekStarted: weekId,
@@ -2195,10 +2140,10 @@ await logHabitEvent(email, {
                         }, { merge: true });
 
                         const focusData: CurrentFocus = {
-                          habit: option.habit,
-                          habitKey: option.key,
+                          habit: "Walk 5 minutes daily",
+                          habitKey: "walk_5min",
                           level: 1,
-                          target: extractMinutes(option.key) ?? 10,
+                          target: 5,
                           startedAt: getLocalDate(),
                           lastLevelUpAt: null,
                           consecutiveDays: 0,
@@ -2209,517 +2154,366 @@ await logHabitEvent(email, {
                         setShowCommitment(false);
                         loadDashboardData();
                       } catch (err) {
-                        console.error("Failed to save habit selection:", err);
+                        console.error("Failed to save alternative:", err);
                       } finally {
                         setSaving(false);
                       }
                     }}
                     disabled={saving}
-                    className="w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-50"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50"
                   >
-                    <p className="font-semibold text-gray-900 text-sm">{option.habit}</p>
-                    <p className="text-xs text-gray-600">{option.desc}</p>
+                    {saving ? "Saving..." : "Yes, 5 Minutes"}
                   </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {commitmentStage === "choose" && (
-        <div className="animate-fadeIn">
-          <p className="text-gray-800 mb-3 font-semibold">
-            What would you rather focus on?
-          </p>
-          <p className="text-gray-700 mb-3 text-sm">Pick the habit that feels most important right now:</p>
-
-          <div className="space-y-2">
-            {[
-              { habit: "Walk 5 minutes daily", key: "walk_5min", desc: "Start small, build consistency" },
-              { habit: "Walk 10 minutes daily", key: "walk_10min", desc: "Build the movement habit" },
-              { habit: "Walk 15 minutes daily", key: "walk_15min", desc: "Increase daily activity" },
-              { habit: "Hit your protein target daily", key: "protein_daily", desc: "Fuel muscle and recovery" },
-              { habit: "Eat protein at every meal", key: "protein_every_meal", desc: "Build the protein habit" },
-              { habit: "Eat 3 servings of vegetables daily", key: "vegetables_3_servings", desc: "Increase nutrient density" },
-              { habit: "No eating within 2 hours of bedtime", key: "no_late_eating", desc: "Improve digestion and sleep" },
-              { habit: "Drink 100 oz of water daily", key: "hydration_100oz", desc: "Stay hydrated and energized" },
-              { habit: "Sleep 7+ hours nightly", key: "sleep_7plus", desc: "Recover and rebuild" },
-            ]
-            .filter(option => option.key !== currentFocus?.habitKey)
-            .map((option) => (
-              <button
-                key={option.key}
-                onClick={() => {
-                  // Update currentFocus with selected habit
-                  setCurrentFocus({
-                    habit: option.habit,
-                    habitKey: option.key,
-                    suggested: true,
-                    createdAt: new Date().toISOString(),
-                  });
-                
-                  setCommitmentStage("initial");
-                }}
-                disabled={saving}
-                className="w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-50"
-              >
-                <p className="font-semibold text-gray-900 text-sm">{option.habit}</p>
-                <p className="text-xs text-gray-600">{option.desc}</p>
-              </button>
-            ))}
-          </div>
-          
-          <button
-            onClick={() => setCommitmentStage("custom")}
-            className="w-full mt-3 text-center p-3 border-2 border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition text-blue-600 font-semibold"
-          >
-            + Create My Own Habit
-          </button>
-        </div>
-      )}
-
-      {commitmentStage === "custom" && (
-        <div className="animate-fadeIn">
-          <p className="text-gray-800 mb-3 font-semibold">
-            What is ONE small habit can you do EVERY day for 7 days?
-          </p>
-          <p className="text-gray-600 mb-3 text-sm">
-            Examples: Eat 1 serving of vegetables, Do 10 pushups, Journal for 5 minutes
-          </p>
-          
-          <input
-            type="text"
-            maxLength={50}
-            placeholder="One small daily habit..."
-            value={commitmentReason}
-            onChange={(e) => setCommitmentReason(e.target.value)}
-            className="w-full border-2 border-gray-300 rounded-lg p-3 text-gray-900 mb-3 focus:border-blue-400 focus:outline-none"
-          />
-          
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                setCommitmentStage("choose");
-                setCommitmentReason("");
-              }}
-              className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg py-2 border-2 border-gray-300 transition"
-            >
-              Back
-            </button>
-            
-            <button
-              onClick={() => {
-                if (!commitmentReason.trim()) return;
-                
-                // Update currentFocus with custom habit
-                setCurrentFocus({
-                  habit: commitmentReason.trim(),
-                  habitKey: "custom_habit",
-                  suggested: true,
-                  createdAt: new Date().toISOString(),
-                });
-                
-                setCommitmentStage("initial");
-                setCommitmentReason("");
-              }}
-              disabled={!commitmentReason.trim()}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  ) : commitment && (commitment.isActive || commitment.accepted || commitment.alternativeAccepted) ? (
-    <div className="animate-fadeIn">
-      {hasCompletedPrimaryHabit() ? (
-        <div className="relative bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4 overflow-hidden">
-          {/* Celebratory graphic */}
-          <div className="absolute top-0 right-0 text-6xl opacity-20">🎯</div>
-          
-          <div className="relative">
-            <p className="text-xs text-green-600 font-semibold uppercase tracking-wide">
-              ✓ Commitment Complete
-            </p>
-            <p className="text-lg font-bold text-gray-900 mt-1">
-              {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
-            </p>
-            <p className="text-sm text-green-700 mt-2 font-medium">
-              That's the kind of consistency that compounds. 🔥
-            </p>
-            <p className="text-xs text-gray-600 mt-2">
-            Day {commitment?.acceptedAt ? daysBetween(commitment.acceptedAt.split("T")[0], getLocalDate()) + 1 : 1} of 7
-            </p>
-          </div>
-        </div>
-      ) : (
-        <button
-        onClick={() => {
-          if (currentFocus && isMovementHabit(currentFocus.habitKey)) {
-            router.push('/walk');
-          } else {
-            // For non-movement habits, just show a reminder (or disable button)
-            showToast({ 
-              message: "Track this in your daily check-in!", 
-              type: "info" 
-            });
-          }
-        }}
-        className="w-full flex items-center justify-between bg-blue-50 hover:bg-blue-100 rounded-lg p-3 transition-all border-2 border-transparent hover:border-blue-300 group"
-      >
-        <div className="text-left">
-          <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Your Commitment</p>
-          <p className="text-sm font-bold text-gray-900 mt-1">
-            🎯 {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
-          </p>
-          <p className="text-xs text-blue-600 mt-1 group-hover:underline">
-            {currentFocus && isMovementHabit(currentFocus.habitKey) 
-              ? "Tap to start →" 
-              : "Track in check-in →"}
-          </p>
-        </div>
-          <p className="text-xs text-gray-600 font-semibold">
-            Day {commitment?.acceptedAt ? Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 1} of 7
-          </p>
-        </button>
-      )}
-    </div>
-  ) : null}
-</div>
-</motion.div>
-
-       {/* 3. Daily Reflection */}
-       <AnimatePresence mode="wait">
-  {checkinSuccess ? (
-    <motion.div
-      key="success"
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: "auto" }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.4, ease: "easeInOut" }}
-    >
-      <CheckinSuccessAnimation
-        onComplete={() => {
-          setCheckinSuccess(false);
-          setCheckinSubmitted(true);
-          loadDashboardData();
-        }}
-      />
-    </motion.div>
-  ) : (
-    !hasCompletedCheckin() && (
-      <motion.div
-        key="form"
-        variants={itemVariants}
-        initial="visible"
-        className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
-    >
-        {/* Your form fields */}
-        <p className="text-xs text-gray-500 mb-4 pb-3 border-b border-gray-100">
-          Ready to check in? How'd you do yesterday?
-        </p>
-        
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Daily Reflection
-        </h2>
-
-        {/* Tier 1: Nutrition Foundation */}
-        <div className="space-y-3 mb-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-            <p className="text-xs text-gray-600 mb-2 flex items-center gap-1">
-              Energy Balance
-              {(() => {
-                const icon = getHabitIcon('energy_balance');
-                return icon ? <span className="text-base">{icon}</span> : null;
-              })()}
-              <InfoTooltip text="Did you undereat, eat as intended, overeat, or have an indulgent day yesterday?" />
-            </p>
-              <div className="grid grid-cols-2 gap-1">
-                {["Light", "Normal", "Heavy", "Indulgent"].map((option) => (
                   <button
-                    key={option}
-                    onClick={() =>
-                      setCheckin((prev) => ({
-                        ...prev,
-                        energyBalance: option.toLowerCase(),
-                      }))
-                    }
-                    className={`text-xs py-2 rounded border ${
-                      checkin.energyBalance === option.toLowerCase()
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
+                    onClick={() => {
+                      setShowCommitment(false);
+                      loadDashboardData();
+                    }}
+                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
                   >
-                    {option}
+                    I'll Think About It
                   </button>
-                ))}
-              </div>
-            </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-white/80 mb-3 font-semibold">
+                  No problem. What would you rather focus on?
+                </p>
+                <p className="text-white/80 mb-3 text-sm">Pick the habit that feels most important right now:</p>
 
-            <div>
-            <p className="text-xs text-gray-600 mb-2 flex items-center">
-              Eating Pattern
-              <span className="text-base">{getHabitIcon('no_late_eating')}</span>
-              <InfoTooltip text="Structured whole food meals with protein + fiber score higher than directionless meals do. Overall, how did you eat yesterday?" />
-            </p>
-              <div className="grid grid-cols-2 gap-1">
-                {[
-                  { value: "meals", label: "Structured" },
-                  { value: "mixed", label: "Mixed" },
-                  { value: "grazing", label: "Directionless" },
-                  { value: "none", label: "No attention" },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() =>
-                      setCheckin((prev) => ({
-                        ...prev,
-                        eatingPattern: option.value,
-                      }))
-                    }
-                    className={`text-xs py-2 rounded border ${
-                      checkin.eatingPattern === option.value
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+                <div className="space-y-2">
+                  {[
+                    { habit: "Walk 10 minutes daily", key: "walk_10min", desc: "Build the movement habit" },
+                    { habit: "Hit your protein target daily", key: "protein_daily", desc: "Fuel muscle and recovery" },
+                    { habit: "Drink 100 oz of water daily", key: "hydration_100oz", desc: "Stay hydrated and energized" },
+                    { habit: "Sleep 7+ hours nightly", key: "sleep_7plus", desc: "Recover and rebuild" },
+                  ].map((option) => (
+                    <button
+                      key={option.key}
+                      onClick={async () => {
+                        setSaving(true);
+                        try {
+                          const email = getEmail();
+                          if (!email) return;
+
+                          const weekId = getISOWeekId(new Date());
+                          const expiresAt = new Date();
+                          expiresAt.setDate(expiresAt.getDate() + 7);
+
+                          await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                            habitOffered: currentFocus.habit,
+                            habitKey: currentFocus.habitKey,
+                            accepted: false,
+                            reason: "different_habit",
+                            alternativeOffered: option.habit,
+                            alternativeAccepted: true,
+                            acceptedAt: new Date().toISOString(),
+                            weekStarted: weekId,
+                            expiresAt: expiresAt.toISOString(),
+                            createdAt: new Date().toISOString(),
+                          }, { merge: true });
+
+                          const focusData: CurrentFocus = {
+                            habit: option.habit,
+                            habitKey: option.key,
+                            level: 1,
+                            target: extractMinutes(option.key) ?? 10,
+                            startedAt: getLocalDate(),
+                            lastLevelUpAt: null,
+                            consecutiveDays: 0,
+                            eligibleForLevelUp: false,
+                          };
+                          await setCurrentFocusService(email, focusData);
+
+                          setShowCommitment(false);
+                          loadDashboardData();
+                        } catch (err) {
+                          console.error("Failed to save habit selection:", err);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      disabled={saving}
+                      className="w-full text-left p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
+                    >
+                      <p className="font-semibold text-white text-sm">{option.habit}</p>
+                      <p className="text-xs text-white/60">{option.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
+        )}
 
-          {/* Protein */}
-          <div>
-          <p className="text-xs text-gray-600 mb-2 flex items-center">
-            Protein
-            <span className="text-base">{getHabitIcon('protein_daily')}</span>
-            <InfoTooltip text={`Your target is ${profile?.plan?.proteinTargetG || 180}g/day based on your bodyweight goal`} />
-          </p>
-            <div className="flex gap-2">
-              {["Yes", "Almost", "No"].map((option) => (
+        {commitmentStage === "choose" && (
+          <div className="animate-fadeIn">
+            <p className="text-white/80 mb-3 font-semibold">
+              What would you rather focus on?
+            </p>
+            <p className="text-white/80 mb-3 text-sm">Pick the habit that feels most important right now:</p>
+
+            <div className="space-y-2">
+              {[
+                { habit: "Walk 5 minutes daily", key: "walk_5min", desc: "Start small, build consistency" },
+                { habit: "Walk 10 minutes daily", key: "walk_10min", desc: "Build the movement habit" },
+                { habit: "Walk 15 minutes daily", key: "walk_15min", desc: "Increase daily activity" },
+                { habit: "Hit your protein target daily", key: "protein_daily", desc: "Fuel muscle and recovery" },
+                { habit: "Eat protein at every meal", key: "protein_every_meal", desc: "Build the protein habit" },
+                { habit: "Eat 3 servings of vegetables daily", key: "vegetables_3_servings", desc: "Increase nutrient density" },
+                { habit: "No eating within 2 hours of bedtime", key: "no_late_eating", desc: "Improve digestion and sleep" },
+                { habit: "Drink 100 oz of water daily", key: "hydration_100oz", desc: "Stay hydrated and energized" },
+                { habit: "Sleep 7+ hours nightly", key: "sleep_7plus", desc: "Recover and rebuild" },
+              ]
+              .filter(option => option.key !== currentFocus?.habitKey)
+              .map((option) => (
                 <button
-                  key={option}
-                  onClick={() =>
-                    setCheckin((prev) => ({
-                      ...prev,
-                      proteinHit: option.toLowerCase(),
-                    }))
-                  }
-                  className={`flex-1 py-2 rounded border text-sm ${
-                    checkin.proteinHit === option.toLowerCase()
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                  }`}
+                  key={option.key}
+                  onClick={() => {
+                    setCurrentFocus({
+                      habit: option.habit,
+                      habitKey: option.key,
+                      suggested: true,
+                      createdAt: new Date().toISOString(),
+                    });
+                  
+                    setCommitmentStage("initial");
+                  }}
+                  disabled={saving}
+                  className="w-full text-left p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
                 >
-                  {option}
+                  <p className="font-semibold text-white text-sm">{option.habit}</p>
+                  <p className="text-xs text-white/60">{option.desc}</p>
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Tier 2: Recovery & Movement */}
-        <div className="space-y-3 mb-4 pt-4 border-t border-gray-100">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-            <p className="text-xs text-gray-600 mb-2 flex items-center">
-              Sleep
-              <span className="text-base">{getHabitIcon('sleep_7plus')}</span>
-              <InfoTooltip text="7+ hours, no screens 30min before bed, lights out at a reasonable time" />
-            </p>
-              <div className="flex gap-2">
-                {["Yes", "No"].map((option) => (
-                  <button
-                    key={option}
-                    onClick={() =>
-                      setCheckin((prev) => ({
-                        ...prev,
-                        sleepHit: option.toLowerCase(),
-                      }))
-                    }
-                    className={`flex-1 py-2 rounded border text-sm ${
-                      checkin.sleepHit === option.toLowerCase()
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-600 mb-2 flex items-center">
-                Mindset
-                <InfoTooltip text="An overall sense of how you're feeling today" />
-              </p>
-              <div className="flex gap-2">
-                {["Great!", "Decent", "Off"].map((option) => (
-                  <button
-                    key={option}
-                    onClick={() =>
-                      setCheckin((prev) => ({
-                        ...prev,
-                        headspace: option.toLowerCase(),
-                      }))
-                    }
-                    className={`flex-1 py-2 rounded border text-xs ${
-                      checkin.headspace === option.toLowerCase()
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs text-gray-600 mb-2 flex items-center">
-                Bonus Movement
-                <InfoTooltip text="Any intentional activity beyond your main focus. Examples: parking farther away, taking the stairs, gardening, walking the dog, cleaning, walking during calls." />
-              </p>
-              <div className="flex gap-2">
-                {["Yes", "No"].map((option) => (
-                  <button
-                    key={option}
-                    onClick={() =>
-                      setCheckin((prev) => ({
-                        ...prev,
-                        movedToday: option.toLowerCase(),
-                      }))
-                    }
-                    className={`flex-1 py-2 rounded border text-sm ${
-                      checkin.movedToday === option.toLowerCase()
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-600 mb-2 flex items-center">
-                Hydration
-                <InfoTooltip text={`Your target is ${profile?.plan?.hydrationTargetOz || 100}oz/day`} />
-              </p>
-              <div className="flex gap-2">
-                {["Yes", "No"].map((option) => (
-                  <button
-                    key={option}
-                    onClick={() =>
-                      setCheckin((prev) => ({
-                        ...prev,
-                        hydrationHit: option.toLowerCase(),
-                      }))
-                    }
-                    className={`flex-1 py-2 rounded border text-sm ${
-                      checkin.hydrationHit === option.toLowerCase()
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                    }`}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* NEW: Primary Habit Duration Picker */}
-        <div className="pt-4 border-t border-gray-100 mb-4">
-          <p className="text-xs text-gray-600 mb-2 flex items-center">
-            About how long did you do your commitment yesterday?
-            <InfoTooltip text="This helps us know when you're ready to level up. Be honest!" />
-          </p>
-          <div className="grid grid-cols-4 gap-2">
-            {["1-3", "3-5", "5-10", "10-15", "15-20", "20-30", "30-45", "45+"].map((range) => (
-              <button
-                key={range}
-                onClick={() =>
-                  setCheckin((prev) => ({
-                    ...prev,
-                    primaryHabitDuration: range,
-                  }))
-                }
-                className={`text-xs py-2 rounded border ${
-                  checkin.primaryHabitDuration === range
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "border-gray-300 text-gray-700 hover:bg-blue-50"
-                }`}
-              >
-                {range} min
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Tier 3: Optional Note */}
-        <div className="pt-4 border-t border-gray-100">
-          {!checkin.note || checkin.note === "" ? (
+            
             <button
-              type="button"
-              onClick={() => setCheckin((prev) => ({ ...prev, note: " " }))}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              onClick={() => setCommitmentStage("custom")}
+              className="w-full mt-3 text-center p-3 border-2 border-blue-500/50 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition text-blue-400 font-semibold"
             >
-              + Add a note?
+              + Create My Own Habit
             </button>
-          ) : (
-            <div>
-              <p className="text-xs text-gray-600 mb-2">Optional note</p>
-              <textarea
-                value={checkin.note || ""}
-                onChange={(e) =>
-                  setCheckin((prev) => ({ ...prev, note: e.target.value }))
-                }
-                placeholder="Anything worth remembering about yesterday..."
-                className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900"
-                rows={2}
-              />
+          </div>
+        )}
+
+        {commitmentStage === "custom" && (
+          <div className="animate-fadeIn">
+            <p className="text-white/80 mb-3 font-semibold">
+              What is ONE small habit can you do EVERY day for 7 days?
+            </p>
+            <p className="text-white/60 mb-3 text-sm">
+              Examples: Eat 1 serving of vegetables, Do 10 pushups, Journal for 5 minutes
+            </p>
+            
+            <input
+              type="text"
+              maxLength={50}
+              placeholder="One small daily habit..."
+              value={commitmentReason}
+              onChange={(e) => setCommitmentReason(e.target.value)}
+              className="w-full border-2 border-slate-600 bg-slate-700/50 rounded-lg p-3 text-white mb-3 focus:border-blue-400 focus:outline-none placeholder-white/40"
+            />
+            
+            <div className="flex gap-2">
               <button
-                type="button"
-                onClick={() => setCheckin((prev) => ({ ...prev, note: "" }))}
-                className="text-xs text-gray-500 hover:text-gray-700 mt-1"
+                onClick={() => {
+                  setCommitmentStage("choose");
+                  setCommitmentReason("");
+                }}
+                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
               >
-                Remove note
+                Back
+              </button>
+              
+              <button
+                onClick={() => {
+                  if (!commitmentReason.trim()) return;
+                  
+                  setCurrentFocus({
+                    habit: commitmentReason.trim(),
+                    habitKey: "custom_habit",
+                    suggested: true,
+                    createdAt: new Date().toISOString(),
+                  });
+                  
+                  setCommitmentStage("initial");
+                  setCommitmentReason("");
+                }}
+                disabled={!commitmentReason.trim()}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continue
               </button>
             </div>
-          )}
-        </div>
-
-        {/* Save Button */}
-        <button
-          onClick={handleCheckinSubmit}
-          disabled={
-            !checkin.headspace ||
-            !checkin.proteinHit ||
-            !checkin.hydrationHit ||
-            !checkin.energyBalance ||
-            !checkin.eatingPattern
-          }
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 mt-4 transition-colors duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Save Check-In
+          </div>
+        )}
+      </div>
+    ) : commitment && (commitment.isActive || commitment.accepted || commitment.alternativeAccepted) ? (
+      <div className="animate-fadeIn">
+        {hasCompletedPrimaryHabit() ? (
+          <div className="relative bg-gradient-to-br from-green-900/40 to-emerald-900/40 border-2 border-green-500/50 rounded-lg p-4 overflow-hidden backdrop-blur-sm">
+            <div className="absolute top-0 right-0 text-6xl opacity-20">🎯</div>
+            
+            <div className="relative">
+              <p className="text-xs text-green-400 font-semibold uppercase tracking-wide">
+                ✓ Commitment Complete
+              </p>
+              <p className="text-lg font-bold text-white mt-1">
+                {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
+              </p>
+              <p className="text-sm text-green-400 mt-2 font-medium">
+                That's the kind of consistency that compounds. 🔥
+              </p>
+              <p className="text-xs text-white/60 mt-2">
+                Day {commitment?.acceptedAt ? daysBetween(commitment.acceptedAt.split("T")[0], getLocalDate()) + 1 : 1} of 7
+              </p>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              if (currentFocus && isMovementHabit(currentFocus.habitKey)) {
+                router.push('/walk');
+              } else {
+                showToast({ 
+                  message: "Track this in your daily check-in!", 
+                  type: "info" 
+                });
+              }
+            }}
+            className="w-full flex items-center justify-between bg-blue-900/30 hover:bg-blue-900/50 rounded-lg p-3 transition-all border-2 border-transparent hover:border-blue-500/50 group backdrop-blur-sm"
+          >
+            <div className="text-left">
+              <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide">Your Commitment</p>
+              <p className="text-sm font-bold text-white mt-1">
+                🎯 {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
+              </p>
+              <p className="text-xs text-blue-400 mt-1 group-hover:underline">
+                {currentFocus && isMovementHabit(currentFocus.habitKey) 
+                  ? "Tap to start →" 
+                  : "Track in check-in →"}
+              </p>
+            </div>
+            <p className="text-xs text-white/60 font-semibold">
+              Day {commitment?.acceptedAt ? Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 1} of 7
+            </p>
           </button>
-          </motion.div>
-      )
+        )}
+      </div>
+    ) : null}
+  </div>
+</motion.div>
+{/* Momentum Engine */}
+<motion.div
+  variants={itemVariants}
+  className="rounded-xl shadow-lg p-4 mb-6 transition-all duration-500 relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
+>
+  {/* Animated gradient orbs */}
+  <div className="absolute inset-0 opacity-40 pointer-events-none">
+    <motion.div 
+      className="absolute top-0 right-0 w-48 h-48 bg-blue-500 rounded-full blur-2xl"
+      animate={{
+        scale: [1, 1.2, 1],
+        opacity: [0.5, 0.8, 0.5],
+      }}
+      transition={{
+        duration: 4,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }}
+    />
+    <motion.div 
+      className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500 rounded-full blur-2xl"
+      animate={{
+        scale: [1.2, 1, 1.2],
+        opacity: [0.5, 0.8, 0.5],
+      }}
+      transition={{
+        duration: 4,
+        repeat: Infinity,
+        ease: "easeInOut",
+        delay: 2
+      }}
+    />
+  </div>
+
+  <div className="relative">
+    <div className="flex items-center justify-between mb-2">
+      <div>
+        <h2 className="text-2xl font-bold text-white">Momentum</h2>
+      </div>
+      
+      {todayMomentum && (
+        <div className="text-4xl font-black tracking-tight text-white">
+          {todayMomentum.momentumScore}%
+        </div>
+      )}
+    </div>
+
+    {currentFocus && todayMomentum ? (
+      <>
+        {/* Progress bar with glow */}
+        <div className="relative h-2.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm mb-2">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${todayMomentum.momentumScore}%` }}
+            transition={{ duration: 1.2, ease: "easeOut" }}
+            className={`absolute h-full rounded-full ${
+              todayMomentum.momentumScore >= 80
+                ? 'bg-gradient-to-r from-red-400 to-orange-400 shadow-lg shadow-red-500/50'
+                : todayMomentum.momentumScore >= 60
+                ? 'bg-gradient-to-r from-amber-400 to-yellow-400 shadow-lg shadow-amber-500/50'
+                : todayMomentum.momentumScore >= 40
+                ? 'bg-gradient-to-r from-blue-400 to-cyan-400 shadow-lg shadow-blue-500/50'
+                : 'bg-gradient-to-r from-gray-300 to-gray-400'
+            }`}
+          />
+        </div>
+        
+        <p className="text-base font-medium text-center text-white/90">
+          {todayMomentum.momentumMessage || "Building..."}
+        </p>
+
+        <p className="text-sm text-white/60 text-center mt-2">
+          This is the infinite game. Show up daily, stack habits, build momentum.
+        </p>
+      </>
+    ) : (
+      <p className="text-white/70 text-sm text-center">Complete your first check-in to start building momentum.</p>
     )}
-</AnimatePresence>
+  </div>
+</motion.div>
+       {/* 3. Daily Check-in */}
+{!hasCompletedCheckin() ? (
+  <motion.div
+    variants={itemVariants}
+    className="mb-6"
+  >
+    <button
+      onClick={() => router.push('/checkin')}
+      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl py-5 text-lg shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+    >
+      Complete Today's Check-In →
+    </button>
+  </motion.div>
+) : (
+  <motion.div
+    variants={itemVariants}
+    className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 mb-6"
+  >
+    <div className="flex items-center gap-3">
+      <div className="text-4xl">✓</div>
+      <div>
+        <p className="text-white font-semibold text-lg">Check-in complete</p>
+        <p className="text-white/60 text-sm">You showed up today. That's what matters.</p>
+      </div>
+    </div>
+  </motion.div>
+)}
 {/* 2. Active Habits Stack */}
-{(habitStack.length > 0 || currentFocus) && (
+{habitStack.length > 0 && (
   <motion.div
     variants={itemVariants}
     className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
@@ -2765,192 +2559,12 @@ await logHabitEvent(email, {
     </p>
   </motion.div>
 )}
-        {/* Yesterday's Accountability */}
-        <motion.div
-          variants={itemVariants}
-          className="bg-white rounded-2xl shadow-sm p-5 mb-6"
-        >
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Yesterday's actions, today's accountability
-          </h2>
-            
-          {!todayCheckin ? (
-            <EmptyState
-              message="No check-in yet today."
-              subtext="Complete your check-in to see yesterday's results."
-            />
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Headspace</span>
-                  <span className={`text-sm font-semibold ${
-                    todayCheckin.headspace === "clear" ? "text-green-600" :
-                    todayCheckin.headspace === "steady" ? "text-blue-600" :
-                    "text-gray-500"
-                  }`}>
-                    {todayCheckin.headspace?.charAt(0).toUpperCase() + todayCheckin.headspace?.slice(1) || "—"}
-                  </span>
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Protein</span>
-                  <span className={`text-sm font-semibold ${
-                    todayCheckin.proteinHit === "yes" ? "text-green-600" :
-                    todayCheckin.proteinHit === "almost" ? "text-yellow-500" :
-                    "text-red-500"
-                  }`}>
-                    {todayCheckin.proteinHit?.charAt(0).toUpperCase() + todayCheckin.proteinHit?.slice(1) || "—"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Hydration</span>
-                  <span className={`text-sm font-semibold ${
-                    todayCheckin.hydrationHit === "yes" ? "text-green-600" : "text-gray-400"
-                  }`}>
-                    {todayCheckin.hydrationHit === "yes" ? "Hit" : "Missed"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Sleep</span>
-                  <span className={`text-sm font-semibold ${
-                    todayCheckin.sleepHit === "yes" ? "text-green-600" : "text-gray-400"
-                  }`}>
-                    {todayCheckin.sleepHit === "yes" ? "Yes" : "No"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Bonus Movement</span>
-                  <span className={`text-sm font-semibold ${
-                    todayCheckin.movedToday === "yes" ? "text-green-600" : "text-gray-400"
-                  }`}>
-                    {todayCheckin.movedToday === "yes" ? "Yes" : "No"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-gray-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Energy Balance</span>
-                  <span className="text-sm font-semibold text-blue-700">
-                    {todayCheckin.energyBalance ? todayCheckin.energyBalance.charAt(0).toUpperCase() + todayCheckin.energyBalance.slice(1) : "—"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Eating Pattern</span>
-                  <span className="text-sm font-semibold text-blue-700">
-                    {todayCheckin.eatingPattern === "meals" ? "Meals" : 
-                     todayCheckin.eatingPattern === "mixed" ? "Mixed" : 
-                     todayCheckin.eatingPattern === "grazing" ? "Grazing" : "—"}
-                  </span>
-                </div>
-
-                {todayCheckin.primaryHabitDuration && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Commitment Duration</span>
-                    <span className="text-sm font-semibold text-blue-700">
-                      {todayCheckin.primaryHabitDuration} min
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {todayCheckin.note && (
-                <div className="pt-3 border-t border-gray-100">
-                  <p className="text-xs text-gray-500 mb-1">Note to Self:</p>
-                  <p className="text-sm text-gray-700 italic">"{todayCheckin.note}"</p>
-                </div>
-              )}
-            </div>
-          )}
-        </motion.div>
-
-       {/* Momentum Engine */}
+        {/* FUTURE: AI Coach Card - See COACH_VISION.md 
 <motion.div
   variants={itemVariants}
-  className={`rounded-2xl shadow-lg p-5 mb-6 transition-all duration-500 relative overflow-hidden ${
-    !todayMomentum 
-      ? 'bg-white'
-      : todayMomentum.momentumScore >= 80
-      ? 'bg-gradient-to-br from-red-50 to-orange-50'
-      : todayMomentum.momentumScore >= 60
-      ? 'bg-gradient-to-br from-amber-50 to-yellow-50'
-      : todayMomentum.momentumScore >= 40
-      ? 'bg-gradient-to-br from-blue-50 to-cyan-50'
-      : 'bg-white'
-  }`}
+  className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
 >
-  {/* Subtle background pattern */}
-  <div className="absolute inset-0 opacity-5">
-    <div className="absolute inset-0" style={{
-      backgroundImage: 'radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)',
-      backgroundSize: '32px 32px'
-    }}></div>
-  </div>
-
-  <div className="relative">
-    <div className="flex items-center justify-between mb-3">
-      <h2 className="text-base font-semibold text-gray-900">Momentum Score</h2>
-      
-      {todayMomentum && (
-        <div className="text-right">
-          <p className={`text-4xl font-black tracking-tight ${
-            todayMomentum.momentumScore >= 80 ? 'text-red-600' :
-            todayMomentum.momentumScore >= 60 ? 'text-amber-600' :
-            todayMomentum.momentumScore >= 40 ? 'text-blue-600' :
-            'text-gray-400'
-          }`}>
-            {todayMomentum.momentumScore}%
-          </p>
-        </div>
-      )}
-    </div>
-
-    {currentFocus && todayMomentum ? (
-      <>
-        {/* Progress bar with glow */}
-        <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden mb-2">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${todayMomentum.momentumScore}%` }}
-            transition={{ duration: 1, ease: "easeOut" }}
-            className={`absolute h-full rounded-full ${
-              todayMomentum.momentumScore >= 80
-                ? 'bg-gradient-to-r from-red-500 to-orange-500 shadow-lg shadow-red-500/50'
-                : todayMomentum.momentumScore >= 60
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 shadow-lg shadow-amber-500/50'
-                : todayMomentum.momentumScore >= 40
-                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/50'
-                : 'bg-gradient-to-r from-gray-400 to-gray-500'
-            }`}
-          />
-        </div>
-        
-        {/* Status text */}
-        <p className={`text-xs font-semibold text-center ${
-  todayMomentum.momentumScore >= 80 ? 'text-red-600' :
-  todayMomentum.momentumScore >= 60 ? 'text-amber-600' :
-  todayMomentum.momentumScore >= 40 ? 'text-blue-600' :
-  'text-gray-500'
-}`}>
-  {todayMomentum.momentumMessage || "Building..."}
-</p>
-      </>
-    ) : (
-      <p className="text-gray-500 text-sm">Complete your first check-in to start building momentum.</p>
-    )}
-  </div>
-</motion.div>
-
-        {/* Coach Card */}
-        <motion.div
-          variants={itemVariants}
-          className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
-        >
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
             Here's what I'm seeing
           </h2>
@@ -2994,188 +2608,115 @@ await logHabitEvent(email, {
               )}
             </>
           )}
-        </motion.div>
+      </motion.div>
+*/}
+        {/* FUTURE: Workout Analytics
+    Shows weekly workout trends (sessions, sets, duration)
+    Only display when workouts are actively promoted feature
+    Requires 'trends' data structure to be populated
+    
+<motion.div
+  variants={itemVariants}
+  className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
+>
+  <h2 className="text-lg font-semibold text-gray-900 mb-3">
+    Workout Summary
+  </h2>
 
-        {/* Today's Training */}
-        <motion.div
-          variants={itemVariants}
-          className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
-        >
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            What's Next
-          </h2>
+  {!trends ? (
+    <p className="text-gray-500">Loading workout data...</p>
+  ) : (
+    <ul className="divide-y divide-gray-100">
+      <li className="py-2 flex justify-between items-center">
+        <span className="text-gray-700">Sessions This Week</span>
+        <span className="font-semibold text-blue-700">
+          {trends.workoutsThisWeek ?? 0}
+        </span>
+      </li>
+      <li className="py-2 flex justify-between items-center">
+        <span className="text-gray-700">Total Sets Completed</span>
+        <span className="font-semibold text-blue-700">
+          {trends.totalSets ?? 0}
+        </span>
+      </li>
+      <li className="py-2 flex justify-between items-center">
+        <span className="text-gray-700">Average Duration</span>
+        <span className="font-semibold text-blue-700">
+          {trends.avgDuration ?? 0} min
+        </span>
+      </li>
+    </ul>
+  )}
 
-          {hasSessionToday ? (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-gray-50 rounded-lg p-4 shadow-inner">
-              <div>
-                <p className="text-sm text-gray-800 font-semibold">
-                  You trained today.
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  That's another brick in the foundation.
-                </p>
-              </div>
+  <p className="mt-4 text-sm text-gray-500">
+    *Stats update automatically after you complete a workout.
+  </p>
+</motion.div>
+*/}
 
-              <button
-                onClick={() => router.push("/summary")}
-                className="mt-3 sm:mt-0 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
-              >
-                View Session
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-gray-700">
-                Ready to build today?
-              </p>
-
-              <button
-                onClick={() => router.push("/program")}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 px-5 transition-colors duration-200 active:scale-[0.98]"
-              >
-                Start Training
-              </button>
-            </div>
-          )}
-        </motion.div>
-
-        {/* Consistency Tracker */}
-        <motion.div
-          variants={itemVariants}
-          className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
-        >
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            Consistency Tracker (Last 14 Days)
-          </h2>
-
-          {recentCheckins.length === 0 ? (
-            <p className="text-gray-500 text-sm">No check-ins yet.</p>
-          ) : (
-            <div className="grid grid-cols-7 sm:grid-cols-14 gap-2">
-              {recentCheckins.map((c) => {
-                const moved = c.movedToday === "yes";
-                const hydrated = c.hydrationHit === "yes";
-                const protein = c.proteinHit === "yes";
-
-                const shortDate = new Date(c.date).toLocaleDateString("en-US", {
-                  month: "numeric",
-                  day: "numeric",
-                });
-
-                return (
-                  <div
-                    key={c.date}
-                    className="flex flex-col items-center justify-center text-sm space-y-1"
-                  >
-                    <div className="flex gap-1">
-                      <span title="Moved" className={moved ? "text-green-500" : "text-gray-300"}>⬤</span>
-                      <span title="Hydration" className={hydrated ? "text-blue-500" : "text-gray-300"}>⬤</span>
-                      <span title="Protein" className={protein ? "text-amber-500" : "text-gray-300"}>⬤</span>
-                    </div>
-                    <span className="text-gray-500 text-xs">{shortDate}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </motion.div>
-
-        {/* Workout Summary */}
-        <motion.div
-          variants={itemVariants}
-          className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
-        >
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            Workout Summary
-          </h2>
-
-          {!trends ? (
-            <p className="text-gray-500">Loading workout data...</p>
-          ) : (
-            <ul className="divide-y divide-gray-100">
-              <li className="py-2 flex justify-between items-center">
-                <span className="text-gray-700">Sessions This Week</span>
-                <span className="font-semibold text-blue-700">
-                  {trends.workoutsThisWeek ?? 0}
-                </span>
-              </li>
-              <li className="py-2 flex justify-between items-center">
-                <span className="text-gray-700">Total Sets Completed</span>
-                <span className="font-semibold text-blue-700">
-                  {trends.totalSets ?? 0}
-                </span>
-              </li>
-              <li className="py-2 flex justify-between items-center">
-                <span className="text-gray-700">Average Duration</span>
-                <span className="font-semibold text-blue-700">
-                  {trends.avgDuration ?? 0} min
-                </span>
-              </li>
-            </ul>
-          )}
-
-          <p className="mt-4 text-sm text-gray-500">
-            *Stats update automatically after you complete a workout.
-          </p>
-        </motion.div>
-
-        {/* Today's Workout Button */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            Today's Workout
-          </h2>
-          {loading ? (
-            <p className="text-gray-500">Loading...</p>
-          ) : (
-            <>
-              {!todayCheckin ? (
-                <EmptyState
-                  message="No workout logged yet."
-                  subtext="Your next training session will appear here once you complete it."
-                />
-              ) : (
-                <div className="mb-3 text-center text-gray-600">
-                  <p>You completed your last check-in — keep that momentum.</p>
-                </div>
-              )}
-
-              <button
-                onClick={async () => {
-                  if (!todayCheckin) return;
-
-                  const email = getEmail();
-                  if (!email) {
-                    console.error("No email found — cannot save session");
-                    return;
-                  }
-
-                  const now = new Date().toISOString();
-
-                  if (hasSessionToday) {
-                    router.push("/summary");
-                  } else {
-                    await saveSession(email, { date: today, startedAt: now });
-                    router.push("/program");
-                  }
-                }}
-                disabled={!todayCheckin}
-                className={`w-full py-2 rounded-md font-semibold transition ${
-                  !todayCheckin
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    : hasSessionToday
-                    ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow-md"
-                    : "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow-md"
-                }`}
-              >
-                {!todayCheckin
-                  ? "Check in first"
-                  : hasSessionToday
-                  ? "View Summary"
-                  : "Start Workout"}
-              </button>
-            </>
-          )}
+       {/* FUTURE: Workout Integration - Saved for reference
+    This section gates workouts behind daily check-ins (intentional product decision)
+    Contains saveSession logic and three-state button flow
+    Decide integration strategy before rebuilding
+    See COACH_VISION.md for strength training philosophy
+    
+<div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
+  <h2 className="text-lg font-semibold text-gray-900 mb-3">
+    Today's Workout
+  </h2>
+  {loading ? (
+    <p className="text-gray-500">Loading...</p>
+  ) : (
+    <>
+      {!todayCheckin ? (
+        <EmptyState
+          message="No workout logged yet."
+          subtext="Your next training session will appear here once you complete it."
+        />
+      ) : (
+        <div className="mb-3 text-center text-gray-600">
+          <p>You completed your last check-in — keep that momentum.</p>
         </div>
+      )}
+
+      <button
+        onClick={async () => {
+          if (!todayCheckin) return;
+
+          const email = getEmail();
+          if (!email) {
+            console.error("No email found — cannot save session");
+            return;
+          }
+
+          const now = new Date().toISOString();
+
+          if (hasSessionToday) {
+            router.push("/summary");
+          } else {
+            await saveSession(email, { date: today, startedAt: now });
+            router.push("/program");
+          }
+        }}
+        disabled={!todayCheckin}
+        className={`w-full py-2 rounded-md font-semibold transition ${
+          !todayCheckin
+            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+            : hasSessionToday
+            ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow-md"
+            : "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow-md"
+        }`}
+      >
+        {!todayCheckin
+          ? "Check in first"
+          : hasSessionToday
+          ? "View Summary"
+          : "Start Workout"}
+      </button>
+    </>
+  )}
+</div>
+*/}
 
         {/* Dev Reset Button */}
         {process.env.NODE_ENV === "development" && (
@@ -3623,25 +3164,26 @@ await logHabitEvent(email, {
     console.log("🌙 Simulating check-in at:", lateNight.toString());
     console.log("📅 Local date should be:", lateNight.toLocaleDateString("en-CA"));
     
-    // The date we'll write to
-    const dateToWrite = lateNight.toLocaleDateString("en-CA");
-    
-    await writeDailyMomentum({
-      email,
-      date: dateToWrite,
-      checkin: {
-        headspace: "sleepy",
-        proteinHit: "yes",
-        hydrationHit: "yes", 
-        movedToday: "yes",
-        sleepHit: "yes",
-        energyBalance: "normal",
-        eatingPattern: "meals",
-      },
-      currentFocus: currentFocus,
-      habitStack: habitStack,
-      accountAgeDays: 7,
-    });
+ // The date we'll write to
+const dateToWrite = lateNight.toLocaleDateString("en-CA");
+
+await writeDailyMomentum({
+  email,
+  date: dateToWrite,
+  behaviorGrades: [
+    { name: "Mindset", grade: 60 }, // sleepy
+    { name: "Protein", grade: 80 },
+    { name: "Hydration", grade: 80 },
+    { name: "Movement", grade: 80 },
+    { name: "Sleep", grade: 80 },
+    { name: "Energy Balance", grade: 80 },
+    { name: "Eating Pattern", grade: 80 },
+  ],
+  currentFocus: currentFocus,
+  habitStack: habitStack,
+  goal: "fat_loss",
+  accountAgeDays: 7,
+});
     
     console.log("✅ Written to Firestore date:", dateToWrite);
     showToast({ message: `Check-in written to ${dateToWrite}`, type: "success" });

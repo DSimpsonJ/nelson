@@ -1,78 +1,26 @@
 // ---------------------------------------------------------------------
-// Momentum Weighting System (Primary = 60%, Remaining split 66/34)
-// Donnie's Version: Rewards doing more good things, not just stacks
+// Grade-Based Momentum Scoring
+// Elite = 100%, Solid = 80%, Not Great = 60%, Off = 0%
 // ---------------------------------------------------------------------
 
-type HabitResult = {
-  name: string;
-  hit: boolean;    // true if user did the habit today
-};
-
-export function calculateDailyMomentumScore({
-  primaryResult,
-  stackedResults,
-  genericResults
-}: {
-  primaryResult: HabitResult;
-  stackedResults: HabitResult[];
-  genericResults: HabitResult[];
-}) {
-  // ----- CONFIG ------------------------------------------------------
-
-  const PRIMARY_WEIGHT = 60;       // fixed
-  const REMAINING = 40;            // % to distribute among secondaries
-
-  // Stacked habits get 66% of the secondary weight
-  const STACK_PORTION = REMAINING * 0.66;     // ≈ 26.4%
-  const GENERIC_PORTION = REMAINING * 0.34;   // ≈ 13.6%
-
-  // Avoid division-by-zero
-  const numStacks = stackedResults.length || 1;
-  const numGenerics = genericResults.length || 1;
-
-  // ----- PER-HABIT WEIGHTS -------------------------------------------
-
-  const stackWeightPerHabit = STACK_PORTION / numStacks;
-  const genericWeightPerHabit = GENERIC_PORTION / numGenerics;
-
-  // ----- SCORING ------------------------------------------------------
-
-  let score = 0;
-
-  console.log("[Momentum] Primary:", primaryResult);
-  console.log("[Momentum] Stacked:", stackedResults);
-  console.log("[Momentum] Generic:", genericResults);
-
-  // Primary (always binary)
-  if (primaryResult.hit) score += PRIMARY_WEIGHT;
-
-  // Stacked habits
-  for (const habit of stackedResults) {
-    if (habit.hit) score += stackWeightPerHabit;
+export function calculateDailyMomentumScore(
+  behaviorGrades: { name: string; grade: number }[]
+) {
+  console.log("[Momentum] Behavior grades:", behaviorGrades);
+  
+  if (behaviorGrades.length === 0) {
+    return { score: 0, breakdown: [] };
   }
-
-  // Generic behaviors
-  for (const habit of genericResults) {
-    if (habit.hit) score += genericWeightPerHabit;
-  }
-
-  // Clamp score to 0–100 range
-  score = Math.round(Math.min(100, Math.max(0, score)));
-
-  // Return detailed scoring breakdown
+  
+  // Calculate average grade
+  const totalGrade = behaviorGrades.reduce((sum, b) => sum + b.grade, 0);
+  const averageGrade = Math.round(totalGrade / behaviorGrades.length);
+  
+  console.log("[Momentum] Average grade:", averageGrade);
+  
   return {
-    score,
-    weights: {
-      primary: PRIMARY_WEIGHT,
-      stacked: {
-        total: STACK_PORTION,
-        perHabit: stackWeightPerHabit
-      },
-      generics: {
-        total: GENERIC_PORTION,
-        perHabit: genericWeightPerHabit
-      }
-    }
+    score: averageGrade,
+    breakdown: behaviorGrades,
   };
 }
 export function determinePrimaryHabitHit({
@@ -99,12 +47,12 @@ export function determinePrimaryHabitHit({
   
   switch (habitType) {
     case "movement":
-      // Check if they have a session that meets target
-      if (sessionData.hasSessionToday && sessionData.todaySession) {
-        return sessionData.todaySession.durationMin >= sessionData.targetMinutes;
-      }
-      // Fallback to check-in "moved today"
-      return checkinData.movedToday === "yes";
+  // Movement primary ONLY counts if there's a tracked workout session
+  if (sessionData.hasSessionToday && sessionData.todaySession) {
+    return sessionData.todaySession.durationMin >= sessionData.targetMinutes;
+  }
+  // No session = primary not hit
+  return false;
       
     case "hydration":
       return checkinData.hydrationHit === "yes";

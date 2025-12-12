@@ -17,9 +17,14 @@ module.exports = {
           "90%": { opacity: "1", transform: "translateY(0)" },
           "100%": { opacity: "0", transform: "translateY(-5px)" },
         },
+        shimmer: {  // 🆕 ADD THIS
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
       },
       animation: {
         "fade-in-out": "fade-in-out 2.5s ease-in-out",
+        shimmer: "shimmer 2s infinite",  // 🆕 ADD THIS
       },
     },
   },

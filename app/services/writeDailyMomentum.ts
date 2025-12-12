@@ -14,35 +14,7 @@
 
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
-import { calculateDailyMomentumScore, determinePrimaryHabitHit } from "@/app/utils/momentumCalculation";
-import { getDayVisualState } from "@/app/utils/history/getDayVisualState";
-import { getLocalDateOffset, parseLocalDate } from "@/app/utils/date";
-
-// getHabitType helper - inline since it's not exported
-function getHabitType(habitKey: string): string {
-  if (habitKey.includes("walk_") || habitKey.includes("movement_")) return "movement";
-  if (habitKey.includes("protein_")) return "protein";
-  if (habitKey.includes("hydration_")) return "hydration";
-  if (habitKey.includes("sleep_")) return "sleep";
-  if (habitKey === "no_late_eating") return "eating_pattern";
-  return "custom";
-}
-
-// calculateNutritionScore helper - inline
-function calculateNutritionScore(energyBalance: string, eatingPattern: string, goal: string): number {
-  let score = 0;
-  
-  if (goal === "fat_loss") {
-    if (energyBalance === "light") score += 6;
-    else if (energyBalance === "normal") score += 6;
-    else if (energyBalance === "heavy") score += 3;
-    
-    if (eatingPattern === "meals") score += 6;
-    else if (eatingPattern === "mixed") score += 3;
-  }
-  
-  return score;
-}
+import { calculateDailyMomentumScore } from "@/app/utils/momentumCalculation";
 
 // ============================================================================
 // CANONICAL SCHEMA
@@ -87,6 +59,9 @@ export interface DailyMomentumDoc {
   currentStreak: number;
   lifetimeStreak: number;
   streakSavers: number;
+
+  // First check-in flag
+  isFirstCheckIn?: boolean;
   
   // Meta
   checkinType: "real" | "streak_saver";
@@ -97,18 +72,8 @@ export interface WriteDailyMomentumInput {
   email: string;
   date: string;
   
-  // Check-in form data
-  checkin: {
-    headspace: string;
-    proteinHit: string;
-    hydrationHit: string;
-    movedToday: string;
-    sleepHit: string;
-    energyBalance: string;
-    eatingPattern: string;
-    primaryHabitDuration?: string;
-    note?: string;
-  };
+  // NEW: Behavior grades (replaces checkin)
+  behaviorGrades: { name: string; grade: number }[];
   
   // Context
   currentFocus: {
@@ -121,12 +86,6 @@ export interface WriteDailyMomentumInput {
   }>;
   
   // Optional
-  sessionData?: {
-    hasSessionToday: boolean;
-    todaySession?: { durationMin: number };
-    targetMinutes: number;
-  } | undefined;
-  
   goal?: string;
   accountAgeDays: number;
 }
@@ -181,24 +140,6 @@ function buildDefaults(input: WriteDailyMomentumInput): Partial<DailyMomentumDoc
 }
 
 /**
- * Sanitize user input - convert to proper types, handle edge cases
- */
-function sanitizeInput(input: WriteDailyMomentumInput) {
-  return {
-    ...input,
-    checkin: {
-      ...input.checkin,
-      proteinHit: (input.checkin.proteinHit === "yes" ? "yes" : "no") as "yes" | "no",
-      hydrationHit: (input.checkin.hydrationHit === "yes" ? "yes" : "no") as "yes" | "no",
-      movedToday: (input.checkin.movedToday === "yes" ? "yes" : "no") as "yes" | "no",
-      sleepHit: (input.checkin.sleepHit === "yes" ? "yes" : "no") as "yes" | "no",
-      note: input.checkin.note?.trim() || "",
-    },
-    habitStack: input.habitStack || [],
-  };
-}
-
-/**
  * Merge with existing document if present (idempotency)
  */
 async function mergeWithExisting(
@@ -221,6 +162,7 @@ async function mergeWithExisting(
     currentStreak: existing.currentStreak ?? defaults.currentStreak,
     lifetimeStreak: existing.lifetimeStreak ?? defaults.lifetimeStreak,
     streakSavers: existing.streakSavers ?? defaults.streakSavers,
+    isFirstCheckIn: existing.isFirstCheckIn ?? false,
   };
 }
 
@@ -244,6 +186,76 @@ function validateStructure(doc: Partial<DailyMomentumDoc>): boolean {
 }
 
 /**
+ * Calculate streak based on yesterday's momentum
+ */
+async function calculateStreak(email: string, date: string): Promise<{
+  currentStreak: number;
+  lifetimeStreak: number;
+  streakSavers: number;
+}> {
+  // Parse today's date
+  const today = new Date(date + "T00:00:00");
+  
+  // Get yesterday's date
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = yesterday.toLocaleDateString("en-CA");
+  
+  // Check yesterday's momentum
+  const yesterdayRef = doc(db, "users", email, "momentum", yesterdayKey);
+  const yesterdaySnap = await getDoc(yesterdayRef);
+  
+  // Get streak savers from metadata
+  const streakRef = doc(db, "users", email, "metadata", "streakData");
+  const streakSnap = await getDoc(streakRef);
+  const streakSavers = streakSnap.exists() ? (streakSnap.data().streakSavers || 3) : 3;
+  
+  if (yesterdaySnap.exists()) {
+    // Yesterday exists - increment streak
+    const yesterdayData = yesterdaySnap.data();
+    const currentStreak = (yesterdayData.currentStreak || 0) + 1;
+    const lifetimeStreak = Math.max(currentStreak, yesterdayData.lifetimeStreak || 0);
+    
+    return { currentStreak, lifetimeStreak, streakSavers };
+  } else {
+    // No yesterday - start fresh at day 1
+    return { currentStreak: 1, lifetimeStreak: 1, streakSavers };
+  }
+}
+
+/**
+ * Apply momentum cap based on account age (14-day ramp)
+ */
+/**
+ * Apply momentum cap based on account age (10-day ramp)
+ */
+function applyMomentumCap(rawScore: number, accountAgeDays: number): { score: number; message: string } {
+  let cappedScore: number;
+  let message: string;
+  
+  if (accountAgeDays <= 2) {
+    cappedScore = Math.round(rawScore * 0.40);
+    message = "Building a foundation";
+  } else if (accountAgeDays <= 5) {
+    cappedScore = Math.round(rawScore * 0.60);
+    message = "Finding your rhythm";
+  } else if (accountAgeDays <= 9) {
+    cappedScore = Math.round(rawScore * 0.80);
+    message = "Momentum is forming";
+  } else {
+    // Full unlock at day 10
+    cappedScore = rawScore;
+    if (rawScore >= 80) message = "On fire 🔥🔥";
+    else if (rawScore >= 70) message = "Heating up 🔥";
+    else if (rawScore >= 50) message = "Gaining traction";
+    else if (rawScore >= 30) message = "Resetting your pace";
+    else message = "Every day is a fresh start";
+  }
+  
+  return { score: cappedScore, message };
+}
+
+/**
  * Calculate all derived fields (momentum score, visual state, etc)
  */
 async function calculateDerivedFields(
@@ -251,108 +263,9 @@ async function calculateDerivedFields(
   merged: Partial<DailyMomentumDoc>,
   last7Days: number[]
 ): Promise<DailyMomentumDoc> {
-  const sanitized = sanitizeInput(input);
   
-  // Basic boolean conversions
-  const moved = sanitized.checkin.movedToday === "yes";
-  const hydrated = sanitized.checkin.hydrationHit === "yes";
-  const slept = sanitized.checkin.sleepHit === "yes";
-  const proteinHit = sanitized.checkin.proteinHit === "yes";
-  
-  // Calculate nutrition score
-  const nutritionScore = calculateNutritionScore(
-    sanitized.checkin.energyBalance,
-    sanitized.checkin.eatingPattern,
-    sanitized.goal || "fat_loss"
-  );
-  
-  // Determine if primary habit was hit
-  const primaryHabitHit = determinePrimaryHabitHit({
-    habitKey: sanitized.currentFocus.habitKey,
-    checkinData: {
-      proteinHit: sanitized.checkin.proteinHit,
-      hydrationHit: sanitized.checkin.hydrationHit,
-      movedToday: sanitized.checkin.movedToday,
-      sleepHit: sanitized.checkin.sleepHit,
-    },
-    sessionData: sanitized.sessionData || {
-      hasSessionToday: false,
-      todaySession: undefined,
-      targetMinutes: 0,
-    },
-    nutritionScore,
-  });
-  
-  // Build primary result
-  const primaryResult = {
-    name: sanitized.currentFocus.habitKey,
-    hit: primaryHabitHit,
-  };
-  
-  // Build stacked results
-  const stackedResults = sanitized.habitStack.map(h => {
-    let hit = false;
-    const habitType = getHabitType(h.habitKey);
-    
-    switch (habitType) {
-      case "movement":
-        hit = moved;
-        break;
-      case "hydration":
-        hit = hydrated;
-        break;
-      case "protein":
-        hit = proteinHit;
-        break;
-      case "sleep":
-        hit = slept;
-        break;
-      case "eating_pattern":
-        hit = nutritionScore >= 9;
-        break;
-      default:
-        hit = false;
-    }
-    
-    return { name: h.habit, hit };
-  });
-  
-  // Build stack object for storage
-  const stackObj = stackedResults.reduce((acc, s) => {
-    acc[s.name] = { done: s.hit };
-    return acc;
-  }, {} as Record<string, { done: boolean }>);
-  
-  // Count stack completions
-  const stackedHabitsCompleted = stackedResults.filter(s => s.hit).length;
-  const totalStackedHabits = stackedResults.length;
-  
-  // Build generic behaviors (exclude primary and stack)
-  const genericResults = [];
-  const primaryType = getHabitType(sanitized.currentFocus.habitKey);
-  const stackTypes = sanitized.habitStack.map(h => getHabitType(h.habitKey));
-  
-  if (primaryType !== "hydration" && !stackTypes.includes("hydration")) {
-    genericResults.push({ name: "Hydration", hit: hydrated });
-  }
-  if (primaryType !== "movement" && !stackTypes.includes("movement")) {
-    genericResults.push({ name: "Bonus Movement", hit: moved });
-  }
-  if (primaryType !== "protein" && !stackTypes.includes("protein")) {
-    genericResults.push({ name: "Protein", hit: proteinHit });
-  }
-  if (primaryType !== "sleep" && !stackTypes.includes("sleep")) {
-    genericResults.push({ name: "Sleep", hit: slept });
-  }
-  genericResults.push({ name: "Nutrition", hit: nutritionScore >= 9 });
-  
-  // Calculate momentum score
-  const momentumResult = calculateDailyMomentumScore({
-    primaryResult,
-    stackedResults,
-    genericResults,
-  });
-  
+  // Calculate momentum score using behavior grades
+  const momentumResult = calculateDailyMomentumScore(input.behaviorGrades);
   const dailyScore = momentumResult.score;
   
   // Calculate 3-day rolling average
@@ -367,80 +280,50 @@ async function calculateDerivedFields(
     input.accountAgeDays
   );
   
-  // Calculate visual state
-  const visualState = getDayVisualState(primaryHabitHit, {
-    nutrition: nutritionScore >= 9,
-    sleep: slept,
-    hydration: hydrated,
-    movement: moved,
-  });
+  // Calculate streak
+  const streakData = await calculateStreak(input.email, input.date);
   
-  // Return complete document
+  // Return complete document (simplified - no foundations tracking for now)
   return {
     ...merged,
-    date: sanitized.date,
+    date: input.date,
     
     primary: {
-      habitKey: sanitized.currentFocus.habitKey,
-      done: primaryHabitHit,
+      habitKey: input.currentFocus.habitKey,
+      done: false, // Will be tracked via workout sessions later
     },
     
-    stack: stackObj,
+    stack: {},
     
     foundations: {
-      protein: proteinHit,
-      hydration: hydrated,
-      sleep: slept,
-      nutrition: nutritionScore >= 9,
-      movement: moved,
+      protein: false,
+      hydration: false,
+      sleep: false,
+      nutrition: false,
+      movement: false,
     },
     
     dailyScore,
     rawMomentumScore,
     momentumScore,
     momentumMessage,
-    visualState,
+    visualState: "solid",
     
-    primaryHabitHit,
-    stackedHabitsCompleted,
-    totalStackedHabits,
-    moved,
-    hydrated,
-    slept,
-    nutritionScore,
+    primaryHabitHit: false,
+    stackedHabitsCompleted: 0,
+    totalStackedHabits: 0,
+    moved: false,
+    hydrated: false,
+    slept: false,
+    nutritionScore: 0,
     
-    currentStreak: merged.currentStreak || 0,
-    lifetimeStreak: merged.lifetimeStreak || 0,
-    streakSavers: merged.streakSavers || 0,
+    currentStreak: streakData.currentStreak,
+    lifetimeStreak: streakData.lifetimeStreak,
+    streakSavers: streakData.streakSavers,
     
     checkinType: "real",
     createdAt: merged.createdAt || new Date().toISOString(),
   } as DailyMomentumDoc;
-}
-
-/**
- * Apply momentum cap based on account age (14-day ramp)
- */
-function applyMomentumCap(rawScore: number, accountAgeDays: number): { score: number; message: string } {
-  // Import from your existing momentum utils or inline it here
-  // For now, simplified version:
-  if (accountAgeDays <= 3) {
-    const cap = Math.min(rawScore, 30);
-    return { score: cap, message: "Building a foundation" };
-  } else if (accountAgeDays <= 7) {
-    const cap = Math.min(rawScore, 50);
-    return { score: cap, message: "Finding your rhythm" };
-  } else if (accountAgeDays <= 14) {
-    const cap = Math.min(rawScore, 65);
-    return { score: cap, message: "Momentum is forming" };
-  } else {
-    // Full unlock - context-aware messaging
-    if (rawScore >= 80) return { score: rawScore, message: "On fire 🔥🔥" };
-    if (rawScore >= 70) return { score: rawScore, message: "Heating up 🔥" };
-    if (rawScore >= 50) return { score: rawScore, message: "Gaining traction" };
-    if (rawScore >= 30) return { score: rawScore, message: "Resetting your pace" };
-    return { score: rawScore, message: "Every day is a fresh start" };
-  }
 }
 
 // ============================================================================
@@ -462,41 +345,38 @@ export async function writeDailyMomentum(
     // 1. Build defaults
     const defaults = buildDefaults(input);
     
-    // 2. Sanitize input
-    const sanitized = sanitizeInput(input);
-    
-    // 3. Merge with existing document
+    // 2. Merge with existing document
     const merged = await mergeWithExisting(input.email, input.date, defaults);
     
-    // 4. Get last 7 days for rolling average
-const last7Days: number[] = [];
+ // 4. Get last 5 days for rolling average
+const last7Days: number[] = []; // TODO: rename to lastDays
 
 // Parse the input date to get a proper Date object in local time
-const baseDate = new Date(input.date + "T00:00:00"); // Force local midnight
+const baseDate = new Date(input.date + "T00:00:00");
 
-for (let i = 1; i <= 6; i++) {
-  // Calculate relative to the input date, not "today"
-  const lookbackDate = new Date(baseDate);
-  lookbackDate.setDate(lookbackDate.getDate() - i);
-  const dateKey = lookbackDate.toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
-  
-  const dayRef = doc(db, "users", input.email, "momentum", dateKey);
-  const daySnap = await getDoc(dayRef);
-  
-  if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
-    last7Days.push(daySnap.data().dailyScore);
-  }
-}
+for (let i = 1; i <= 4; i++) { 
+      // Calculate relative to the input date, not "today"
+      const lookbackDate = new Date(baseDate);
+      lookbackDate.setDate(lookbackDate.getDate() - i);
+      const dateKey = lookbackDate.toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+      
+      const dayRef = doc(db, "users", input.email, "momentum", dateKey);
+      const daySnap = await getDoc(dayRef);
+      
+      if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
+        last7Days.push(daySnap.data().dailyScore);
+      }
+    }
     
-    // 5. Calculate all derived fields
-    const finalDoc = await calculateDerivedFields(sanitized, merged, last7Days);
+    // 4. Calculate all derived fields
+    const finalDoc = await calculateDerivedFields(input, merged, last7Days);
     
-    // 6. Validate structure
+    // 5. Validate structure
     if (!validateStructure(finalDoc)) {
       throw new Error("Document validation failed");
     }
     
-    // 7. Write to Firestore
+    // 6. Write to Firestore
     const docRef = doc(db, "users", input.email, "momentum", input.date);
     await setDoc(docRef, finalDoc);
     

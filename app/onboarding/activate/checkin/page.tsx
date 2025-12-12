@@ -7,6 +7,7 @@ import { db } from "@/app/firebase/config";
 import { getEmail } from "@/app/utils/getEmail";
 import { getLocalDate } from "@/app/utils/date";
 import { motion, AnimatePresence } from "framer-motion";
+import { writeDailyMomentum } from "@/app/services/writeDailyMomentum";
 
 type Rating = "elite" | "solid" | "not-great" | "off";
 
@@ -26,7 +27,15 @@ const ratingColors = {
   "not-great": "from-amber-500/20 to-amber-600/10 border-amber-500/40 hover:border-amber-500/60",
   off: "from-slate-600/20 to-slate-700/10 border-slate-500/40 hover:border-slate-500/60",
 };
-
+function getRatingGrade(rating: Rating | null): number {
+    switch (rating) {
+      case "elite": return 100;
+      case "solid": return 80;
+      case "not-great": return 50;
+      case "off": return 0;
+      default: return 0;
+    }
+  }
 export default function CheckInPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
@@ -173,35 +182,61 @@ export default function CheckInPage() {
         router.replace("/");
         return;
       }
-
+  
       const today = getLocalDate();
-
-      // Calculate momentum score (simple version for first check-in)
-      const scores = Object.values(data).map((rating) => {
-        if (rating === "elite") return 4;
-        if (rating === "solid") return 3;
-        if (rating === "not-great") return 2;
-        if (rating === "off") return 1;
-        return 0;
-      });
-      const totalScore = scores.reduce((acc: number, score: number) => acc + score, 0);
-      const avgScore = totalScore / scores.length;
-
-      // Write daily momentum
-      await setDoc(doc(db, "users", email, "momentum", today), {
-        date: today,
-        timestamp: new Date().toISOString(),
-        nutritionPattern: data.nutritionPattern,
-        energyBalance: data.energyBalance,
-        protein: data.protein,
-        hydration: data.hydration,
-        sleep: data.sleep,
-        mindset: data.mindset,
-        bonusMovement: data.bonusMovement,
-        momentumScore: Math.round(avgScore * 10) / 10,
-        isFirstCheckIn: true,
-      });
-
+  
+      // Get user profile for goal
+      const userSnap = await getDoc(doc(db, "users", email));
+      const userData = userSnap.exists() ? userSnap.data() : null;
+      const goal = userData?.goal || "fat_loss"; // Default to fat_loss if not set
+  
+      // Get plan for movement commitment
+      const planSnap = await getDoc(doc(db, "users", email, "profile", "plan"));
+      const plan = planSnap.exists() ? planSnap.data() : null;
+      
+      const movementMinutes = plan?.movementCommitment || 10;
+      
+      console.log("User goal:", goal);
+      console.log("Movement minutes:", movementMinutes);
+  
+      // Create currentFocus object with guaranteed values
+      const currentFocus = {
+        habitKey: `movement_${movementMinutes}min`,
+        habit: `Move ${movementMinutes} minutes daily`,
+      };
+      
+      console.log("CurrentFocus created:", currentFocus);
+  
+      // Verify habitKey is a string
+      if (typeof currentFocus.habitKey !== 'string') {
+        console.error("habitKey is not a string:", currentFocus.habitKey);
+        throw new Error("Invalid habitKey type");
+      }
+  
+     // Convert ratings to behavior grades
+const behaviorGrades = [
+    { name: "Nutrition Pattern", grade: getRatingGrade(data.nutritionPattern) },
+    { name: "Energy Balance", grade: getRatingGrade(data.energyBalance) },
+    { name: "Protein", grade: getRatingGrade(data.protein) },
+    { name: "Hydration", grade: getRatingGrade(data.hydration) },
+    { name: "Sleep", grade: getRatingGrade(data.sleep) },
+    { name: "Mindset", grade: getRatingGrade(data.mindset) },
+    // Skip movement on first check-in (no commitment yet)
+  ];
+  
+  console.log("Behavior grades:", behaviorGrades);
+  
+  // Use the momentum engine
+  await writeDailyMomentum({
+    email,
+    date: today,
+    behaviorGrades, // ← New parameter
+    currentFocus,
+    habitStack: [],
+    goal,
+    accountAgeDays: 1,
+  });
+  
       // Mark user as activated
       await setDoc(
         doc(db, "users", email),
@@ -212,11 +247,12 @@ export default function CheckInPage() {
         },
         { merge: true }
       );
-
+  
       // Redirect to celebration
       router.push("/onboarding/activate/celebration");
     } catch (err) {
       console.error("Error submitting check-in:", err);
+      console.error("Full error details:", JSON.stringify(err, null, 2));
       setSubmitting(false);
     }
   };

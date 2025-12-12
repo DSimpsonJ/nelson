@@ -52,7 +52,7 @@ export default function ReadyPage() {
   Today’s walkthrough is a bit longer. After this, check-ins take about a minute.
 </p>
 <p className="text-white/70 text-sm">
-  Remember: <span className="text-amber-300 font-semibold">Solid is success</span>. Off days are data, not failure.
+  Remember: <span className="text-amber-300 font-semibold">Solid is success</span>. Off days are data, not failure. Facts are vital.
 </p>
 
         </motion.div>

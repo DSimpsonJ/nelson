@@ -94,7 +94,7 @@ const hydrationMax = 100;
           transition={{ delay: 0.2 }}
           className="text-3xl font-bold text-white mb-3"
         >
-          Alright {firstName}, your plan is ready.
+          Alright {firstName}, here's the plan.
         </motion.h1>
 
         <motion.p
@@ -103,7 +103,7 @@ const hydrationMax = 100;
           transition={{ delay: 0.3 }}
           className="text-white/70 mb-10"
         >
-          Here's what I'll be tracking with you daily:
+          This is what we'll be tracking together each day:
         </motion.p>
 
         {/* Plan cards */}
@@ -162,7 +162,7 @@ const hydrationMax = 100;
           transition={{ delay: 0.6 }}
           className="text-white/60 text-sm mb-8"
         >
-          Plus 4 more areas I'll help you track consistently
+          Plus 4 more focus areas I'll help you track.
         </motion.p>
 
         <motion.button

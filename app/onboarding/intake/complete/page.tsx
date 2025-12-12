@@ -36,7 +36,7 @@ export default function IntakeCompletePage() {
           transition={{ delay: 0.4 }}
           className="text-3xl font-bold text-white mb-6"
         >
-          Perfect. I've got what I need.
+          Perfect. Let's get started!
         </motion.h1>
 
         <motion.div
@@ -46,13 +46,14 @@ export default function IntakeCompletePage() {
           className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-8 mb-10"
         >
           <p className="text-white/90 text-lg leading-relaxed mb-4">
-  Next, we'll build your personalized plan and set up your daily commitment. Time to become infinite-minded.
+  First, we'll build your personalized plan and set up your daily commitment. Time to become infinite-minded.
 </p>
 
 <div className="w-12 h-px bg-amber-500/30 mx-auto my-6" />
 
 <p className="text-white/70">
-  "Infinite-minded people understand that "best" is not a permanent state..."
+  "Infinite-minded people understand that 'best' is not a permanent state. Instead, they strive to be 'better.' 'Better' suggests a journey of constant improvement.”
+  ― Simon Sinek
 </p>
         </motion.div>
 
