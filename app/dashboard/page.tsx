@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   doc,
   getDoc,
@@ -1375,34 +1375,33 @@ if (levelUpNextStep === "try_different") {
   useEffect(() => {
     loadDashboardData();
   }, []);
-
-  useEffect(() => {
-    const fetchWeeklyReflection = async () => {
-      try {
-        const email = getEmail();
-        if (!email) return;
-
-        const weekId = getISOWeekId(new Date());
-        const ref = doc(db, "users", email, "weeklyStats", weekId);
-
-        const snap = await withFirestoreError(
-          getDoc(ref),
-          "weekly reflection",
-          showToast
-        );
-
-        if (!snap) return;
-
-        if (snap.exists()) {
-          setWeeklyReflection(snap.data() as any);
-        }
-      } catch (err) {
-        console.error("[Dashboard] Error fetching weekly reflection:", err);
+// Check for celebrations after check-in
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('checkin') === 'done') {
+    const checkForMilestone = async () => {
+      const email = getEmail();
+      if (!email) return;
+      
+      const today = new Date().toLocaleDateString("en-CA");
+      
+      const { checkMilestones } = await import('../services/checkMilestones');
+      const result = await checkMilestones(email, today);
+      
+      if (result.hasMilestone && result.type) {
+        // MILESTONE: Show big celebration
+        setPendingReward(getRewardForEvent(result.type));
       }
+      
+      // Always mark as complete (celebration already showed on /checkin)
+      setCheckinSubmitted(true);
+      
+      router.replace('/dashboard');
     };
-
-    fetchWeeklyReflection();
-  }, []);
+    
+    checkForMilestone();
+  }
+}, []);
 
   useEffect(() => {
     const email = getEmail();
@@ -2486,23 +2485,25 @@ useEffect(() => {
   </div>
 </motion.div>
        {/* 3. Daily Check-in */}
-{!hasCompletedCheckin() ? (
-  <motion.div
-    variants={itemVariants}
-    className="mb-6"
-  >
+{checkinSuccess ? (
+  <CheckinSuccessAnimation
+    onComplete={() => {
+      setCheckinSuccess(false);
+      setCheckinSubmitted(true);
+      loadDashboardData();
+    }}
+  />
+) : !hasCompletedCheckin() ? (
+  <motion.div variants={itemVariants} className="mb-6">
     <button
       onClick={() => router.push('/checkin')}
-      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl py-5 text-lg shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl py-5 text-lg shadow-lg hover:shadow-xl transition-all"
     >
       Complete Today's Check-In →
     </button>
   </motion.div>
 ) : (
-  <motion.div
-    variants={itemVariants}
-    className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 mb-6"
-  >
+  <motion.div variants={itemVariants} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 mb-6">
     <div className="flex items-center gap-3">
       <div className="text-4xl">✓</div>
       <div>

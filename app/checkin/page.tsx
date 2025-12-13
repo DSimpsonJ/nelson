@@ -6,7 +6,7 @@ import { getAuth } from 'firebase/auth';
 import { CheckinShell } from './components/CheckinShell';
 import { CheckinQuestion } from './components/CheckinQuestion';
 import { ProgressIndicator } from './components/ProgressIndicator';
-import { CheckinSuccess } from './components/CheckinSuccess';
+import CheckinSuccessAnimation from '@/app/components/rewards/CheckinSuccessAnimation';
 import { BEHAVIORS, answersToGrades } from './checkinModel';
 import { CheckinAnswers } from './types';
 import { writeDailyMomentum } from '../services/writeDailyMomentum';
@@ -90,14 +90,15 @@ export default function CheckinPage() {
       const accountAgeDays = 1; // TODO: Calculate from user creation date
 
       // Call single writer service
-      await writeDailyMomentum({
-        email,
-        date: today,
-        behaviorGrades,
-        currentFocus,
-        habitStack,
-        accountAgeDays,
-      });
+await writeDailyMomentum({
+    email,
+    date: today,
+    behaviorGrades,
+    behaviorRatings: finalAnswers,  
+    currentFocus,
+    habitStack,
+    accountAgeDays,
+  });
 
       // Show success animation
       setShowSuccess(true);
@@ -118,7 +119,7 @@ export default function CheckinPage() {
   if (showSuccess) {
     return (
       <CheckinShell>
-        <CheckinSuccess onComplete={handleSuccessComplete} />
+        <CheckinSuccessAnimation onComplete={handleSuccessComplete} />
       </CheckinShell>
     );
   }

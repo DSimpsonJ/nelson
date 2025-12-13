@@ -22,7 +22,8 @@ import { calculateDailyMomentumScore } from "@/app/utils/momentumCalculation";
 
 export interface DailyMomentumDoc {
   date: string; // YYYY-MM-DD
-  
+  behaviorRatings?: Record<string, string>;  // User's actual answers (elite/solid/not_great/off)
+  behaviorGrades?: { name: string; grade: number }[];  // Computed grades (100/80/50/0)
   // Structured habit data
   primary: {
     habitKey: string;
@@ -74,6 +75,7 @@ export interface WriteDailyMomentumInput {
   
   // NEW: Behavior grades (replaces checkin)
   behaviorGrades: { name: string; grade: number }[];
+  behaviorRatings?: Record<string, string>;  // NEW: Store actual user ratings
   
   // Context
   currentFocus: {
@@ -287,7 +289,8 @@ async function calculateDerivedFields(
   return {
     ...merged,
     date: input.date,
-    
+    behaviorRatings: input.behaviorRatings,
+    behaviorGrades: input.behaviorGrades,
     primary: {
       habitKey: input.currentFocus.habitKey,
       done: false, // Will be tracked via workout sessions later
