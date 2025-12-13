@@ -1619,8 +1619,13 @@ useEffect(() => {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-        <p className="text-gray-500">Loading dashboard…</p>
+      <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          </div>
+          <p className="text-white/70 text-lg">Loading dashboard...</p>
+        </div>
       </main>
     );
   }
@@ -2476,11 +2481,19 @@ useEffect(() => {
         </p>
 
         <p className="text-sm text-white/60 text-center mt-2">
-          This is the infinite game. Show up daily, stack habits, build momentum.
+          This is your infinite game. Show up daily, build momentum, stack positive habits.
         </p>
       </>
     ) : (
-      <p className="text-white/70 text-sm text-center">Complete your first check-in to start building momentum.</p>
+      <p className="text-white/70 text-sm text-center">
+        {missedDays >= 7 
+          ? "It's been a while since you checked in. Ready to rebuild your momentum?"
+          : missedDays >= 2
+          ? `It's been ${missedDays} days. One check-in gets us back on track.`
+          : currentFocus
+          ? "Complete today's check-in to keep building momentum."
+          : "Complete your first check-in to start building momentum."}
+      </p>
     )}
   </div>
 </motion.div>
@@ -2495,13 +2508,41 @@ useEffect(() => {
   />
 ) : !hasCompletedCheckin() ? (
   <motion.div variants={itemVariants} className="mb-6">
+  <div className="relative p-[2px] rounded-xl overflow-hidden">
+    <div 
+      className="absolute inset-0 rounded-xl"
+      style={{
+        background: 'conic-gradient(from 0deg, transparent 0%, transparent 50%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0.5) 100%)',
+        animation: 'rotate 3s linear infinite',
+      }}
+    />
+    
+    {/* Solid background layer to prevent bleed */}
+    <div className="absolute inset-[2px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl" />
+    
     <button
       onClick={() => router.push('/checkin')}
-      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl py-5 text-lg shadow-lg hover:shadow-xl transition-all"
+      className="relative w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl py-5 text-lg shadow-lg hover:shadow-xl transition-all"
+      style={{
+        animation: 'fade 2s ease-in-out infinite',
+      }}
     >
       Complete Today's Check-In →
     </button>
-  </motion.div>
+  </div>
+  
+  <style jsx>{`
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    @keyframes fade {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+  `}</style>
+</motion.div>
 ) : (
   <motion.div variants={itemVariants} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 mb-6">
     <div className="flex items-center gap-3">

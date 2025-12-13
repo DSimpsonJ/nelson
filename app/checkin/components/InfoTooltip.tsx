@@ -6,6 +6,18 @@ interface InfoTooltipProps {
   text: string;
 }
 
+// Helper to bold rating labels for better scannability
+function formatTooltipText(text: string) {
+  const parts = text.split(/(\bElite\b|\bSolid\b|\bNot Great\b|\bOff\b)/g);
+  
+  return parts.map((part, index) => {
+    if (['Elite', 'Solid', 'Not Great', 'Off'].includes(part)) {
+      return <strong key={index} className="font-bold text-white">{part}</strong>;
+    }
+    return <span key={index}>{part}</span>;
+  });
+}
+
 export function InfoTooltip({ text }: InfoTooltipProps) {
   const [show, setShow] = useState(false);
 
@@ -25,7 +37,7 @@ export function InfoTooltip({ text }: InfoTooltipProps) {
       
       {show && (
         <div className="absolute z-10 w-72 p-4 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white/80 left-0 top-8 shadow-xl">
-          {text}
+          {formatTooltipText(text)}
           <div className="absolute -top-2 left-4 w-4 h-4 bg-slate-900 border-l border-t border-slate-700 transform rotate-45"></div>
         </div>
       )}

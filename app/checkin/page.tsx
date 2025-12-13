@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuth } from 'firebase/auth';
+import { AnimatePresence, motion } from 'framer-motion';
 import { CheckinShell } from './components/CheckinShell';
 import { CheckinQuestion } from './components/CheckinQuestion';
 import { ProgressIndicator } from './components/ProgressIndicator';
@@ -28,6 +29,22 @@ export default function CheckinPage() {
   const currentBehavior = BEHAVIORS[currentStep];
   const isLastStep = currentStep === BEHAVIORS.length - 1;
 
+  // Swipe animation variants (slide left on exit, slide in from right)
+  const slideVariants = {
+    enter: {
+      x: 400,
+      opacity: 0,
+    },
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: {
+      x: -400,
+      opacity: 0,
+    },
+  };
+
   const handleSelect = (rating: string) => {
     // Prevent rapid clicks/double-taps
     if (isAdvancing) return;
@@ -41,7 +58,7 @@ export default function CheckinPage() {
     
     setAnswers(newAnswers);
 
-    // Auto-advance after selection
+    // Delay to let user see their selection before advancing
     setTimeout(() => {
       if (isLastStep) {
         handleSubmit(newAnswers as CheckinAnswers);
@@ -49,7 +66,7 @@ export default function CheckinPage() {
         setCurrentStep(currentStep + 1);
         setIsAdvancing(false);
       }
-    }, 300);
+    }, 600); // Increased from 300ms for better visual feedback
   };
 
   const handleBack = () => {
@@ -90,15 +107,15 @@ export default function CheckinPage() {
       const accountAgeDays = 1; // TODO: Calculate from user creation date
 
       // Call single writer service
-await writeDailyMomentum({
-    email,
-    date: today,
-    behaviorGrades,
-    behaviorRatings: finalAnswers,  
-    currentFocus,
-    habitStack,
-    accountAgeDays,
-  });
+      await writeDailyMomentum({
+        email,
+        date: today,
+        behaviorGrades,
+        behaviorRatings: finalAnswers,
+        currentFocus,
+        habitStack,
+        accountAgeDays,
+      });
 
       // Show success animation
       setShowSuccess(true);
@@ -126,28 +143,53 @@ await writeDailyMomentum({
 
   return (
     <CheckinShell>
+      {/* Back Button - Absolute positioned at top-left */}
+      <button
+        onClick={handleBack}
+        disabled={currentStep === 0 || isAdvancing}
+        className={`
+          absolute top-6 left-6 z-10
+          flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+          transition-all duration-200
+          ${currentStep === 0 || isAdvancing
+            ? 'opacity-0 pointer-events-none'
+            : 'text-white/70 hover:text-white hover:bg-white/10 active:scale-95'
+          }
+        `}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </button>
+
       <ProgressIndicator 
         current={currentStep + 1} 
         total={BEHAVIORS.length} 
       />
 
-      <CheckinQuestion
-        title={currentBehavior.title}
-        prompt={currentBehavior.prompt}
-        tooltip={currentBehavior.tooltip}
-        icon={currentBehavior.icon}
-        selected={answers[currentBehavior.id]}
-        onSelect={handleSelect}
-      />
-
-      {currentStep > 0 && !isAdvancing && (
-        <button
-          onClick={handleBack}
-          className="mt-6 text-white/60 hover:text-white text-sm transition-colors"
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentStep}
+          variants={slideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{
+            x: { type: "spring", stiffness: 200, damping: 25 },
+            opacity: { duration: 0.3 },
+          }}
         >
-          ← Back
-        </button>
-      )}
+          <CheckinQuestion
+            title={currentBehavior.title}
+            prompt={currentBehavior.prompt}
+            tooltip={currentBehavior.tooltip}
+            icon={currentBehavior.icon}
+            selected={answers[currentBehavior.id]}
+            onSelect={handleSelect}
+          />
+        </motion.div>
+      </AnimatePresence>
     </CheckinShell>
   );
 }

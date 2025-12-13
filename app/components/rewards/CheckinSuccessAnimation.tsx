@@ -24,7 +24,7 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[400px] overflow-hidden"
+     className="relative rounded-2xl p-12 flex flex-col items-center justify-center min-h-[400px] overflow-hidden"
     >
       {/* Particles */}
       {showParticles && particles.map((particle) => (
@@ -47,7 +47,7 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
             delay: particle.delay,
             ease: "easeOut"
           }}
-          className="absolute w-3 h-3 rounded-full bg-blue-400"
+          className="absolute w-3 h-3 rounded-full bg-blue-500"
           style={{ 
             left: '50%', 
             top: '50%',
@@ -94,12 +94,12 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
   transition={{ delay: 0.4, duration: 0.5 }}
   className="text-center"
 >
-  <h3 className="text-3xl font-bold text-gray-900 mb-4">
-    Nice job showing up!
-  </h3>
-  <p className="text-gray-600 text-sm mb-6">
-    That's what builds momentum.
-  </p>
+<h3 className="text-3xl font-bold text-white mb-4">
+  Nice job showing up!
+</h3>
+<p className="text-white/80 text-sm mb-8">
+  Momentum is built one check-in at a time.
+</p>
   
   <motion.button
     initial={{ opacity: 0, scale: 0.8 }}
@@ -124,7 +124,7 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
           repeat: Infinity,
           repeatDelay: 0.5
         }}
-        className="absolute w-40 h-40 rounded-full border-4 border-green-400"
+        className="absolute w-40 h-40 rounded-full border-4 border-green-500"
         style={{ 
           left: '50%', 
           top: '35%',

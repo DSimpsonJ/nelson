@@ -17,14 +17,19 @@ module.exports = {
           "90%": { opacity: "1", transform: "translateY(0)" },
           "100%": { opacity: "0", transform: "translateY(-5px)" },
         },
-        shimmer: {  // 🆕 ADD THIS
+        shimmer: {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
+        },
+        rotate: {
+          "0%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" },
         },
       },
       animation: {
         "fade-in-out": "fade-in-out 2.5s ease-in-out",
-        shimmer: "shimmer 2s infinite",  // 🆕 ADD THIS
+        shimmer: "shimmer 2s infinite",
+        rotate: "rotate 3s linear infinite",
       },
     },
   },
