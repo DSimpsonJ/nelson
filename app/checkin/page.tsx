@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuth } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckinShell } from './components/CheckinShell';
 import { CheckinQuestion } from './components/CheckinQuestion';
 import { ProgressIndicator } from './components/ProgressIndicator';
 import CheckinSuccessAnimation from '@/app/components/rewards/CheckinSuccessAnimation';
-import { BEHAVIORS, answersToGrades } from './checkinModel';
-import { CheckinAnswers } from './types';
+import { getBehaviors, answersToGrades } from './checkinModel';
+import { CheckinAnswers, BehaviorMetadata } from './types';
 import { writeDailyMomentum } from '../services/writeDailyMomentum';
 
 // Helper to get current user email
@@ -24,12 +26,42 @@ export default function CheckinPage() {
   const [answers, setAnswers] = useState<Partial<CheckinAnswers>>({});
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [isAdvancing, setIsAdvancing] = useState(false); // Guard against rapid clicks
+  const [isAdvancing, setIsAdvancing] = useState(false);
+  const [behaviors, setBehaviors] = useState<BehaviorMetadata[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const currentBehavior = BEHAVIORS[currentStep];
-  const isLastStep = currentStep === BEHAVIORS.length - 1;
+  // Load user data and generate dynamic behaviors
+  useEffect(() => {
+    const loadUserData = async () => {
+      const email = getEmail();
+      if (!email) {
+        router.replace('/login');
+        return;
+      }
 
-  // Swipe animation variants (slide left on exit, slide in from right)
+      try {
+        const userDoc = await getDoc(doc(db, 'users', email));
+        const userWeight = userDoc.exists() ? userDoc.data().weight : undefined;
+        
+        // Generate behaviors with user's weight
+        const dynamicBehaviors = getBehaviors(userWeight);
+        setBehaviors(dynamicBehaviors);
+      } catch (error) {
+        console.error('Failed to load user data:', error);
+        // Fallback to default behaviors
+        setBehaviors(getBehaviors());
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [router]);
+
+  const currentBehavior = behaviors[currentStep];
+  const isLastStep = currentStep === behaviors.length - 1;
+
+  // Swipe animation variants
   const slideVariants = {
     enter: {
       x: 400,
@@ -46,7 +78,6 @@ export default function CheckinPage() {
   };
 
   const handleSelect = (rating: string) => {
-    // Prevent rapid clicks/double-taps
     if (isAdvancing) return;
     
     setIsAdvancing(true);
@@ -58,7 +89,6 @@ export default function CheckinPage() {
     
     setAnswers(newAnswers);
 
-    // Delay to let user see their selection before advancing
     setTimeout(() => {
       if (isLastStep) {
         handleSubmit(newAnswers as CheckinAnswers);
@@ -66,7 +96,7 @@ export default function CheckinPage() {
         setCurrentStep(currentStep + 1);
         setIsAdvancing(false);
       }
-    }, 600); // Increased from 300ms for better visual feedback
+    }, 600);
   };
 
   const handleBack = () => {
@@ -76,37 +106,45 @@ export default function CheckinPage() {
   };
 
   const handleSubmit = async (finalAnswers: CheckinAnswers) => {
-    // Prevent double submission
     if (submitting) return;
     
     setSubmitting(true);
-
+  
     try {
       const email = getEmail();
       if (!email) {
         throw new Error('No email found');
       }
-
+  
       const today = new Date().toLocaleDateString("en-CA");
       
-      // Convert ratings to grades (ratings are canonical, grades are derived)
-      const behaviorGrades = BEHAVIORS.map((behavior, index) => ({
+      // Convert ratings to grades using the dynamic behaviors
+      const behaviorGrades = behaviors.map((behavior) => ({
         name: behavior.id,
-        grade: answersToGrades(finalAnswers)[index]
+        grade: answersToGrades(finalAnswers)[behaviors.indexOf(behavior)]
       }));
-
-      // TODO: Get actual currentFocus, habitStack, and accountAgeDays from context
-      // For now, using placeholder values
+  
+      // Get firstCheckinDate from metadata to calculate accountAgeDays
+      const metadataRef = doc(db, 'users', email, 'metadata', 'accountInfo');
+      const metadataSnap = await getDoc(metadataRef);
+      const firstCheckinDate = metadataSnap.exists() 
+        ? metadataSnap.data().firstCheckinDate 
+        : today;
+  
+      // Calculate accountAgeDays
+      const firstDate = new Date(firstCheckinDate);
+      const currentDate = new Date(today);
+      const diffTime = currentDate.getTime() - firstDate.getTime();
+      const accountAgeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  
+      // TODO: Get actual currentFocus and habitStack from Firebase
+      // For now using placeholder values until user context is implemented
       const currentFocus = {
         habitKey: 'movement_10min',
         habit: 'Move 10 minutes daily'
       };
-      
       const habitStack: Array<{ habitKey: string; habit: string }> = [];
-      
-      const accountAgeDays = 1; // TODO: Calculate from user creation date
-
-      // Call single writer service
+  
       await writeDailyMomentum({
         email,
         date: today,
@@ -116,22 +154,30 @@ export default function CheckinPage() {
         habitStack,
         accountAgeDays,
       });
-
-      // Show success animation
+  
       setShowSuccess(true);
-
+  
     } catch (error) {
       console.error('Check-in submission failed:', error);
       setSubmitting(false);
       setIsAdvancing(false);
-      // TODO: Show error toast to user
     }
   };
 
   const handleSuccessComplete = () => {
-    // Route back to dashboard with flag for animation
     router.push('/dashboard?checkin=done');
   };
+
+  // Show loading state while fetching user data
+  if (loading) {
+    return (
+      <CheckinShell>
+        <div className="flex items-center justify-center min-h-screen">
+          <p className="text-white/60">Loading...</p>
+        </div>
+      </CheckinShell>
+    );
+  }
 
   if (showSuccess) {
     return (
@@ -143,7 +189,6 @@ export default function CheckinPage() {
 
   return (
     <CheckinShell>
-      {/* Back Button - Absolute positioned at top-left */}
       <button
         onClick={handleBack}
         disabled={currentStep === 0 || isAdvancing}
@@ -165,7 +210,7 @@ export default function CheckinPage() {
 
       <ProgressIndicator 
         current={currentStep + 1} 
-        total={BEHAVIORS.length} 
+        total={behaviors.length} 
       />
 
       <AnimatePresence mode="wait">

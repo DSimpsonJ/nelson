@@ -1,8 +1,14 @@
 import { BehaviorMetadata, RatingMetadata, Rating, BehaviorId } from './types';
 
-// Canonical behavior list - ORDER IS PERMANENT
-// Never sort dynamically, always use BEHAVIORS.map()
-export const BEHAVIORS: BehaviorMetadata[] = [
+// Function to generate behaviors with dynamic user data
+export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
+  // Calculate protein range from weight
+  const weight = userWeight || 170;
+  const cappedWeight = Math.min(weight, 240);
+  const proteinMin = Math.round(cappedWeight * 0.6);
+  const proteinMax = Math.round(cappedWeight * 1.0);
+
+  return [
     {
       id: 'nutrition_pattern',
       title: 'Nutrition Pattern',
@@ -20,14 +26,14 @@ export const BEHAVIORS: BehaviorMetadata[] = [
     {
       id: 'protein',
       title: 'Protein',
-      prompt: 'How did you do with protein yesterday?',
+      prompt: `How did you do with protein yesterday? (${proteinMin}-${proteinMax}g)`,
       tooltip: 'Elite: Hit target at every meal (breakfast, lunch, dinner). Solid: Hit daily target across all meals. Not Great: Got close but missed by 20-30g. Off: Way short of target or forgot completely.',
       icon: '🥩',
     },
     {
       id: 'hydration',
       title: 'Hydration',
-      prompt: 'How was your hydration yesterday?',
+      prompt: 'How was your hydration yesterday? (64-100oz)',
       tooltip: 'Elite: Exceeded target, urine clear/light yellow all day. Solid: Hit your daily target consistently. Not Great: Got close but fell short. Off: Barely drank water, dark urine.',
       icon: '💧',
     },
@@ -53,9 +59,12 @@ export const BEHAVIORS: BehaviorMetadata[] = [
       icon: '🚶',
     },
   ];
+}
 
-// Canonical rating structure - LABELS ARE PERMANENT
-// Always Elite/Solid/Not Great/Off, never change to Yes/No or other variants
+// For backwards compatibility - default behaviors
+export const BEHAVIORS = getBehaviors();
+
+// Canonical rating structure
 export const RATINGS: RatingMetadata[] = [
   {
     value: 'elite',
@@ -83,29 +92,23 @@ export const RATINGS: RatingMetadata[] = [
   },
 ];
 
-// Rating to grade mapping - CANONICAL TRUTH
-// Grades are derived from ratings, ratings are user truth
 export function getRatingGrade(rating: string): number {
   const found = RATINGS.find(r => r.value === rating);
   return found?.grade ?? 0;
 }
 
-// Get behavior order - use this, never Object.keys()
 export function getBehaviorOrder(): BehaviorId[] {
   return BEHAVIORS.map(b => b.id);
 }
 
-// Get behavior metadata by ID
 export function getBehavior(id: BehaviorId): BehaviorMetadata | undefined {
   return BEHAVIORS.find(b => b.id === id);
 }
 
-// Get rating metadata by value
 export function getRating(value: string): RatingMetadata | undefined {
   return RATINGS.find(r => r.value === value);
 }
 
-// Convert answers to grades array (maintains behavior order)
 export function answersToGrades(answers: Record<string, string>): number[] {
   return BEHAVIORS.map(behavior => 
     getRatingGrade(answers[behavior.id] || 'off')

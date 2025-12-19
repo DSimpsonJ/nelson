@@ -238,15 +238,25 @@ const behaviorGrades = [
   });
   
       // Mark user as activated
-      await setDoc(
-        doc(db, "users", email),
-        {
-          isActivated: true,
-          firstCheckInDate: today,
-          lastCheckInDate: today,
-        },
-        { merge: true }
-      );
+await setDoc(
+    doc(db, "users", email),
+    {
+      isActivated: true,
+      lastCheckInDate: today,
+    },
+    { merge: true }
+  );
+  
+  // ===== NEW: Create metadata doc with firstCheckInDate =====
+  await setDoc(
+    doc(db, "users", email, "metadata", "accountInfo"),
+    {
+      firstCheckinDate: today,
+      createdAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+  // ==========================================================
   
       // Redirect to celebration
       router.push("/onboarding/activate/celebration");

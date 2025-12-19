@@ -4,17 +4,13 @@
  * Single source of truth for writing daily momentum documents.
  * This is the most critical function in Nelson - everything depends on this being perfect.
  * 
- * Guarantees:
- * - All fields always exist with proper defaults
- * - Idempotent (can be called multiple times safely)
- * - Sanitized input (no undefined/null leaks)
- * - Validated structure before write
- * - Complete momentum calculation
+ * UPDATED: Now uses Newtonian momentum calculation (physics-based with streak inertia)
+ * UPDATED: Tracks totalRealCheckIns for ramp caps (not accountAgeDays)
  */
 
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
-import { calculateDailyMomentumScore } from "@/app/utils/momentumCalculation";
+import { calculateNewtonianMomentum, calculateDailyScore } from './newtonianMomentum';
 
 // ============================================================================
 // CANONICAL SCHEMA
@@ -22,9 +18,12 @@ import { calculateDailyMomentumScore } from "@/app/utils/momentumCalculation";
 
 export interface DailyMomentumDoc {
   date: string; // YYYY-MM-DD
-  behaviorRatings?: Record<string, string>;  // User's actual answers (elite/solid/not_great/off)
-  behaviorGrades?: { name: string; grade: number }[];  // Computed grades (100/80/50/0)
-  // Structured habit data
+  accountAgeDays: number;
+  totalRealCheckIns: number;
+  missed?: boolean;
+  behaviorRatings?: Record<string, string>;
+  behaviorGrades?: { name: string; grade: number }[];
+  
   primary: {
     habitKey: string;
     done: boolean;
@@ -40,14 +39,14 @@ export interface DailyMomentumDoc {
     movement: boolean;
   };
   
-  // Scores and metrics
   dailyScore: number;
   rawMomentumScore: number;
   momentumScore: number;
+  momentumTrend: 'up' | 'down' | 'stable';
+  momentumDelta: number;
   momentumMessage: string;
   visualState: "solid" | "outline" | "empty";
   
-  // Tracking fields
   primaryHabitHit: boolean;
   stackedHabitsCompleted: number;
   totalStackedHabits: number;
@@ -56,28 +55,21 @@ export interface DailyMomentumDoc {
   slept: boolean;
   nutritionScore: number;
   
-  // Streaks
   currentStreak: number;
   lifetimeStreak: number;
   streakSavers: number;
-
-  // First check-in flag
-  isFirstCheckIn?: boolean;
   
-  // Meta
-  checkinType: "real" | "streak_saver";
+  isFirstCheckIn?: boolean;
+  checkinType?: "real" | "streak_saver" | "gap_fill";
   createdAt: string;
 }
 
 export interface WriteDailyMomentumInput {
   email: string;
   date: string;
-  
-  // NEW: Behavior grades (replaces checkin)
   behaviorGrades: { name: string; grade: number }[];
-  behaviorRatings?: Record<string, string>;  // NEW: Store actual user ratings
+  behaviorRatings?: Record<string, string>;
   
-  // Context
   currentFocus: {
     habitKey: string;
     habit: string;
@@ -87,7 +79,6 @@ export interface WriteDailyMomentumInput {
     habit: string;
   }>;
   
-  // Optional
   goal?: string;
   accountAgeDays: number;
 }
@@ -96,12 +87,11 @@ export interface WriteDailyMomentumInput {
 // INTERNAL HELPERS
 // ============================================================================
 
-/**
- * Build default document with all fields populated
- */
 function buildDefaults(input: WriteDailyMomentumInput): Partial<DailyMomentumDoc> {
   return {
     date: input.date,
+    accountAgeDays: input.accountAgeDays,
+    totalRealCheckIns: 0,
     
     primary: {
       habitKey: input.currentFocus.habitKey,
@@ -121,6 +111,8 @@ function buildDefaults(input: WriteDailyMomentumInput): Partial<DailyMomentumDoc
     dailyScore: 0,
     rawMomentumScore: 0,
     momentumScore: 0,
+    momentumTrend: 'stable',
+    momentumDelta: 0,
     momentumMessage: "",
     visualState: "empty",
     
@@ -141,9 +133,6 @@ function buildDefaults(input: WriteDailyMomentumInput): Partial<DailyMomentumDoc
   };
 }
 
-/**
- * Merge with existing document if present (idempotency)
- */
 async function mergeWithExisting(
   email: string,
   date: string,
@@ -158,27 +147,22 @@ async function mergeWithExisting(
   
   const existing = docSnap.data();
   
-  // Preserve streak data if it exists
   return {
     ...defaults,
     currentStreak: existing.currentStreak ?? defaults.currentStreak,
     lifetimeStreak: existing.lifetimeStreak ?? defaults.lifetimeStreak,
     streakSavers: existing.streakSavers ?? defaults.streakSavers,
+    totalRealCheckIns: existing.totalRealCheckIns ?? defaults.totalRealCheckIns,
     isFirstCheckIn: existing.isFirstCheckIn ?? false,
   };
 }
 
-/**
- * Validate structure - ensure all required fields exist
- */
 function validateStructure(doc: Partial<DailyMomentumDoc>): boolean {
-  // Critical fields must exist
   if (!doc.date || !doc.primary || !doc.foundations || !doc.checkinType) {
     console.error("[WriteDailyMomentum] Missing critical fields:", doc);
     return false;
   }
   
-  // Primary must have habitKey and done
   if (!doc.primary.habitKey || doc.primary.done === undefined) {
     console.error("[WriteDailyMomentum] Invalid primary structure:", doc.primary);
     return false;
@@ -187,113 +171,157 @@ function validateStructure(doc: Partial<DailyMomentumDoc>): boolean {
   return true;
 }
 
-/**
- * Calculate streak based on yesterday's momentum
- */
 async function calculateStreak(email: string, date: string): Promise<{
   currentStreak: number;
   lifetimeStreak: number;
   streakSavers: number;
 }> {
-  // Parse today's date
   const today = new Date(date + "T00:00:00");
-  
-  // Get yesterday's date
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayKey = yesterday.toLocaleDateString("en-CA");
   
-  // Check yesterday's momentum
   const yesterdayRef = doc(db, "users", email, "momentum", yesterdayKey);
   const yesterdaySnap = await getDoc(yesterdayRef);
   
-  // Get streak savers from metadata
   const streakRef = doc(db, "users", email, "metadata", "streakData");
   const streakSnap = await getDoc(streakRef);
   const streakSavers = streakSnap.exists() ? (streakSnap.data().streakSavers || 3) : 3;
   
   if (yesterdaySnap.exists()) {
-    // Yesterday exists - increment streak
     const yesterdayData = yesterdaySnap.data();
     const currentStreak = (yesterdayData.currentStreak || 0) + 1;
     const lifetimeStreak = Math.max(currentStreak, yesterdayData.lifetimeStreak || 0);
     
     return { currentStreak, lifetimeStreak, streakSavers };
   } else {
-    // No yesterday - start fresh at day 1
     return { currentStreak: 1, lifetimeStreak: 1, streakSavers };
   }
 }
 
-/**
- * Apply momentum cap based on account age (14-day ramp)
- */
-/**
- * Apply momentum cap based on account age (10-day ramp)
- */
-function applyMomentumCap(rawScore: number, accountAgeDays: number): { score: number; message: string } {
-  let cappedScore: number;
-  let message: string;
-  
-  if (accountAgeDays <= 2) {
-    cappedScore = Math.round(rawScore * 0.40);
-    message = "Building a foundation";
-  } else if (accountAgeDays <= 5) {
-    cappedScore = Math.round(rawScore * 0.60);
-    message = "Finding your rhythm";
-  } else if (accountAgeDays <= 9) {
-    cappedScore = Math.round(rawScore * 0.80);
-    message = "Momentum is forming";
-  } else {
-    // Full unlock at day 10
-    cappedScore = rawScore;
-    if (rawScore >= 80) message = "On fire 🔥🔥";
-    else if (rawScore >= 70) message = "Heating up 🔥";
-    else if (rawScore >= 50) message = "Gaining traction";
-    else if (rawScore >= 30) message = "Resetting your pace";
-    else message = "Every day is a fresh start";
+function applyRampCap(score: number, checkInCount: number): { score: number; message: string } {
+  if (checkInCount <= 2) {
+    return {
+      score: Math.min(score, 30),
+      message: "Building a foundation"
+    };
+  }
+  if (checkInCount <= 5) {
+    return {
+      score: Math.min(score, 60),
+      message: "Finding your rhythm"
+    };
+  }
+  if (checkInCount <= 9) {
+    return {
+      score: Math.min(score, 80),
+      message: "Momentum is forming"
+    };
   }
   
-  return { score: cappedScore, message };
+  return { score, message: "" };
 }
 
-/**
- * Calculate all derived fields (momentum score, visual state, etc)
- */
 async function calculateDerivedFields(
   input: WriteDailyMomentumInput,
   merged: Partial<DailyMomentumDoc>,
-  last7Days: number[]
+  last4Days: number[]
 ): Promise<DailyMomentumDoc> {
   
-  // Calculate momentum score using behavior grades
-  const momentumResult = calculateDailyMomentumScore(input.behaviorGrades);
-  const dailyScore = momentumResult.score;
+  // 1. Calculate today's daily score
+  const dailyScore = calculateDailyScore(input.behaviorGrades);
   
-  // Calculate 3-day rolling average
-  const allScores = [...last7Days, dailyScore].filter(s => s !== undefined);
-  const rawMomentumScore = allScores.length > 0
-    ? Math.round(allScores.reduce((sum, s) => sum + s, 0) / allScores.length)
-    : 0;
+  // 2. Get yesterday's momentum and totalRealCheckIns
+  const baseDate = new Date(input.date + "T00:00:00");
+  const yesterday = new Date(baseDate);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = yesterday.toLocaleDateString("en-CA");
   
-  // Apply momentum cap based on account age
-  const { score: momentumScore, message: momentumMessage } = applyMomentumCap(
-    rawMomentumScore,
-    input.accountAgeDays
-  );
+  const yesterdayRef = doc(db, "users", input.email, "momentum", yesterdayKey);
+  const yesterdaySnap = await getDoc(yesterdayRef);
   
-  // Calculate streak
+  let previousMomentum: number | undefined;
+  let previousTotalCheckIns = 0;
+  
+  if (yesterdaySnap.exists()) {
+    const yesterdayData = yesterdaySnap.data();
+    
+    // Use rawMomentumScore if it's a real check-in
+    // Use momentumScore (already decayed) if it's a gap-fill
+    if (yesterdayData.checkinType === "gap_fill") {
+      previousMomentum = yesterdayData.momentumScore;
+    } else {
+      previousMomentum = yesterdayData.rawMomentumScore;
+    }
+    
+    // Get totalRealCheckIns from yesterday
+    previousTotalCheckIns = yesterdayData.totalRealCheckIns || 0;
+    
+    // If yesterday was a gap-fill, search backwards for last real check-in
+    if (yesterdayData.checkinType === "gap_fill" && previousTotalCheckIns === 0) {
+      // Search backwards up to 30 days to find last real check-in
+      for (let i = 2; i <= 30; i++) {
+        const lookbackDate = new Date(baseDate);
+        lookbackDate.setDate(lookbackDate.getDate() - i);
+        const lookbackKey = lookbackDate.toLocaleDateString("en-CA");
+        
+        const lookbackRef = doc(db, "users", input.email, "momentum", lookbackKey);
+        const lookbackSnap = await getDoc(lookbackRef);
+        
+        if (lookbackSnap.exists()) {
+          const lookbackData = lookbackSnap.data();
+          if (lookbackData.checkinType === "real" && lookbackData.totalRealCheckIns) {
+            previousTotalCheckIns = lookbackData.totalRealCheckIns;
+            console.log(`[WriteDailyMomentum] Found last real check-in at ${lookbackKey}: totalRealCheckIns = ${previousTotalCheckIns}`);
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  // Increment totalRealCheckIns (this is a real check-in)
+  const totalRealCheckIns = previousTotalCheckIns + 1;
+  
+  // 3. Calculate streak (needed for dampening calculation)
   const streakData = await calculateStreak(input.email, input.date);
   
-  // Return complete document (simplified - no foundations tracking for now)
+  // 4. Calculate Newtonian momentum
+  const momentumResult = calculateNewtonianMomentum({
+    todayScore: dailyScore,
+    last4Days: last4Days,
+    currentStreak: streakData.currentStreak,
+    previousMomentum: previousMomentum,
+    totalRealCheckIns: totalRealCheckIns
+  });
+  
+  // 5. Apply ramp cap if under 10 check-ins
+  let finalMomentumScore = momentumResult.momentumScore;
+  let finalMessage = momentumResult.message;
+  
+  if (totalRealCheckIns <= 9) {
+    const { score: cappedScore, message: rampMessage } = applyRampCap(
+      momentumResult.momentumScore,
+      totalRealCheckIns
+    );
+    finalMomentumScore = cappedScore;
+    if (rampMessage) {
+      finalMessage = rampMessage;
+    }
+  }
+  
+  // 6. Return complete document
   return {
     ...merged,
     date: input.date,
-    behaviorRatings: input.behaviorRatings,
+    accountAgeDays: input.accountAgeDays,
+    totalRealCheckIns: totalRealCheckIns,
+    behaviorRatings: input.behaviorRatings || {}, 
     behaviorGrades: input.behaviorGrades,
+    
     primary: {
       habitKey: input.currentFocus.habitKey,
-      done: false, // Will be tracked via workout sessions later
+      done: false,
     },
     
     stack: {},
@@ -307,9 +335,11 @@ async function calculateDerivedFields(
     },
     
     dailyScore,
-    rawMomentumScore,
-    momentumScore,
-    momentumMessage,
+    rawMomentumScore: momentumResult.rawScore,
+    momentumScore: finalMomentumScore,
+    momentumTrend: momentumResult.trend,
+    momentumDelta: momentumResult.delta,
+    momentumMessage: finalMessage,
     visualState: "solid",
     
     primaryHabitHit: false,
@@ -333,57 +363,47 @@ async function calculateDerivedFields(
 // MAIN EXPORT
 // ============================================================================
 
-/**
- * Write a complete daily momentum document
- * 
- * This is the ONLY way to write daily momentum docs in the app.
- * All fields are guaranteed to exist with proper defaults.
- */
 export async function writeDailyMomentum(
   input: WriteDailyMomentumInput
 ): Promise<DailyMomentumDoc> {
   console.log("[WriteDailyMomentum] Starting for date:", input.date);
   
   try {
-    // 1. Build defaults
     const defaults = buildDefaults(input);
-    
-    // 2. Merge with existing document
     const merged = await mergeWithExisting(input.email, input.date, defaults);
     
- // 4. Get last 5 days for rolling average
-const last7Days: number[] = []; // TODO: rename to lastDays
-
-// Parse the input date to get a proper Date object in local time
-const baseDate = new Date(input.date + "T00:00:00");
-
-for (let i = 1; i <= 4; i++) { 
-      // Calculate relative to the input date, not "today"
+    // Get last 4 days for rolling average
+    const last4Days: number[] = [];
+    const baseDate = new Date(input.date + "T00:00:00");
+    
+    for (let i = 1; i <= 4; i++) { 
       const lookbackDate = new Date(baseDate);
       lookbackDate.setDate(lookbackDate.getDate() - i);
-      const dateKey = lookbackDate.toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+      const dateKey = lookbackDate.toLocaleDateString("en-CA");
       
       const dayRef = doc(db, "users", input.email, "momentum", dateKey);
       const daySnap = await getDoc(dayRef);
       
       if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
-        last7Days.push(daySnap.data().dailyScore);
+        last4Days.unshift(daySnap.data().dailyScore);
       }
     }
     
-    // 4. Calculate all derived fields
-    const finalDoc = await calculateDerivedFields(input, merged, last7Days);
+    const finalDoc = await calculateDerivedFields(input, merged, last4Days);
     
-    // 5. Validate structure
     if (!validateStructure(finalDoc)) {
       throw new Error("Document validation failed");
     }
     
-    // 6. Write to Firestore
     const docRef = doc(db, "users", input.email, "momentum", input.date);
     await setDoc(docRef, finalDoc);
     
-    console.log("[WriteDailyMomentum] Success:", finalDoc.date, finalDoc.momentumScore);
+    console.log(
+      "[WriteDailyMomentum] Success:", 
+      finalDoc.date, 
+      `${finalDoc.momentumScore}% ${finalDoc.momentumTrend === 'up' ? '↑' : finalDoc.momentumTrend === 'down' ? '↓' : '→'}`,
+      `(Check-in #${finalDoc.totalRealCheckIns})`
+    );
     
     return finalDoc;
     

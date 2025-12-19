@@ -66,6 +66,12 @@ import { getRewardForEvent, type RewardPayload } from "@/app/services/rewardEngi
 import RewardRenderer from "@/app/components/rewards/RewardRenderer";
 import CheckinSuccessAnimation from "@/app/components/rewards/CheckinSuccessAnimation";
 import FirstTimeDashboard from "./FirstTimeDashboard";
+import { detectAndHandleMissedCheckIns } from '@/app/services/missedCheckIns';
+import { selectMomentumMessage } from '@/app/services/messagingGuide';
+import MomentumTooltip from '@/app/components/MomentumTooltip';
+import HistoryAccess from "@/app/components/HistoryAccess";
+import { NelsonLogo } from '@/app/components/logos';
+
 
 /** ---------- Types ---------- */
 
@@ -336,9 +342,7 @@ export default function DashboardPage() {
   const [commitmentStage, setCommitmentStage] = useState<"initial" | "reason" | "alternative" | "choose" | "custom">("initial");
   const [commitmentReason, setCommitmentReason] = useState<string>("");
   const [saving, setSaving] = useState(false);
-  const [showStreakSaver, setShowStreakSaver] = useState(false);
   const [missedDays, setMissedDays] = useState(0);
-  const [streakSavers, setStreakSavers] = useState(0);
   const today = getLocalDate();
   const [hasSessionToday, setHasSessionToday] = useState(false);
   const [levelUpEligible, setLevelUpEligible] = useState(false);
@@ -350,6 +354,9 @@ export default function DashboardPage() {
   const [habitStack, setHabitStack] = useState<any[]>([]);
   const [pendingReward, setPendingReward] = useState<RewardPayload | null>(null);
   const [checkinSuccess, setCheckinSuccess] = useState(false);
+  const [showMomentumTooltip, setShowMomentumTooltip] = useState(false);
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
+  const [consistencyPercentage, setConsistencyPercentage] = useState<number>(0);
 
   const hasCompletedCheckin = (): boolean => {
     // New schema: check momentum doc
@@ -368,7 +375,26 @@ export default function DashboardPage() {
     
     return hasRequiredFields && todayCheckin.date === today;
   };
-
+  const [historyStats, setHistoryStats] = useState({
+    currentStreak: 0,
+    totalCheckIns: 0,
+    monthlyConsistency: 0,
+  });
+  const [planDetails, setPlanDetails] = useState({
+    proteinMin: 0,
+    proteinMax: 0,
+    hydrationMin: 64,
+    hydrationMax: 100,
+    movementMinutes: 0,
+  });
+  const getEnhancedMessage = () => {
+    if (!todayMomentum) {
+      return "Complete today's check-in to start building.";
+    }
+    
+    // Just use the message from the momentum doc
+    return todayMomentum.momentumMessage || "Building momentum";
+  };
   const getPrimaryHabit = (plan?: Plan): { habit: string; habitKey: string } => {
     if (!plan?.primaryHabit) {
       return {
@@ -390,6 +416,25 @@ export default function DashboardPage() {
   const getTargetMinutes = (habitKey: string): number => {
     const match = habitKey.match(/(\d+)min/);
     return match ? parseInt(match[1], 10) : 10;
+  };
+  const calculateConsistency = (
+    momentumDocs: any[], 
+    accountAgeDays: number
+  ): number => {
+    // Don't calculate until day 7
+    if (accountAgeDays < 7) return 0;
+    
+    // Determine window size (up to 30 days)
+    const windowSize = Math.min(accountAgeDays, 30);
+    
+    // Count real check-ins (not missed) in the window
+    const realCheckIns = momentumDocs
+      .filter(doc => doc.checkinType === "real" || !doc.missed)
+      .slice(0, windowSize)
+      .length;
+    
+    // Calculate percentage
+    return Math.round((realCheckIns / windowSize) * 100);
   };
   const getHabitType = (habitKey: string): string => {
     if (habitKey.includes("walk_") || habitKey.includes("movement_")) return "movement";
@@ -516,20 +561,37 @@ await logHabitEvent(email, {
         router.replace("/signup");
         return;
       }
+// ===== NEW: STEP 3 - Detect missed check-ins FIRST =====
+const gapInfo = await detectAndHandleMissedCheckIns(email);
+if (gapInfo.hadGap) {
+  console.log(`[Dashboard] Gap detected: ${gapInfo.daysMissed} days`);
+  setMissedDays(gapInfo.daysMissed);
+}
 
       // ---- Load user's first name from root doc ----
       const userRef = doc(db, "users", email);
       const userSnap = await getDoc(userRef);
 
       let firstName = "there";
-      let isActivated = false; // 🆕 Default to false
+      let isActivated = false; 
+      let hasSeenWelcome = false;
       
       if (userSnap.exists()) {
         const userData = userSnap.data();
         firstName = userData.firstName ?? "there";
         isActivated = userData.isActivated ?? false; // 🆕 Load activation status
+        hasSeenWelcome = userData.hasSeenDashboardWelcome ?? false;  // ← ADD THIS
       }
-
+// ===== NEW: Show welcome if first time =====
+if (!hasSeenWelcome) {
+  setShowWelcomeMessage(true);
+  
+  // Mark as seen immediately
+  await setDoc(userRef, {
+    hasSeenDashboardWelcome: true,
+    dashboardWelcomeSeenAt: new Date().toISOString()
+  }, { merge: true });
+}
       // ---- Load NEW plan structure from profile/plan ----
       const planRef = doc(db, "users", email, "profile", "plan");
       const planSnap = await getDoc(planRef);
@@ -599,7 +661,22 @@ if (todayMomentumSnap.exists()) {
     setCheckinSubmitted(true);
   }
 }
-
+// ===== NEW: Check if we should show momentum tooltip =====
+if (userSnap.exists() && todayMomentumSnap.exists()) {
+  const userData = userSnap.data();
+  const momentumData = todayMomentumSnap.data();
+  const hasSeenTooltip = userData.hasSeenMomentumTooltip ?? false;
+  
+  // Show tooltip after 5 seconds if:
+  // 1. User hasn't seen it
+  // 2. User is on Day 1 (accountAgeDays === 1)
+  if (!hasSeenTooltip && momentumData.accountAgeDays === 1) {
+    setTimeout(() => {
+      setShowMomentumTooltip(true);
+    }, 13000); // 13 seconds
+  }
+}
+// =========================================================
       const momentumColRef = collection(db, "users", email, "momentum");
       const momentumSnaps = await getDocs(momentumColRef);
       const allMomentum = momentumSnaps.docs
@@ -608,8 +685,48 @@ if (todayMomentumSnap.exists()) {
         .sort((a, b) => a.date < b.date ? 1 : -1)
         .slice(0, 14);
       setRecentMomentum(allMomentum);
-      
+     // ===== NEW: Calculate consistency =====
+if (todayMomentumSnap.exists()) {
+  const todayData = todayMomentumSnap.data();
+  const accountAgeDays = todayData.accountAgeDays || 1;
+  
+  const consistency = calculateConsistency(allMomentum, accountAgeDays);
+  setConsistencyPercentage(consistency);
+  
+  console.log(`[Dashboard] Consistency: ${consistency}% (${accountAgeDays} days old)`);
+}
 
+// ===== Calculate history stats for preview =====
+const currentStreak = todayMomentumSnap.exists() 
+  ? (todayMomentumSnap.data().currentStreak || 0) 
+  : 0;
+
+// Count ONLY date-formatted docs (exclude metadata)
+const totalCheckIns = momentumSnaps.docs.filter(d => {
+  const docId = d.id;
+  const data = d.data();
+  if (!docId.match(/^\d{4}-\d{2}-\d{2}$/)) return false;
+  return data.checkinType === "real" || !data.missed;
+}).length;
+
+// Calculate monthly consistency - last 30 days
+const accountAgeDays = todayMomentumSnap.exists() 
+  ? (todayMomentumSnap.data().accountAgeDays || 1)
+  : 1;
+
+const last30Days = Math.min(accountAgeDays, 30);
+const recentDocs = momentumSnaps.docs.filter(d => {
+  const docId = d.id;
+  const data = d.data();
+  if (!docId.match(/^\d{4}-\d{2}-\d{2}$/)) return false;
+  return data.checkinType === "real" || !data.missed;
+}).slice(0, last30Days);
+
+const monthlyConsistency = Math.round((recentDocs.length / last30Days) * 100);
+
+setHistoryStats({ currentStreak, totalCheckIns, monthlyConsistency });
+console.log(`[Dashboard] History stats: Streak ${currentStreak}, Total ${totalCheckIns}, Month ${monthlyConsistency}%`);
+// =========================================================
       // ---- Today's check-in ----
       const rawToday = await getCheckin(email, today);
 
@@ -634,13 +751,8 @@ if (todayMomentumSnap.exists()) {
   const todayData = todayMomentumSnap.data();
   const streakValue = todayData.currentStreak || 0;
   setCheckinStreak(streakValue);
-  
-  // Get streak savers from momentum doc
-  const savers = todayData.streakSavers || 0;
-  setStreakSavers(savers);
 } else {
   setCheckinStreak(0);
-  setStreakSavers(0);
 }
 
 // Detect missed days from momentum collection
@@ -660,10 +772,6 @@ if (allMomentumDocs.length > 0) {
   const missed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
   
   setMissedDays(missed);
-  
-  if (missed > 0) {
-    setShowStreakSaver(true);
-  }
 }
       const note = await refreshCoachNote(email, plan as any);
       setCoachNote(note);
@@ -774,7 +882,25 @@ await saveCoachNoteToWeeklyStats(email, insight);
       setLoading(false);
     }
   };
-
+  const handleDismissMomentumTooltip = async () => {
+    setShowMomentumTooltip(false);
+    
+    try {
+      const email = getEmail();
+      if (!email) return;
+      
+      // Store flag in Firebase
+      const userRef = doc(db, "users", email);
+      await setDoc(userRef, {
+        hasSeenMomentumTooltip: true,
+        momentumTooltipSeenAt: new Date().toISOString()
+      }, { merge: true });
+      
+      console.log("[Dashboard] Momentum tooltip dismissed");
+    } catch (err) {
+      console.error("Error dismissing tooltip:", err);
+    }
+  };
   const calculateNutritionScore = (
     energyBalance: string,
     eatingPattern: string,
@@ -914,7 +1040,7 @@ const metadataSnap = await getDoc(metadataRef);
 const firstCheckinDate = metadataSnap.exists() ? metadataSnap.data().firstCheckinDate : todayLocal; // Fixed
     const accountAgeDays = Math.floor(
       (new Date(todayLocal).getTime() - new Date(firstCheckinDate).getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1;
+    )+1;
     
   
     // Use the pure eligibility function
@@ -1019,38 +1145,8 @@ console.log("🎯 Check-in count:", allCheckinsCount);
       const firstDate = new Date(`${firstCheckinDate}T00:00:00`);
       const accountAgeDays = Math.floor((todayDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   
-      // Get yesterday's streak data (using local dates)
-      const yesterdayDate = new Date();
-      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-      const yesterdayKey = yesterdayDate.toLocaleDateString("en-CA");
-      
-      const prevSnap = await getDoc(doc(db, "users", email, "momentum", yesterdayKey));
-  
-      let currentStreak = 0;
-      let lifetimeStreak = 0;
-      let streakSavers = 0;
-  
-      if (prevSnap.exists()) {
-        const prev = prevSnap.data() as any;
-        currentStreak = prev.currentStreak ?? 0;
-        lifetimeStreak = prev.lifetimeStreak ?? 0;
-        streakSavers = prev.streakSavers ?? 0;
-      }
-  
-      currentStreak += 1;
-      lifetimeStreak += 1;
-  
-      if (currentStreak % 7 === 0 && streakSavers < 3) {
-        streakSavers += 1;
-        
-        // Log streak saver earned
-        await logHabitEvent(email, {
-          type: "streak_saver_earned",
-          date: localToday,
-          streakLength: currentStreak,
-          saversRemaining: streakSavers,
-        });
-      }
+      // Streak calculation now handled by writeDailyMomentum
+// (No manual calculation needed)
   
       // Convert binary check-in data to behavior grades
       const behaviorGrades = [
@@ -1086,15 +1182,9 @@ const momentumDoc = await writeDailyMomentum({
 const commitRef = doc(db, "users", email, "momentum", "commitment");
 const commitSnap = await getDoc(commitRef);
 const commitmentData = commitSnap.exists() ? commitSnap.data() : null;
-      // Merge in the streak data we calculated
-      const isFirstCheckin = !commitSnap.exists();
-      await setDoc(doc(db, "users", email, "momentum", localToday), {
-        ...momentumDoc,
-        currentStreak,
-        lifetimeStreak,
-        streakSavers,
-        isFirstCheckIn: isFirstCheckin, // 🆕 ADD THIS LINE
-      }, { merge: true });
+      // Momentum doc is already written by writeDailyMomentum
+// Just check if this is first check-in for commitment logic
+const isFirstCheckin = accountAgeDays === 1;
 
 
 // Declare this FIRST
@@ -1168,6 +1258,7 @@ const isReturningFromBreak = missedDays >= 7;
 // Check for lifetime check-in milestones
 const isMilestone50 = allCheckinsCount === 50;
 const isMilestone100 = allCheckinsCount === 100;
+const currentStreak = momentumDoc.currentStreak;
 const hasMilestone = 
   currentStreak === 30 || 
   currentStreak === 21 || 
@@ -1680,90 +1771,41 @@ useEffect(() => {
       <h1 className="text-2xl font-bold text-white">
         Hey {profile?.firstName || "there"}.
       </h1>
-      {missedDays > 0 && !hasCompletedCheckin() ? (
+      
+      {/* Context-Based Message */}
+      {showWelcomeMessage ? (
+        // FIRST-TIME WELCOME
+        <div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
+        <p className="font-semibold">Welcome to your Dashboard.</p>
+        <p>This is where you check in each day.</p>
+        <p>The rhythm is simple: Reflect on yesterday. Stay honest with yourself.</p>
+        <p>Watch your momentum build.</p>
+        <p>Then put the phone down and go live your life.</p>
+        <p className="text-white/70 italic">I'll see you tomorrow.</p>
+      </div>
+      ) : missedDays > 0 && !hasCompletedCheckin() ? (
+        // MISSED DAYS
         <div className="mt-3">
-          <p className="text-white font-semibold mb-2">
-            I missed you. It's been {missedDays} {missedDays === 1 ? "day" : "days"}.
+          <p className="text-white font-semibold">
+            {missedDays >= 7 
+              ? "It's been a while. Ready to rebuild your momentum?"
+              : `It's been ${missedDays} ${missedDays === 1 ? "day" : "days"}. Let's get back to it.`
+            }
           </p>
-          
-          {missedDays <= streakSavers ? (
-            <>
-              <p className="text-sm text-white/80 mb-3">
-                Use {missedDays} streak {missedDays === 1 ? "saver" : "savers"} to keep your streak alive? ({streakSavers} available)
-              </p>
-              
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    const email = getEmail();
-                    if (!email) return;
-                    
-                    const streakRef = doc(db, "users", email, "metadata", "streakData");
-                    await setDoc(streakRef, {
-                      streakSavers: streakSavers - missedDays,
-                      lastSaved: new Date().toISOString(),
-                    }, { merge: true });
-                    
-                    // Create placeholder check-ins for missed days to preserve streak
-                    if (!email) return;
-
-                    const today = new Date();
-                    for (let i = 1; i <= missedDays; i++) {
-                      const dateStr = getLocalDateOffset(i);
-
-                      await setDoc(doc(db, "users", email, "checkins", dateStr), {
-                        date: dateStr,
-                        streakSaver: true,
-                        createdAt: new Date().toISOString(),
-                      });
-                    }
-
-                    setStreakSavers(streakSavers - missedDays);
-                    setMissedDays(0);
-                    // Log the streak saver usage event
-                    await logHabitEvent(email, {
-                      type: "streak_saver_used",
-                      date: getLocalDate(),
-                      streakLength: checkinStreak,
-                      saversRemaining: streakSavers - missedDays,
-                    });
-                  }}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg py-2 transition"
-                >
-                  Save Streak
-                </button>
-                
-                <button
-                  onClick={() => {
-                    setMissedDays(0);
-                    setCheckinStreak(0);
-                  }}
-                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
-                >
-                  Start Fresh
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-white/80 mb-3">
-                You need {missedDays} savers but only have {streakSavers}. Your streak has been reset.
-              </p>
-              <button
-                onClick={() => setMissedDays(0)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg py-2 transition"
-              >
-                Start Fresh
-              </button>
-            </>
-          )}
         </div>
       ) : hasCompletedCheckin() ? (
-        <p className="text-white/60 mt-1">You checked in today, nice job. That's the kind of consistency that compounds.</p>
+        // CHECKED IN TODAY
+        <p className="text-white/60 mt-1">
+          You checked in today, nice job.
+        </p>
       ) : (
-        <p className="text-white/60 mt-1">Welcome back. Ready to build?</p>
+        // HAVEN'T CHECKED IN YET
+        <p className="text-white/60 mt-1">
+          Welcome back. Ready to build?
+        </p>
       )}
 
+      {/* Streak Message */}
       {checkinStreak > 0 && missedDays === 0 && (() => {
         const { icon, message } = getStreakMessage(checkinStreak);
         return (
@@ -1779,16 +1821,9 @@ useEffect(() => {
       </p>
     </div>
 
-    <div className="mt-1 mr-2 w-32 sm:w-36 md:w-40">
-      <Image
-        src="/logo.png"
-        alt="Nelson Logo"
-        width={160}
-        height={90}
-        className="w-full h-auto"
-        priority
-      />
-    </div>
+    <div className="mt-1 mr-2">
+  <NelsonLogo />
+</div>
   </div>
 
   {/* Commitment/Level-Up Section */}
@@ -2409,10 +2444,11 @@ useEffect(() => {
     ) : null}
   </div>
 </motion.div>
+
 {/* Momentum Engine */}
 <motion.div
   variants={itemVariants}
-  className="rounded-xl shadow-lg p-4 mb-6 transition-all duration-500 relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
+  className="rounded-xl shadow-lg p-4 mb-6 transition-all duration-500 relative overflow-visible bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
 >
   {/* Animated gradient orbs */}
   <div className="absolute inset-0 opacity-40 pointer-events-none">
@@ -2449,15 +2485,49 @@ useEffect(() => {
         <h2 className="text-2xl font-bold text-white">Momentum</h2>
       </div>
       
-      {todayMomentum && (
+      {/* Only show percentage if NOT Day 1 */}
+      {todayMomentum && todayMomentum.accountAgeDays > 1 && (
         <div className="text-4xl font-black tracking-tight text-white">
           {todayMomentum.momentumScore}%
         </div>
       )}
     </div>
 
-    {currentFocus && todayMomentum ? (
+    {/* DAY 1 STATE - Simple */}
+    {todayMomentum && todayMomentum.accountAgeDays === 1 ? (
+      <div className="py-4">
+        {/* Empty progress bar */}
+        <div className="relative h-2.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm mb-4">
+          <div className="absolute h-full w-0 rounded-full bg-gradient-to-r from-gray-300 to-gray-400" />
+        </div>
+        
+        <p className="text-base font-medium text-center text-white/90 mb-2">
+          No momentum yet
+        </p>
+        <p className="text-sm text-white/60 text-center">
+          Check in tomorrow and your first score appears
+        </p>
+      </div>
+    ) : currentFocus && todayMomentum ? (
+      /* NORMAL STATE - Days 2+ */
       <>
+        {/* Trend Arrow */}
+        {todayMomentum.momentumDelta !== 0 && (
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <span className={
+              todayMomentum.momentumTrend === 'up' ? 'text-xl text-green-400' :
+              todayMomentum.momentumTrend === 'down' ? 'text-xl text-red-400' :
+              'text-xl text-slate-400'
+            }>
+              {todayMomentum.momentumTrend === 'up' ? '↑' :
+               todayMomentum.momentumTrend === 'down' ? '↓' : '→'}
+            </span>
+            <span className="text-white/70 text-sm">
+              {todayMomentum.momentumDelta > 0 ? '+' : ''}{todayMomentum.momentumDelta} points
+            </span>
+          </div>
+        )}
+        
         {/* Progress bar with glow */}
         <div className="relative h-2.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm mb-2">
           <motion.div
@@ -2477,7 +2547,7 @@ useEffect(() => {
         </div>
         
         <p className="text-base font-medium text-center text-white/90">
-          {todayMomentum.momentumMessage || "Building..."}
+          {getEnhancedMessage()}
         </p>
 
         <p className="text-sm text-white/60 text-center mt-2">
@@ -2485,6 +2555,7 @@ useEffect(() => {
         </p>
       </>
     ) : (
+      /* NO CHECK-IN STATE */
       <p className="text-white/70 text-sm text-center">
         {missedDays >= 7 
           ? "It's been a while since you checked in. Ready to rebuild your momentum?"
@@ -2496,6 +2567,12 @@ useEffect(() => {
       </p>
     )}
   </div>
+
+  {/* Momentum Tooltip (appears after 13 seconds on Day 1) */}
+  <MomentumTooltip 
+    isVisible={showMomentumTooltip}
+    onDismiss={handleDismissMomentumTooltip}
+  />
 </motion.div>
        {/* 3. Daily Check-in */}
 {checkinSuccess ? (
@@ -2549,7 +2626,7 @@ useEffect(() => {
       <div className="text-4xl">✓</div>
       <div>
         <p className="text-white font-semibold text-lg">Check-in complete</p>
-        <p className="text-white/60 text-sm">You showed up today. That's what matters.</p>
+        <p className="text-white/60 text-sm">You showed up today. Take pride in doing it again tomorrow.</p>
       </div>
     </div>
   </motion.div>
@@ -2601,7 +2678,16 @@ useEffect(() => {
     </p>
   </motion.div>
 )}
-
+{/* ===== HISTORY ACCESS - LAST ITEM ===== */}
+<motion.div variants={itemVariants}>
+  <HistoryAccess
+    onNavigate={() => router.push("/history")}
+    currentStreak={historyStats.currentStreak}
+    totalCheckIns={historyStats.totalCheckIns}
+    monthlyConsistency={historyStats.monthlyConsistency}
+  />
+</motion.div>
+{/* ====================================== */}
         {/* FUTURE: AI Coach Card - See COACH_VISION.md 
 <motion.div
   variants={itemVariants}
@@ -2805,32 +2891,6 @@ useEffect(() => {
 >
   🚪 Sign Out
 </button>
-              <button
-  onClick={async () => {
-    const email = getEmail();
-    if (email) {
-      await runBackfill(email);
-      showToast({ message: "Backfill complete! Refresh page.", type: "success" });
-    }
-  }}
-  className="px-3 py-1 bg-purple-500 text-white rounded"
->
-  Backfill Momentum Structure
-</button>
-<button
-                  onClick={async () => {
-                    const email = getEmail();
-                    if (!email) return;
-                    await devSeedCheckins(email);
-                    showToast({
-                      message: "Seeded 14 test check-ins",
-                      type: "success",
-                    });
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-md py-1 text-sm"
-                >
-                  Seed Check-ins
-                </button>
                 <button
   onClick={async () => {
     const email = getEmail();
@@ -2852,74 +2912,6 @@ useEffect(() => {
   className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-md py-1 text-sm"
 >
   Clear Momentum History
-</button>
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    try {
-      // Create 99 fake check-ins
-      const batch = writeBatch(db);
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 99);
-      
-      for (let i = 0; i < 99; i++) {
-        const date = new Date(startDate);
-        date.setDate(date.getDate() + i);
-        const dateStr = date.toLocaleDateString("en-CA");
-        
-        const checkinRef = doc(db, "users", email, "checkins", dateStr);
-        batch.set(checkinRef, {
-          date: dateStr,
-          headspace: "decent",
-          proteinHit: "yes",
-          hydrationHit: "yes",
-          movedToday: "yes",
-          sleepHit: "yes",
-          energyBalance: "normal",
-          eatingPattern: "meals",
-          createdAt: date.toISOString()
-        });
-      }
-      
-      await batch.commit();
-      showToast({ message: "Created 49 check-ins!", type: "success" });
-      loadDashboardData();
-    } catch (err) {
-      console.error("Failed to create check-ins:", err);
-    }
-  }}
-  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
->
-  Seed 49 Check-ins
-</button>
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    // Create a fake streak saver earned event
-    await logHabitEvent(email, {
-      type: "streak_saver_earned",
-      date: getLocalDate(),
-      streakLength: 7,
-      saversRemaining: 1,
-    });
-    
-    // Create a fake streak saver used event
-    await logHabitEvent(email, {
-      type: "streak_saver_used",
-      date: getLocalDateOffset(2),
-      streakLength: 10,
-      saversRemaining: 0,
-    });
-    
-    showToast({ message: "Created fake streak events", type: "success" });
-  }}
-  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
->
-  Seed Streak Events
 </button>
 <button
   onClick={async () => {
@@ -2964,7 +2956,7 @@ useEffect(() => {
         createdAt: tenDaysAgoISO
       }, { merge: true });
       
-      // 2. CREATE METADATA DOC (THIS WAS MISSING!)
+      // 2. CREATE METADATA DOC
       await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
         firstCheckinDate: tenDaysAgoDate,
         createdAt: tenDaysAgoISO,
@@ -2982,9 +2974,15 @@ useEffect(() => {
       const currentHabitKey = focusSnap.data().habitKey;
       const targetMin = extractMinutes(currentHabitKey) || 10;
       
-      // 4. CREATE 7 DAYS OF DATA
+      // 4. CREATE 6 DAYS OF DATA (yesterday through 6 days ago)
       for (let i = 6; i >= 1; i--) {
         const dateKey = getLocalDateOffset(i);
+        const checkInNumber = 7 - i; // 1, 2, 3, 4, 5, 6
+        
+        // Calculate accountAgeDays from firstCheckinDate
+        const checkInDate = new Date(dateKey + "T00:00:00");
+        const firstDate = new Date(tenDaysAgoDate + "T00:00:00");
+        const accountAgeDays = Math.floor((checkInDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         
         // Session
         await setDoc(doc(db, "users", email, "sessions", `walk_${dateKey}`), {
@@ -2998,9 +2996,31 @@ useEffect(() => {
           createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
         });
         
-        // Momentum doc
+        // Momentum doc with proper fields
         await setDoc(doc(db, "users", email, "momentum", dateKey), {
           date: dateKey,
+          accountAgeDays: accountAgeDays,
+          totalRealCheckIns: checkInNumber, // ← ADDED
+          
+          behaviorGrades: [ // ← ADDED
+            { name: "nutrition_pattern", grade: 100 },
+            { name: "energy_balance", grade: 100 },
+            { name: "protein", grade: 100 },
+            { name: "hydration", grade: 100 },
+            { name: "sleep", grade: 100 },
+            { name: "mindset", grade: 100 },
+            { name: "movement", grade: 100 },
+          ],
+          behaviorRatings: { // ← ADDED
+            nutrition_pattern: "elite",
+            energy_balance: "elite",
+            protein: "elite",
+            hydration: "elite",
+            sleep: "elite",
+            mindset: "elite",
+            movement: "elite",
+          },
+          
           primary: { habitKey: currentHabitKey, done: true },
           stack: {},
           foundations: {
@@ -3010,12 +3030,16 @@ useEffect(() => {
             nutrition: true,
             movement: true,
           },
+          
           checkinType: "real",
           dailyScore: 100,
           rawMomentumScore: 100,
           momentumScore: 100,
+          momentumTrend: 'up', // ← ADDED
+          momentumDelta: 0, // ← ADDED
           momentumMessage: "Test data",
           visualState: "solid",
+          
           primaryHabitHit: true,
           stackedHabitsCompleted: 0,
           totalStackedHabits: 0,
@@ -3023,14 +3047,16 @@ useEffect(() => {
           hydrated: true,
           slept: true,
           nutritionScore: 12,
-          currentStreak: 7 - i,
-          lifetimeStreak: 7 - i,
+          
+          currentStreak: checkInNumber,
+          lifetimeStreak: checkInNumber,
           streakSavers: 0,
+          
           createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
         });
       }
       
-      showToast({ message: "7 days created + account backdated", type: "success" });
+      showToast({ message: "6 days created + account backdated to 10 days ago", type: "success" });
       
       // 5. RELOAD
       await loadDashboardData();
@@ -3043,6 +3069,123 @@ useEffect(() => {
   className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
 >
   Trigger Level-Up
+</button>
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    try {
+      // 1. BACKDATE ACCOUNT to 30 days ago
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
+      const thirtyDaysAgoDate = thirtyDaysAgo.toLocaleDateString("en-CA");
+      
+      await setDoc(doc(db, "users", email), {
+        createdAt: thirtyDaysAgoISO
+      }, { merge: true });
+      
+      // 2. CREATE METADATA DOC
+      await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
+        firstCheckinDate: thirtyDaysAgoDate,
+        createdAt: thirtyDaysAgoISO,
+      }, { merge: true });
+      
+      // 3. GET CURRENT FOCUS
+      const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+      const focusSnap = await getDoc(focusRef);
+      
+      if (!focusSnap.exists()) {
+        showToast({ message: "No current focus found", type: "error" });
+        return;
+      }
+      
+      const currentHabitKey = focusSnap.data().habitKey;
+      
+      // 4. CREATE 15 CONSECUTIVE CHECK-INS ending 14 days ago
+      for (let i = 29; i >= 15; i--) {
+        const dateKey = getLocalDateOffset(i);
+        const checkInNumber = 30 - i; // 1, 2, 3... 15
+        
+        const checkInDate = new Date(dateKey + "T00:00:00");
+        const firstDate = new Date(thirtyDaysAgoDate + "T00:00:00");
+        const accountAgeDays = Math.floor((checkInDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        await setDoc(doc(db, "users", email, "momentum", dateKey), {
+          date: dateKey,
+          accountAgeDays: accountAgeDays,
+          totalRealCheckIns: checkInNumber,
+          
+          behaviorGrades: [
+            { name: "nutrition_pattern", grade: 100 },
+            { name: "energy_balance", grade: 100 },
+            { name: "protein", grade: 100 },
+            { name: "hydration", grade: 100 },
+            { name: "sleep", grade: 100 },
+            { name: "mindset", grade: 100 },
+            { name: "movement", grade: 100 },
+          ],
+          behaviorRatings: {
+            nutrition_pattern: "elite",
+            energy_balance: "elite",
+            protein: "elite",
+            hydration: "elite",
+            sleep: "elite",
+            mindset: "elite",
+            movement: "elite",
+          },
+          
+          primary: { habitKey: currentHabitKey, done: true },
+          stack: {},
+          foundations: {
+            protein: true,
+            hydration: true,
+            sleep: true,
+            nutrition: true,
+            movement: true,
+          },
+          
+          checkinType: "real",
+          dailyScore: 100,
+          rawMomentumScore: 100,
+          momentumScore: 100,
+          momentumTrend: 'up',
+          momentumDelta: 0,
+          momentumMessage: "Building streak",
+          visualState: "solid",
+          
+          primaryHabitHit: true,
+          stackedHabitsCompleted: 0,
+          totalStackedHabits: 0,
+          moved: true,
+          hydrated: true,
+          slept: true,
+          nutritionScore: 12,
+          
+          currentStreak: checkInNumber,
+          lifetimeStreak: checkInNumber,
+          streakSavers: 0,
+          
+          createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+        });
+      }
+      
+      showToast({ 
+        message: "15 check-ins created, 14-day gap before today", 
+        type: "success" 
+      });
+      
+      // 5. RELOAD
+      await loadDashboardData();
+      
+    } catch (err) {
+      console.error("Test gap recovery failed:", err);
+      showToast({ message: "Failed", type: "error" });
+    }
+  }}
+  className="bg-orange-600 hover:bg-orange-700 text-white rounded-md py-1 text-sm"
+>
+  🔬 Test Gap Recovery
 </button>
 <button
   onClick={async () => {
@@ -3087,20 +3230,6 @@ useEffect(() => {
 >
   Reset Level-Up Test
 </button>
-                <button
-                  onClick={async () => {
-                    const email = getEmail();
-                    if (!email) return;
-                    await devRecalculateWeeklyStats(email);
-                    showToast({
-                      message: "Recalculated weekly stats",
-                      type: "info",
-                    });
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-md py-1 text-sm"
-                >
-                  Recalculate Stats
-                </button>
                 <button
   onClick={async () => {
     const email = getEmail();
