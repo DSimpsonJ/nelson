@@ -79,25 +79,20 @@ export default function FirstTimeDashboard({
           {/* Single Combined Card */}
           <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Wait Nelson... What's a Check-In and Why Does it Matter?
+              Wait... What's a Check-In?
             </h2>
             
             <p className="text-base text-gray-700 leading-relaxed mb-4">
-              Most people don't fail because they lack knowledge. They fail because over time, they lose momentum. Motivation is fleeting, not every day is perfect, but that's ok! Your daily check-in gives you a small moment of honesty: "Did I show up yesterday?"
+              Your daily check-in is simple: Did you show up yesterday?
             </p>
             
-            <p className="text-base text-gray-700 leading-relaxed mb-8">
-              Real change happens by playing the long game, one day at a time.
+            <p className="text-base text-gray-700 leading-relaxed mb-4">
+              It takes 60 seconds. You rate 7 behaviors honestly. I use that data to calculate your momentum score.
             </p>
 
-            <div className="bg-blue-50 rounded-lg p-6 mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Small Wins Lead to Big Victories
-              </h3>
-              <p className="text-base text-gray-700 leading-relaxed">
-                Complete your first check-in, build momentum, reinforce your identity, and start your streak. Small win numero uno!  
-              </p>
-            </div>
+            <p className="text-base text-gray-700 leading-relaxed mb-8">
+              One check-in = one data point. String enough together and you'll see patterns you couldn't see before. That's how you get consistent.
+            </p>
 
             <button
               onClick={() => setShowCheckin(true)}
@@ -119,13 +114,13 @@ export default function FirstTimeDashboard({
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Here We Go {profile?.firstName || "there"}, Time For Your First Check-In!
+              Here we go {profile?.firstName || "there"}, time for your first check-in.
             </h2>
             <p className="text-base text-gray-700 leading-relaxed mb-3">
               This will take a few minutes since you're learning the framework. <strong>Be honest, not perfect.</strong> This is yesterday's data for us to learn from. It's not a verdict.
             </p>
             <p className="text-base text-gray-700 leading-relaxed">
-              <strong>Important:</strong> Most healthy, consistent people <em>average</em> the "Solid" category. Solid is success. Solid builds momentum. Elite days happen when everything clicks. Off days happen to the best of us.
+              <strong>Important:</strong> Most healthy, consistent people average "Solid". Solid is success. Solid builds momentum. Elite days happen when <em>everything</em> clicks. Off days happen to the best of us.
             </p>
           </div>
 
@@ -134,32 +129,32 @@ export default function FirstTimeDashboard({
             {/* 1. Nutrition Pattern (Quality) */}
             <div>
               <label className="block text-base font-semibold text-gray-900 mb-3">
-                Nutrition Pattern
+                Nutrition Pattern (Quality)
               </label>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-              First, let's learn about the <strong>quality</strong> of your meals.  Structured eating typically means: Planned, healthy meals you chose on purpose with clean, whole foods. The opposite of that usually means: grabbing whatever is convenient when you're already hungry. Foods you know aren't the healthiest.
+                This measures the quality of what you ate. How structured and intentional were your food choices?
               </p>
               <div className="space-y-3">
                 {[
                   { 
                     value: "elite", 
                     label: "Elite", 
-                    sublabel: "Fully structured eating with all planned whole food meals you chose with intent."
+                    sublabel: "All whole foods. Every meal was planned and clean, nothing processed or convenience-based."
                   },
                   { 
                     value: "solid", 
                     label: "Solid", 
-                    sublabel: "Mostly structured whole food meals. One or two convenience moments but nothing derailed you. Standard, sustainable healthy eating."
+                    sublabel: "Mostly whole foods with minimal processing. Maybe one meal was less clean, but the day was built around quality ingredients."
                   },
                   { 
                     value: "not_great", 
                     label: "Not Great", 
-                    sublabel: "You mostly reacted to hunger and grabbed what was convenient."
+                    sublabel: "Mix of whole foods and processed convenience items. Quality wasn't the priority."
                   },
                   { 
                     value: "off", 
                     label: "Off", 
-                    sublabel: "Very few quality food items, no real plan, mostly snacks, fast food, or treats dominated the day."
+                    sublabel: "Mostly processed, fast food, or random snacks. Very few whole food choices."
                   },
                 ].map((option) => (
                   <button
@@ -181,32 +176,32 @@ export default function FirstTimeDashboard({
             {/* 2. Energy Balance (Quantity) */}
             <div>
               <label className="block text-base font-semibold text-gray-900 mb-3">
-               Energy Balance
+                Energy Balance (Quantity)
               </label>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                This is about how your body felt. At the upper limit, you're in 'athlete mode' dialed in with full precision. Solid is about sustainability and is foundational for who you are becoming. "Off" is the full on "I didn't care what I ate" kind of day.  So how was your overall food intake yesterday?
+                This measures how much you ate. Were your portions aligned with your goals?
               </p>
               <div className="space-y-3">
                 {[
                   { 
                     value: "elite", 
                     label: "Elite", 
-                    sublabel: "You ate exactly what you intended. Consistent, calculated intake, no swings, no overeating or under-eating. Everything was deliberate."
+                    sublabel: "Portions perfectly aligned with your goals. You ate exactly what you needed, not stuffed, not hungry."
                   },
                   { 
                     value: "solid", 
                     label: "Solid", 
-                    sublabel: "You ate in a generally balanced way. You weren't stuffed and you weren't hungry. A normal day of eating that supports long-term health."
+                    sublabel: "Ate appropriately for your goals. Maybe slightly over or under, but nothing extreme. This is sustainable eating."
                   },
                   { 
                     value: "not_great", 
                     label: "Not Great", 
-                    sublabel: "Some mindless eating with more snacking or extra portions than you meant to have. Not terrible, just not aligned with who you're becoming."
+                    sublabel: "Noticeably overate or underate. Portions didn't match what you intended."
                   },
                   { 
                     value: "off", 
                     label: "Off", 
-                    sublabel: "You knew you weren't eating in line with your goals. No sweat, it's normal for that to happen on occasion."
+                    sublabel: "Way off target in either direction. Either barely ate or significantly overate."
                   },
                 ].map((option) => (
                   <button
@@ -231,29 +226,29 @@ export default function FirstTimeDashboard({
                 Protein Intake
               </label>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                Protein helps you build and maintain muscle as you age, supports recovery, and keeps you fuller so you're not chasing snacks all day. I'm not asking you to count grams right now, just notice if it was there. Did you include a solid protein source at most meals yesterday?
+                Your target range is based on your body weight. Did you pay attention to protein yesterday?
               </p>
               <div className="space-y-3">
                 {[
                   { 
                     value: "elite", 
                     label: "Elite", 
-                    sublabel: "You intentionally tracked your protein and hit your target. This usually means planning your meals and knowing roughly how many grams you got. It's a high-performance behavior, not something most healthy people do every day."
+                    sublabel: "Tracked your intake and hit the high end of your target range. You know exactly how many grams you got."
                   },
                   { 
                     value: "solid", 
                     label: "Solid", 
-                    sublabel: "You ate good protein at all meals. Maybe not perfect, maybe not tracked, but you prioritized it through the day. This is a healthy and sustainable long-term approach for most people."
+                    sublabel: "Included protein at every meal and stayed in your target range. You tracked enough to know you hit it."
                   },
                   { 
                     value: "not_great", 
                     label: "Not Great", 
-                    sublabel: "Your meals didn't really have a clear protein source, maybe one or two did, but it wasn't a priority."
+                    sublabel: "Missed your target range. You got some protein but didn't track or prioritize it."
                   },
                   { 
                     value: "off", 
                     label: "Off", 
-                    sublabel: "Protein wasn't present yesterday. Maybe meals were rushed, skipped, or random. Structure slipped, life happens."
+                    sublabel: "Didn't think about protein at all. No attention to the target."
                   },
                 ].map((option) => (
                   <button
@@ -278,29 +273,29 @@ export default function FirstTimeDashboard({
                 Hydration Level
               </label>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                Your current target is <strong>{profile?.plan?.hydrationTargetOz || 80} oz</strong>. You can start smaller and build up over time. 64 oz of water every day beats 120 oz twice a week. Did you hit your hydration target yesterday?
+                Target: 64+ oz of water daily. Did you stay hydrated yesterday?
               </p>
               <div className="space-y-3">
                 {[
                   { 
                     value: "elite", 
                     label: "Elite", 
-                    sublabel: "You surpassed your target, stayed steady throughout the day, and consumed no caloric beverages (soda, juice, lattes, etc). Water intake was intentional and consistent."
+                    sublabel: "Hit 64+ oz with consistent water intake all day. Zero empty-calorie beverages."
                   },
                   { 
                     value: "solid", 
                     label: "Solid", 
-                    sublabel: "You hit your hydration target or came very close, mostly avoided caloric beverages (1 soda, 1 small glass of juice, OR 1 small latte), and remained consistent throughout the day."
+                    sublabel: "Hit 64+ oz, mostly water. Maybe one drink with calories but you stayed hydrated."
                   },
                   { 
                     value: "not_great", 
                     label: "Not Great", 
-                    sublabel: "You weren't really in range of your target, you didn't pay much attention. You drank multiple caloric beverages or didn't drink much of anything."
+                    sublabel: "Got fluids but relied on multiple caloric beverages instead of water."
                   },
                   { 
                     value: "off", 
                     label: "Off", 
-                    sublabel: "You barely drank water yesterday. It just didn't happen. Rare trips to the bathroom and dark yellow urine are signs of dehydration."
+                    sublabel: "Dehydrated. Infrequent bathroom trips and dark yellow urine."
                   },
                 ].map((option) => (
                   <button
@@ -325,30 +320,29 @@ export default function FirstTimeDashboard({
                 Sleep Quality
               </label>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                For most adults, 6 to 8 hours of sleep is the sweet spot for recovery.  However, the real win is consistency.
-                A steady bedtime, a simple wind-down routine, and waking up feeling reasonably restored matter more than a perfect number. 
+                Did you set yourself up for quality sleep last night?
               </p>
               <div className="space-y-3">
                 {[
                   { 
                     value: "elite", 
                     label: "Elite", 
-                    sublabel: "You followed a consistent wind-down routine with no screens 30 minutes before bed, had lights out at your planned time, and woke up feeling fully restored. This is high-quality recovery."
+                    sublabel: "Consistent bedtime/wake time (±30 min), 7+ hours of sleep opportunity, intentional wind-down routine. Woke feeling fully restored."
                   },
                   { 
                     value: "solid", 
                     label: "Solid", 
-                    sublabel: "You mostly followed your wind-down routine, lights were out close to your planned time, you got decent sleep and woke up feeling pretty good. This is where most healthy people live."
+                    sublabel: "Mostly consistent schedule, 7+ hours of sleep opportunity, some wind-down routine. Woke feeling pretty good."
                   },
                   { 
                     value: "not_great", 
                     label: "Not Great", 
-                    sublabel: "You tried, but the screens had too much appeal.  You stayed up later than you planned and now you're dragging a bit, but not completely wrecked. Not ideal, but manageable."
+                    sublabel: "Inconsistent schedule OR under 7 hours of opportunity. Woke feeling tired."
                   },
                   { 
                     value: "off", 
                     label: "Off", 
-                    sublabel: "You feel very under-recovered and unsure of how you'll get through the day.  Maybe from stress, travel, illness, or a broken routine."
+                    sublabel: "Random schedule, inadequate sleep opportunity, no routine. Woke feeling wrecked."
                   },
                 ].map((option) => (
                   <button
@@ -373,14 +367,14 @@ export default function FirstTimeDashboard({
                 Mindset Evaluation
               </label>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                There is no right answer here, but an honest daily assessment can help us spot patterns. Perhaps certain days, habits, or sleep patterns consistently make things feel easier or harder.  Overall, how was your mindset yesterday?
+                How was your mental state yesterday? This helps us spot patterns over time.
               </p>
               <div className="space-y-3">
                 {[
                   { 
                     value: "elite", 
                     label: "Elite", 
-                    sublabel: "Clear, focused, optimistic, and strong. I crushed the day, and felt great!"
+                    sublabel: "Clear, focused, optimistic, and strong. You crushed the day and felt great."
                   },
                   { 
                     value: "solid", 
@@ -420,29 +414,29 @@ export default function FirstTimeDashboard({
                 Bonus Movement
               </label>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                This is referred to as NEAT (non-exercise activity thermogenesis).  These are little activities you intentionally did beyond your exercise: stairs instead of elevator, parking farther away, walking calls, yard work, playing extra with the kids, cleaning, etc.
+                NEAT (non-exercise activity thermogenesis). Did you look for extra movement opportunities yesterday?
               </p>
               <div className="space-y-3">
                 {[
                   { 
                     value: "elite", 
                     label: "Elite", 
-                    sublabel: "Multiple intentional extras throughout the day. You maximized every opportunity to move."
+                    sublabel: "You looked for movement opportunities all day and took them. Stairs, extra walking, active errands."
                   },
                   { 
                     value: "solid", 
                     label: "Solid", 
-                    sublabel: "One or two intentional extras beyond your main movement. You took opportunities when they appeared."
+                    sublabel: "You added one or two intentional movement opportunities beyond basic daily activity."
                   },
                   { 
                     value: "not_great", 
                     label: "Not Great", 
-                    sublabel: "Minimal extras. Mostly sedentary outside your main commitment."
+                    sublabel: "You did basic daily movement and extra opportunities to move were unintentional."
                   },
                   { 
                     value: "off", 
                     label: "Off", 
-                    sublabel: "Completely sedentary beyond your main commitment (if you even did it)."
+                    sublabel: "You kept movement to a minimum and avoided doing anything extra."
                   },
                 ].map((option) => (
                   <button

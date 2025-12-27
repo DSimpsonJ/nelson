@@ -15,7 +15,7 @@ export const NelsonLogoAnimated: React.FC<NelsonLogoAnimatedProps> = ({ classNam
             type="rotate"
             values="0 36 40; 0 36 40; 0 36 40; 360 36 40; 360 36 40"
             keyTimes="0; 0.7; 0.75; 0.95; 1"
-            dur="3.25s" 
+            dur="1.6s" 
             repeatCount="indefinite"
           />
           
@@ -32,7 +32,7 @@ export const NelsonLogoAnimated: React.FC<NelsonLogoAnimatedProps> = ({ classNam
               attributeName="stroke-dashoffset" 
               values="1; 0; 0; 0; 1"
               keyTimes="0; 0.2; 0.7; 0.73; 1"
-              dur="3.25s" 
+              dur="1.6s" 
               repeatCount="indefinite"
             />
           </path>
@@ -51,7 +51,7 @@ export const NelsonLogoAnimated: React.FC<NelsonLogoAnimatedProps> = ({ classNam
               attributeName="stroke-dashoffset" 
               values="1; 1; 0; 0; 1"
               keyTimes="0; 0.05; 0.2; 0.73; 1"
-              dur="3.25s" 
+              dur="1.6s" 
               repeatCount="indefinite"
             />
           </path>
@@ -69,7 +69,7 @@ export const NelsonLogoAnimated: React.FC<NelsonLogoAnimatedProps> = ({ classNam
               attributeName="stroke-dashoffset" 
               values="1; 1; 0; 0; 1"
               keyTimes="0; 0.2; 0.45; 0.73; 1"
-              dur="3.25s" 
+              dur="1.6s" 
               repeatCount="indefinite"
             />
           </path>
@@ -87,7 +87,7 @@ export const NelsonLogoAnimated: React.FC<NelsonLogoAnimatedProps> = ({ classNam
               attributeName="stroke-dashoffset" 
               values="1; 1; 0; 0; 1"
               keyTimes="0; 0.45; 0.65; 0.73; 1"
-              dur="3.25s" 
+              dur="1.6s" 
               repeatCount="indefinite"
             />
           </path>
@@ -106,13 +106,12 @@ export const NelsonLogoAnimated: React.FC<NelsonLogoAnimatedProps> = ({ classNam
               attributeName="stroke-dashoffset" 
               values="1; 1; 0; 0; 1"
               keyTimes="0; 0.6; 0.7; 0.73; 1"
-              dur="3.25s" 
+              dur="1.6s" 
               repeatCount="indefinite"
             />
           </path>
         </g>
       </svg>
-      <span className="text-lg font-bold text-white tracking-wider mt-1">NELSON</span>
     </div>
   );
 };

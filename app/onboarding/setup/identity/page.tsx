@@ -44,7 +44,7 @@ export default function IdentityPage() {
           <div className="bg-gradient-to-r from-green-500/20 to-green-600/10 border border-green-500/30 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <span className="text-white font-semibold">Elite</span>
-              <span className="text-white/60 text-sm">Rare performance</span>
+              <span className="text-white/60 text-sm">Exceptional execution</span>
             </div>
           </div>
 
@@ -52,7 +52,7 @@ export default function IdentityPage() {
           <div className="bg-gradient-to-r from-blue-500/20 to-blue-600/10 border border-blue-500/30 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <span className="text-white font-semibold">Solid</span>
-              <span className="text-white/60 text-sm">Hit the standard</span>
+              <span className="text-white/60 text-sm">Target met</span>
             </div>
           </div>
 
@@ -60,7 +60,7 @@ export default function IdentityPage() {
           <div className="bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/30 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <span className="text-white font-semibold">Not Great</span>
-              <span className="text-white/60 text-sm">Showed up anyway</span>
+              <span className="text-white/60 text-sm">Partial effort</span>
             </div>
           </div>
 
@@ -68,7 +68,7 @@ export default function IdentityPage() {
           <div className="bg-gradient-to-r from-slate-600/20 to-slate-700/10 border border-slate-500/30 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <span className="text-white font-semibold">Off</span>
-              <span className="text-white/60 text-sm">Happens to everyone</span>
+              <span className="text-white/60 text-sm">Didn't happen</span>
             </div>
           </div>
         </motion.div>
@@ -84,7 +84,7 @@ export default function IdentityPage() {
             Most healthy, consistent people average <span className="text-amber-300 font-semibold">Solid</span>.
           </p>
           <p className="text-white/70 text-sm text-center">
-            Solid is success and builds momentum. Elite days rarely happen when everything clicks. Off day? Note it, learn from it, forgive it, move forward.
+            Solid is success and builds momentum. Elite days rarely happen when everything clicks. Off day? It's data, not failure.
           </p>
         </motion.div>
 

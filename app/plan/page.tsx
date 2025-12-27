@@ -100,7 +100,7 @@ export default function PlanPage() {
   
         {/* Title */}
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Your Personalized Plan Is Ready
+          Your Plan Is Ready
         </h1>
   
         <p className="text-gray-600 mb-6">

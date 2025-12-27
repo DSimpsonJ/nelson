@@ -70,7 +70,7 @@ import { detectAndHandleMissedCheckIns } from '@/app/services/missedCheckIns';
 import { selectMomentumMessage } from '@/app/services/messagingGuide';
 import MomentumTooltip from '@/app/components/MomentumTooltip';
 import HistoryAccess from "@/app/components/HistoryAccess";
-import { NelsonLogo } from '@/app/components/logos';
+import { NelsonLogo, NelsonLogoAnimated  } from '@/app/components/logos';
 
 
 /** ---------- Types ---------- */
@@ -1711,12 +1711,7 @@ useEffect(() => {
   if (loading) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 flex items-center justify-center">
-        <div className="text-center">
-          <div className="mb-4">
-            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          </div>
-          <p className="text-white/70 text-lg">Loading dashboard...</p>
-        </div>
+        <NelsonLogoAnimated />
       </main>
     );
   }
@@ -1773,37 +1768,36 @@ useEffect(() => {
       </h1>
       
       {/* Context-Based Message */}
-      {showWelcomeMessage ? (
-        // FIRST-TIME WELCOME
-        <div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
-        <p className="font-semibold">Welcome to your Dashboard.</p>
-        <p>This is where you check in each day.</p>
-        <p>The rhythm is simple: Reflect on yesterday. Stay honest with yourself.</p>
-        <p>Watch your momentum build.</p>
-        <p>Then put the phone down and go live your life.</p>
-        <p className="text-white/70 italic">I'll see you tomorrow.</p>
-      </div>
-      ) : missedDays > 0 && !hasCompletedCheckin() ? (
-        // MISSED DAYS
-        <div className="mt-3">
-          <p className="text-white font-semibold">
-            {missedDays >= 7 
-              ? "It's been a while. Ready to rebuild your momentum?"
-              : `It's been ${missedDays} ${missedDays === 1 ? "day" : "days"}. Let's get back to it.`
-            }
-          </p>
-        </div>
-      ) : hasCompletedCheckin() ? (
-        // CHECKED IN TODAY
-        <p className="text-white/60 mt-1">
-          You checked in today, nice job.
-        </p>
-      ) : (
-        // HAVEN'T CHECKED IN YET
-        <p className="text-white/60 mt-1">
-          Welcome back. Ready to build?
-        </p>
-      )}
+{showWelcomeMessage ? (
+  // FIRST-TIME WELCOME
+  <div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
+    <p className="font-semibold">Welcome to your Dashboard.</p>
+    <p>This is where you check in each day.</p>
+    <p>The rhythm is simple: Reflect on yesterday. Stay honest with yourself.</p>
+    <p>Watch your momentum build.</p>
+    <p>Then put the phone down and go live your life.</p>
+  </div>
+) : missedDays > 0 && !hasCompletedCheckin() ? (
+  // MISSED DAYS
+  <div className="mt-3">
+    <p className="text-white font-semibold">
+      {missedDays >= 7 
+        ? "It's been a while. Let's rebuild your momentum."
+        : `It's been ${missedDays} ${missedDays === 1 ? "day" : "days"}. Let's get back to it.`
+      }
+    </p>
+  </div>
+) : hasCompletedCheckin() ? (
+  // CHECKED IN TODAY
+  <p className="text-white/60 mt-1">
+    Check-in complete. Let's keep building.
+  </p>
+) : (
+  // HAVEN'T CHECKED IN YET
+  <p className="text-white/60 mt-1">
+    Welcome back. Time to check in.
+  </p>
+)}
 
       {/* Streak Message */}
       {checkinStreak > 0 && missedDays === 0 && (() => {
@@ -1834,8 +1828,8 @@ useEffect(() => {
         {levelUpStage === "prompt" && (
           <div className="animate-fadeIn">
             <p className="text-white/80 mb-1 text-sm">
-              You're ready to level up!
-            </p>
+  Nice effort, you're ready to level up.
+</p>
             <p className="text-white mb-2 font-semibold text-lg">
               You're averaging {averageDuration} minutes over the last 7 days
             </p>
@@ -2403,7 +2397,7 @@ useEffect(() => {
                 {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
               </p>
               <p className="text-sm text-green-400 mt-2 font-medium">
-                That's the kind of consistency that compounds. 🔥
+                That's the kind of consistency that compounds.
               </p>
               <p className="text-xs text-white/60 mt-2">
                 Day {commitment?.acceptedAt ? daysBetween(commitment.acceptedAt.split("T")[0], getLocalDate()) + 1 : 1} of 7
@@ -2551,19 +2545,19 @@ useEffect(() => {
         </p>
 
         <p className="text-sm text-white/60 text-center mt-2">
-          This is your infinite game. Show up daily, build momentum, stack positive habits.
-        </p>
+  This is your long game: showing up daily, building momentum, and stacking habits.
+</p>
       </>
     ) : (
       /* NO CHECK-IN STATE */
       <p className="text-white/70 text-sm text-center">
-        {missedDays >= 7 
-          ? "It's been a while since you checked in. Ready to rebuild your momentum?"
-          : missedDays >= 2
-          ? `It's been ${missedDays} days. One check-in gets us back on track.`
-          : currentFocus
-          ? "Complete today's check-in to keep building momentum."
-          : "Complete your first check-in to start building momentum."}
+  {missedDays >= 7 
+    ? "It's been a while since you checked in. Let's rebuild your momentum."
+    : missedDays >= 2
+    ? `It's been ${missedDays} days. One check-in gets us back on track.`
+    : currentFocus
+    ? "Complete today's check-in to keep building momentum."
+    : "Complete your first check-in to start building momentum."}
       </p>
     )}
   </div>
@@ -2622,14 +2616,14 @@ useEffect(() => {
 </motion.div>
 ) : (
   <motion.div variants={itemVariants} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 mb-6">
-    <div className="flex items-center gap-3">
-      <div className="text-4xl">✓</div>
-      <div>
-        <p className="text-white font-semibold text-lg">Check-in complete</p>
-        <p className="text-white/60 text-sm">You showed up today. Take pride in doing it again tomorrow.</p>
-      </div>
+  <div className="flex items-center gap-3">
+    <div className="text-4xl">✓</div>
+    <div>
+      <p className="text-white font-semibold text-lg">Check-in complete</p>
+      <p className="text-white/60 text-sm">You showed up today. Keep the pattern going.</p>
     </div>
-  </motion.div>
+  </div>
+</motion.div>
 )}
 {/* 2. Active Habits Stack */}
 {habitStack.length > 0 && (
@@ -2674,7 +2668,7 @@ useEffect(() => {
     </div>
 
     <p className="text-xs text-gray-500 mt-4 text-center">
-      Stacking habits increases your momentum score.  Aim for 80%+!
+      Stacking habits increases your momentum score.  Aim for 80%+
     </p>
   </motion.div>
 )}

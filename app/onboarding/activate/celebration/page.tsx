@@ -71,7 +71,7 @@ export default function CelebrationPage() {
           transition={{ delay: 0.5 }}
           className="text-4xl font-bold text-white mb-4"
         >
-          Incredible!
+          Great!
         </motion.h1>
 
         <motion.p

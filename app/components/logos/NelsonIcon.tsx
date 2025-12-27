@@ -12,8 +12,8 @@ export const NelsonIcon: React.FC<NelsonIconProps> = ({ size = 96 }) => {
       <path d="M 28 22 L 28 66" stroke="#F59E0B" strokeWidth="8" strokeLinecap="round"/>
       <path d="M 28 74 L 20 64 M 28 74 L 36 64" stroke="#F59E0B" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M 28 22 L 68 68" stroke="#F59E0B" strokeWidth="8" strokeLinecap="round"/>
-      <path d="M 68 68 L 68 26" stroke="#F59E0B" strokeWidth="8" strokeLinecap="round"/>
-      <path d="M 68 18 L 60 28 M 68 18 L 76 28" stroke="#F59E0B" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M 68 68 L 68 22" stroke="#F59E0B" strokeWidth="8" strokeLinecap="round"/>
+      <path d="M 68 18 L 60 26 M 68 18 L 76 26" stroke="#F59E0B" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 };

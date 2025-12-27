@@ -191,7 +191,7 @@ await setDoc(
           className="mb-8"
         >
           <p className="text-white/50 text-sm text-center mb-4">
-            If you're not ready to commit yet, no sweat (pun intended). Just let me know and we'll build toward it.
+            If you're not ready to commit yet, that's okay. We'll build toward it.
           </p>
         </motion.div>
 

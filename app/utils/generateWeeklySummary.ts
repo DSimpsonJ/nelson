@@ -22,7 +22,7 @@ export function generateWeeklySummary(
       recentCheckins.length > 0
         ? (
             recentCheckins.reduce((sum, c) => {
-              const mood = c.mood?.toLowerCase?.() || "";
+              const mood = c.headspace?.toLowerCase?.() || "";
               if (mood === "energized") return sum + 3;
               if (mood === "okay") return sum + 2;
               if (mood === "tired") return sum + 1;
@@ -33,16 +33,16 @@ export function generateWeeklySummary(
 
     let tone = "";
     if (avgProtein >= 80 && avgHydration >= 75 && avgMovement >= 70) {
-      tone = "You stayed consistent and focused all week. Keep that rhythm going!";
+      tone = "You stayed consistent and focused all week. Keep that rhythm going.";
     } else if (avgProtein < 60 || avgHydration < 60 || avgMovement < 60) {
-      tone = "Last week had a few dips, but progress comes from getting back up and trying again.";
+      tone = "Last week had some dips. Progress comes from showing up again.";
     } else {
-      tone = "Momentum is building. Stay patient and steady — your work is paying off.";
+      tone = "Momentum is building. Stay patient and steady.";
     }
 
     return `Week ${weekId}: ${tone} You logged ${totalInsights} coach insights and your average mood score was ${avgMood}.`;
   } catch (err) {
     console.error("generateWeeklySummary error:", err);
-    return "Reflect, reset, and keep moving forward — every week builds momentum.";
+    return "Reflect, reset, and keep moving forward. Every week builds momentum.";
   }
 }

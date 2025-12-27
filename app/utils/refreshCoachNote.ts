@@ -64,10 +64,10 @@ export async function refreshCoachNote(
   };
 
   const direct = () => {
-    if (momentumScore >= 80) return "Strong work. Keep your foot on the gas.";
+    if (momentumScore >= 80) return "Strong work. Keep the strong pace.";
     if (momentumScore >= 50)
       return "You’re coasting. Tighten up hydration or movement this week.";
-    return "Momentum dropped. No excuses. Get one clean day behind you.";
+    return "Momentum dropped. Get one clean day behind you.";
   };
 
   const analytical = () => {

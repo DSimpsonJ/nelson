@@ -31,5 +31,5 @@ export interface RatingMetadata {
   value: Rating;
   label: string;
   grade: number;
-  description: string;
+  description?: string;
 }

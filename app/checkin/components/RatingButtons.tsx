@@ -16,13 +16,6 @@ const ratingColors = {
   off: "from-slate-600/20 to-slate-700/10 border-slate-500/40 hover:border-slate-500/60",
 };
 
-const ratingEmojis = {
-  elite: "✓✓",
-  solid: "🎯",
-  not_great: "😐",
-  off: "🔍",
-};
-
 // Selected state colors (brighter borders)
 const selectedColors = {
   elite: "border-green-500 shadow-lg shadow-green-500/30",
@@ -37,7 +30,6 @@ export function RatingButtons({ selected, onSelect }: RatingButtonsProps) {
       {RATINGS.map((rating) => {
         const colorClass = ratingColors[rating.value as keyof typeof ratingColors];
         const selectedClass = selectedColors[rating.value as keyof typeof selectedColors];
-        const emoji = ratingEmojis[rating.value as keyof typeof ratingEmojis];
         const isSelected = selected === rating.value;
         
         return (
@@ -49,18 +41,14 @@ export function RatingButtons({ selected, onSelect }: RatingButtonsProps) {
               ${isSelected ? `scale-[1.02] ${selectedClass}` : ''}
             `}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between">
               <span className="text-white font-semibold text-lg">{rating.label}</span>
-              <div className="flex items-center gap-2">
-                <span className={rating.value === 'elite' ? 'text-lg' : 'text-2xl'}>{emoji}</span>
-                {isSelected && (
-                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </div>
+              {isSelected && (
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              )}
             </div>
-            <p className="text-white/60 text-sm">{rating.description}</p>
           </button>
         );
       })}

@@ -49,10 +49,10 @@ export default function ReadyPage() {
           className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-6 mb-10"
         >
          <p className="text-white/90 mb-4">
-  Today’s walkthrough is a bit longer. After this, check-ins take about a minute.
+  Today's walkthrough is a bit longer. After this, check-ins take about a minute.
 </p>
 <p className="text-white/70 text-sm">
-  Remember: <span className="text-amber-300 font-semibold">Solid is success</span>. Off days are data, not failure. Facts are vital.
+  Remember: <span className="text-amber-300 font-semibold">Solid is success</span>. Off days are data, not failure. Truth reveals patterns.
 </p>
 
         </motion.div>

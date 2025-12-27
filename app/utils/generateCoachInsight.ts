@@ -100,23 +100,23 @@ export function generateCoachInsight(
   
       // --- Construct message ---
       if (strongConsistency && solidMood) {
-        return "You’re firing on all cylinders right now. Energy, habits, and mindset are aligned. Keep pressing forward with confidence.";
+        return "Strong consistency across all behaviors. Energy, habits, and mindset are aligned. Keep building on this foundation.";
       }
   
       if (improving && !lowMood) {
-        return "Your consistency is trending upward. Every small gain is compounding into real momentum — this is how results are built.";
+        return "Your consistency is trending upward. Every small gain is compounding into real momentum. This is how results are built.";
       }
   
       if (slipping && lowMood) {
-        return "It looks like this week’s been tougher. Revisit your basics — hydration, protein, and rest — and take it one step at a time.";
+        return "It looks like this week's been tougher. Revisit your basics: hydration, protein, and rest. Take it one step at a time.";
       }
   
       if (lowConsistency && !solidMood) {
-        return "You’re rebuilding your rhythm. Don’t chase perfection, just aim for one more win today than yesterday.";
+        return "You're rebuilding your rhythm. Don't chase perfection, just aim for one more win today than yesterday.";
       }
   
       if (proteinStreak >= 3 || movementStreak >= 3 || hydrationStreak >= 3) {
-        return `Nice work — you’re on a ${Math.max(
+        return `Nice work. You're on a ${Math.max(
           proteinStreak,
           movementStreak,
           hydrationStreak
@@ -125,22 +125,22 @@ export function generateCoachInsight(
   
             // --- Personality-driven encouragement layer ---
             let baseMessage =
-            "Keep stacking small wins. Direction matters more than perfection — you’re right where you need to be.";
+            "Keep stacking small wins. Direction matters more than perfection. You're right where you need to be.";
     
           if (strongConsistency && solidMood) {
             baseMessage =
-              "You’re firing on all cylinders right now. Energy, habits, and mindset are aligned. Keep pressing forward with confidence.";
+              "Strong consistency across all behaviors. Energy, habits, and mindset are aligned. Keep building on this foundation.";
           } else if (improving && !lowMood) {
             baseMessage =
-              "Your consistency is trending upward. Every small gain is compounding into real momentum — this is how results are built.";
+              "Your consistency is trending upward. Every small gain is compounding into real momentum. This is how results are built.";
           } else if (slipping && lowMood) {
             baseMessage =
-              "It looks like this week’s been tougher. Revisit your basics — hydration, protein, and rest — and take it one step at a time.";
+              "It looks like this week's been tougher. Revisit your basics: hydration, protein, and rest. Take it one step at a time.";
           } else if (lowConsistency && !solidMood) {
             baseMessage =
-              "You’re rebuilding your rhythm. Don’t chase perfection, just aim for one more win today than yesterday.";
+              "You're rebuilding your rhythm. Don't chase perfection, just aim for one more win today than yesterday.";
           } else if (proteinStreak >= 3 || movementStreak >= 3 || hydrationStreak >= 3) {
-            baseMessage = `Nice work — you’re on a ${Math.max(
+            baseMessage = `Nice work. You're on a ${Math.max(
               proteinStreak,
               movementStreak,
               hydrationStreak
@@ -150,15 +150,15 @@ export function generateCoachInsight(
     
           switch (style) {
             case "direct":
-              return `${baseMessage} You know what works — now execute.`;
+              return `${baseMessage} You know what works. Time to do it.`;
             case "analytical":
-              return `${baseMessage} Data trends look solid. Keep evaluating what’s working best for you.`;
+              return `${baseMessage} Data trends look solid. Keep evaluating what's working best for you.`;
             case "encouraging":
             default:
-              return `${baseMessage} You’re doing great — keep showing up and stacking those wins!`;
+              return `${baseMessage} You're showing up consistently. That's what builds momentum.`;
           }
         } catch (err) {
           console.error("generateCoachInsight error:", err);
-          return "Keep moving forward — small steps become lasting change.";
+          return "Keep moving forward. Small steps become lasting change.";
         }
       }

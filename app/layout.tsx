@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "Nelson",
   description: "Your AI strength coach who trains with you",
   icons: {
-    icon: "/icon.png",
+    icon: "/icon.svg",
     apple: "/icon.png",
   },
 };

@@ -73,10 +73,10 @@ export default function PlanOverviewPage() {
       <div className="max-w-2xl w-full">
         <div className="bg-white p-8 rounded-xl shadow-md mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Great work, {firstName}!
+          You're all set, {firstName}.
           </h1>
           <p className="text-lg text-gray-700">
-            Your plan is ready. Here's how Nelson works:
+            Your plan is ready. Here's how it works:
           </p>
         </div>
 
@@ -86,9 +86,7 @@ export default function PlanOverviewPage() {
             Your Daily Check-In
           </h2>
           <p className="text-gray-700">
-            Every day, you'll complete a quick check-in. This is your opportunity to reflect 
-            on yesterday - the good, the bad, and the "did I do that?". Once you're used to 
-            it, it takes less than a minute.
+          Every day, you'll complete a quick check-in. Reflect on yesterday honestly. Once you're used to it, it takes less than a minute.
           </p>
         </div>
 
@@ -123,7 +121,7 @@ export default function PlanOverviewPage() {
           </h2>
           <p className="text-gray-700">
             You'll complete your first check-in next. This starts your streak and activates 
-            your plan. Keep your streak alive by simply checking in with me every day.
+            your plan. Check in daily. That's how momentum builds.
           </p>
         </div>
 

@@ -1,0 +1,8 @@
+<svg width="32" height="32" viewBox="0 0 72 82" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Just the yellow N with arrows - no background box -->
+  <path d="M 16 10 L 16 64" stroke="#F59E0B" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 16 74 L 6 62 M 16 74 L 26 62" stroke="#F59E0B" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 16 10 L 56 70" stroke="#F59E0B" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 56 70 L 56 16" stroke="#F59E0B" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 56 6 L 46 18 M 56 6 L 66 18" stroke="#F59E0B" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
