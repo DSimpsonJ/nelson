@@ -13,6 +13,7 @@ import CheckinSuccessAnimation from '@/app/components/rewards/CheckinSuccessAnim
 import { getBehaviors, answersToGrades } from './checkinModel';
 import { CheckinAnswers, BehaviorMetadata } from './types';
 import { writeDailyMomentum } from '../services/writeDailyMomentum';
+import { detectAndHandleMissedCheckIns } from '../services/missedCheckIns';
 
 // Helper to get current user email
 function getEmail(): string | null {
@@ -24,11 +25,14 @@ export default function CheckinPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Partial<CheckinAnswers>>({});
+  const [exerciseCompleted, setExerciseCompleted] = useState<boolean | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [behaviors, setBehaviors] = useState<BehaviorMetadata[]>([]);
   const [loading, setLoading] = useState(true);
+  const [habitName, setHabitName] = useState("Move 10 minutes");
+  const [targetMinutes, setTargetMinutes] = useState(10);
 
   // Load user data and generate dynamic behaviors
   useEffect(() => {
@@ -43,12 +47,20 @@ export default function CheckinPage() {
         const userDoc = await getDoc(doc(db, 'users', email));
         const userWeight = userDoc.exists() ? userDoc.data().weight : undefined;
         
+        // Get habit name from currentFocus
+        const focusRef = doc(db, 'users', email, 'momentum', 'currentFocus');
+        const focusSnap = await getDoc(focusRef);
+        if (focusSnap.exists()) {
+          setHabitName(focusSnap.data().habit || "Move 10 minutes");
+          setTargetMinutes(focusSnap.data().target || 10);
+        }
+        
         // Generate behaviors with user's weight
         const dynamicBehaviors = getBehaviors(userWeight);
         setBehaviors(dynamicBehaviors);
       } catch (error) {
         console.error('Failed to load user data:', error);
-        // Fallback to default behaviors
+        // Fallback to defaults
         setBehaviors(getBehaviors());
       } finally {
         setLoading(false);
@@ -58,8 +70,9 @@ export default function CheckinPage() {
     loadUserData();
   }, [router]);
 
-  const currentBehavior = behaviors[currentStep];
-  const isLastStep = currentStep === behaviors.length - 1;
+  const totalSteps = behaviors.length + 1; // 1 exercise + 7 behaviors
+  const isOnExerciseQuestion = currentStep === 0; // Exercise is now FIRST
+  const currentBehavior = !isOnExerciseQuestion ? behaviors[currentStep - 1] : null;
 
   // Swipe animation variants
   const slideVariants = {
@@ -84,18 +97,32 @@ export default function CheckinPage() {
 
     const newAnswers = {
       ...answers,
-      [currentBehavior.id]: rating,
+      [currentBehavior!.id]: rating,
     } as Partial<CheckinAnswers>;
     
     setAnswers(newAnswers);
 
     setTimeout(() => {
-      if (isLastStep) {
-        handleSubmit(newAnswers as CheckinAnswers);
+      // Check if we just completed the last behavior (step 7)
+      if (currentStep === behaviors.length) {
+        handleSubmit(newAnswers as CheckinAnswers, exerciseCompleted!);
       } else {
         setCurrentStep(currentStep + 1);
         setIsAdvancing(false);
       }
+    }, 600);
+  };
+
+  const handleExerciseSelect = (completed: boolean) => {
+    if (isAdvancing) return;
+    
+    setIsAdvancing(true);
+    setExerciseCompleted(completed);
+
+    setTimeout(() => {
+      // Move to first behavior question (step 1)
+      setCurrentStep(1);
+      setIsAdvancing(false);
     }, 600);
   };
 
@@ -105,7 +132,7 @@ export default function CheckinPage() {
     }
   };
 
-  const handleSubmit = async (finalAnswers: CheckinAnswers) => {
+  const handleSubmit = async (finalAnswers: CheckinAnswers, exerciseDeclared: boolean) => {
     if (submitting) return;
     
     setSubmitting(true);
@@ -117,6 +144,13 @@ export default function CheckinPage() {
       }
   
       const today = new Date().toLocaleDateString("en-CA");
+      
+      // ===== CRITICAL: Detect and fill gaps BEFORE writing today's check-in =====
+      const gapInfo = await detectAndHandleMissedCheckIns(email);
+      if (gapInfo.hadGap) {
+        console.log(`[CheckIn] Gap detected: ${gapInfo.daysMissed} days - filled with gap-fill docs`);
+        console.log(`[CheckIn] Last check-in was ${gapInfo.lastCheckInDate}, frozen momentum: ${gapInfo.frozenMomentum}%`);
+      }
       
       // Convert ratings to grades using the dynamic behaviors
       const behaviorGrades = behaviors.map((behavior) => ({
@@ -137,14 +171,16 @@ export default function CheckinPage() {
       const diffTime = currentDate.getTime() - firstDate.getTime();
       const accountAgeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
   
-      // TODO: Get actual currentFocus and habitStack from Firebase
-      // For now using placeholder values until user context is implemented
-      const currentFocus = {
-        habitKey: 'movement_10min',
-        habit: 'Move 10 minutes daily'
-      };
+      // Get currentFocus and habitStack
+      const focusRef = doc(db, 'users', email, 'momentum', 'currentFocus');
+      const focusSnap = await getDoc(focusRef);
+      const currentFocus = focusSnap.exists() 
+        ? { habitKey: focusSnap.data().habitKey, habit: focusSnap.data().habit }
+        : { habitKey: 'movement_10min', habit: 'Move 10 minutes daily' };
+      
       const habitStack: Array<{ habitKey: string; habit: string }> = [];
   
+      // Write today's check-in with exercise declaration
       await writeDailyMomentum({
         email,
         date: today,
@@ -153,6 +189,7 @@ export default function CheckinPage() {
         currentFocus,
         habitStack,
         accountAgeDays,
+        exerciseDeclared,
       });
   
       setShowSuccess(true);
@@ -168,7 +205,6 @@ export default function CheckinPage() {
     router.push('/dashboard?checkin=done');
   };
 
-  // Show loading state while fetching user data
   if (loading) {
     return (
       <CheckinShell>
@@ -210,7 +246,7 @@ export default function CheckinPage() {
 
       <ProgressIndicator 
         current={currentStep + 1} 
-        total={behaviors.length} 
+        total={totalSteps} 
       />
 
       <AnimatePresence mode="wait">
@@ -225,14 +261,43 @@ export default function CheckinPage() {
             opacity: { duration: 0.3 },
           }}
         >
-          <CheckinQuestion
-            title={currentBehavior.title}
-            prompt={currentBehavior.prompt}
-            tooltip={currentBehavior.tooltip}
-            icon={currentBehavior.icon}
-            selected={answers[currentBehavior.id]}
-            onSelect={handleSelect}
-          />
+          {isOnExerciseQuestion ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] px-6">
+              <div className="text-center max-w-md">
+                <h2 className="text-2xl font-bold text-white mb-3">
+                  Did you complete your {targetMinutes} minute exercise commitment yesterday?
+                </h2>
+                <p className="text-white/60 text-sm mb-8">
+                  This includes any form of dedicated exercise that met your target.
+                </p>
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => handleExerciseSelect(true)}
+                    disabled={isAdvancing}
+                    className="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={() => handleExerciseSelect(false)}
+                    disabled={isAdvancing}
+                    className="px-8 py-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+                  >
+                    No
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <CheckinQuestion
+              title={currentBehavior!.title}
+              prompt={currentBehavior!.prompt}
+              tooltip={currentBehavior!.tooltip}
+              icon={currentBehavior!.icon}
+              selected={answers[currentBehavior!.id]}
+              onSelect={handleSelect}
+            />
+          )}
         </motion.div>
       </AnimatePresence>
     </CheckinShell>

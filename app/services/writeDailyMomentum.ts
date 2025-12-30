@@ -6,9 +6,10 @@
  * 
  * UPDATED: Now uses Newtonian momentum calculation (physics-based with streak inertia)
  * UPDATED: Tracks totalRealCheckIns for ramp caps (not accountAgeDays)
+ * UPDATED: Derives exerciseCompleted from user declaration and session data
  */
 
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 import { calculateNewtonianMomentum, calculateDailyScore } from './newtonianMomentum';
 
@@ -59,6 +60,9 @@ export interface DailyMomentumDoc {
   lifetimeStreak: number;
   streakSavers: number;
   
+  exerciseCompleted: boolean;
+  exerciseTargetMinutes?: number;
+  
   isFirstCheckIn?: boolean;
   checkinType?: "real" | "streak_saver" | "gap_fill";
   createdAt: string;
@@ -81,6 +85,7 @@ export interface WriteDailyMomentumInput {
   
   goal?: string;
   accountAgeDays: number;
+  exerciseDeclared?: boolean;
 }
 
 // ============================================================================
@@ -127,6 +132,8 @@ function buildDefaults(input: WriteDailyMomentumInput): Partial<DailyMomentumDoc
     currentStreak: 0,
     lifetimeStreak: 0,
     streakSavers: 0,
+    
+    exerciseCompleted: false,
     
     checkinType: "real",
     createdAt: new Date().toISOString(),
@@ -222,6 +229,36 @@ function applyRampCap(score: number, checkInCount: number): { score: number; mes
   return { score, message: "" };
 }
 
+async function deriveExerciseCompleted(
+  email: string,
+  checkInDate: string,
+  exerciseDeclared?: boolean
+): Promise<{ completed: boolean; targetMinutes: number }> {
+  // Step 1: Get target from currentFocus
+  const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+  const focusSnap = await getDoc(focusRef);
+  
+  const targetMinutes = focusSnap.exists() && focusSnap.data().target
+    ? focusSnap.data().target
+    : 10;
+  
+  // Step 2: Check session data for the check-in date
+  const sessionsRef = collection(db, "users", email, "sessions");
+  const sessionsQuery = query(sessionsRef, where("date", "==", checkInDate));
+  const sessionsSnap = await getDocs(sessionsQuery);
+  
+  const sessionCompleted = sessionsSnap.docs.some(doc => {
+    const data = doc.data();
+    return data.durationMin >= targetMinutes;
+  });
+  
+  // Step 3: Resolve completion (user declaration OR session data)
+  // If exerciseDeclared is undefined (old code paths), default to false
+  const completed = exerciseDeclared === true || sessionCompleted === true;
+  
+  return { completed, targetMinutes };
+}
+
 async function calculateDerivedFields(
   input: WriteDailyMomentumInput,
   merged: Partial<DailyMomentumDoc>,
@@ -283,19 +320,24 @@ async function calculateDerivedFields(
   // Increment totalRealCheckIns (this is a real check-in)
   const totalRealCheckIns = previousTotalCheckIns + 1;
   
-  // 3. Calculate streak (needed for dampening calculation)
+  // 3. Derive exercise completion
+  const { completed: exerciseCompleted, targetMinutes: exerciseTargetMinutes } = 
+    await deriveExerciseCompleted(input.email, input.date, input.exerciseDeclared);
+  
+  // 4. Calculate streak (needed for dampening calculation)
   const streakData = await calculateStreak(input.email, input.date);
   
-  // 4. Calculate Newtonian momentum
+  // 5. Calculate Newtonian momentum
   const momentumResult = calculateNewtonianMomentum({
     todayScore: dailyScore,
     last4Days: last4Days,
     currentStreak: streakData.currentStreak,
     previousMomentum: previousMomentum,
-    totalRealCheckIns: totalRealCheckIns
+    totalRealCheckIns: totalRealCheckIns,
+    exerciseCompleted: exerciseCompleted
   });
   
-  // 5. Apply ramp cap if under 10 check-ins
+  // 6. Apply ramp cap if under 10 check-ins
   let finalMomentumScore = momentumResult.momentumScore;
   let finalMessage = momentumResult.message;
   
@@ -310,7 +352,7 @@ async function calculateDerivedFields(
     }
   }
   
-  // 6. Return complete document
+  // 7. Return complete document
   return {
     ...merged,
     date: input.date,
@@ -353,6 +395,9 @@ async function calculateDerivedFields(
     currentStreak: streakData.currentStreak,
     lifetimeStreak: streakData.lifetimeStreak,
     streakSavers: streakData.streakSavers,
+    
+    exerciseCompleted,
+    exerciseTargetMinutes,
     
     checkinType: "real",
     createdAt: merged.createdAt || new Date().toISOString(),
@@ -402,7 +447,8 @@ export async function writeDailyMomentum(
       "[WriteDailyMomentum] Success:", 
       finalDoc.date, 
       `${finalDoc.momentumScore}% ${finalDoc.momentumTrend === 'up' ? '↑' : finalDoc.momentumTrend === 'down' ? '↓' : '→'}`,
-      `(Check-in #${finalDoc.totalRealCheckIns})`
+      `(Check-in #${finalDoc.totalRealCheckIns})`,
+      `Exercise: ${finalDoc.exerciseCompleted ? 'Yes' : 'No'}`
     );
     
     return finalDoc;

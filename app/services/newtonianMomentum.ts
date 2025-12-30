@@ -8,6 +8,7 @@
  * - Mass = streak length (longer streaks = more resistance to change)
  * - Velocity = recent performance (how you're doing now)
  * - One bad day is noise. Three bad days is signal.
+ * - Exercise = applied force (required for positive momentum change)
  * 
  * Scientific Foundation:
  * - Lally et al. (2010): Habits take 18-254 days to form (median 66 days)
@@ -26,6 +27,7 @@ interface MomentumCalculationInput {
   currentStreak: number;
   previousMomentum?: number;
   totalRealCheckIns: number;
+  exerciseCompleted?: boolean;
 }
 
 interface MomentumResult {
@@ -175,6 +177,7 @@ function calculateGapDays(last4Days: number[]): number {
  * - Weighted recent performance (velocity)
  * - Streak-based dampening (mass/inertia)
  * - Pattern detection (reality check)
+ * - Exercise gate (applied force requirement)
  */
 export function calculateNewtonianMomentum(input: MomentumCalculationInput): MomentumResult {
   const {
@@ -182,7 +185,8 @@ export function calculateNewtonianMomentum(input: MomentumCalculationInput): Mom
     last4Days,
     currentStreak,
     previousMomentum,
-    totalRealCheckIns
+    totalRealCheckIns,
+    exerciseCompleted
   } = input;
   
   // Step 1: Calculate weighted average (velocity)
@@ -215,9 +219,9 @@ export function calculateNewtonianMomentum(input: MomentumCalculationInput): Mom
     dampeningApplied = effectiveDampening;
   }
   
- // Step 4: Apply ramp cap based on totalRealCheckIns with soft reset
-const gapDays = calculateGapDays(last4Days);
-const hasLongGap = gapDays >= 4; // If 4+ consecutive gap days detected
+  // Step 4: Apply ramp cap based on totalRealCheckIns with soft reset
+  const gapDays = calculateGapDays(last4Days);
+  const hasLongGap = gapDays >= 4; // If 4+ consecutive gap days detected
   
   let effectiveCheckIns = totalRealCheckIns;
   if (hasLongGap && totalRealCheckIns > 3) {
@@ -241,7 +245,16 @@ const hasLongGap = gapDays >= 4; // If 4+ consecutive gap days detected
     if (delta < -2) trend = 'down';
   }
   
-  // Step 6: Generate message
+  // Step 6: Apply exercise gate
+  // Only apply gate if exerciseCompleted is explicitly false
+  // If undefined (old code paths), allow momentum to change normally
+  if (exerciseCompleted === false && delta > 0) {
+    finalScore = prevMomentum;
+    delta = 0;
+    trend = 'stable';
+  }
+  
+  // Step 7: Generate message
   const message = generateMessage(finalScore, trend, currentStreak, dampeningApplied);
   
   return {

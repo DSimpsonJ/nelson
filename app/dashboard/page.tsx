@@ -710,22 +710,37 @@ const totalCheckIns = momentumSnaps.docs.filter(d => {
 }).length;
 
 // Calculate monthly consistency - last 30 days
-const accountAgeDays = todayMomentumSnap.exists() 
-  ? (todayMomentumSnap.data().accountAgeDays || 1)
-  : 1;
+let accountAgeDays = 1;
 
-const last30Days = Math.min(accountAgeDays, 30);
-const recentDocs = momentumSnaps.docs.filter(d => {
-  const docId = d.id;
+if (todayMomentumSnap.exists()) {
+  accountAgeDays = todayMomentumSnap.data().accountAgeDays || 1;
+} else {
+  // Get from most recent momentum doc
+  const datedDocs = momentumSnaps.docs
+    .filter(d => d.id.match(/^\d{4}-\d{2}-\d{2}$/))
+    .map(d => d.data())
+    .filter(d => d.accountAgeDays !== undefined);
+
+  if (datedDocs.length > 0) {
+    accountAgeDays = Math.max(...datedDocs.map(d => d.accountAgeDays));
+  }
+}
+
+// Window is CALENDAR DAYS, not doc count
+const windowSize = Math.min(accountAgeDays, 30);
+
+// Count only real check-ins (no slicing)
+const realCheckIns = momentumSnaps.docs.filter(d => {
+  const id = d.id;
   const data = d.data();
-  if (!docId.match(/^\d{4}-\d{2}-\d{2}$/)) return false;
-  return data.checkinType === "real" || !data.missed;
-}).slice(0, last30Days);
+  if (!id.match(/^\d{4}-\d{2}-\d{2}$/)) return false;
+  return data.checkinType === "real";
+}).length;
 
-const monthlyConsistency = Math.round((recentDocs.length / last30Days) * 100);
+const monthlyConsistency = Math.round((realCheckIns / windowSize) * 100);
 
-setHistoryStats({ currentStreak, totalCheckIns, monthlyConsistency });
-console.log(`[Dashboard] History stats: Streak ${currentStreak}, Total ${totalCheckIns}, Month ${monthlyConsistency}%`);
+setHistoryStats({ currentStreak, totalCheckIns: realCheckIns, monthlyConsistency });
+console.log(`[Dashboard] History stats: Streak ${currentStreak}, Total ${realCheckIns}, Month ${monthlyConsistency}%`);
 // =========================================================
       // ---- Today's check-in ----
       const rawToday = await getCheckin(email, today);
@@ -2853,516 +2868,648 @@ useEffect(() => {
         )}
 
         {/* Dev Tools Panel */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="absolute bottom-2 right-2 z-50 opacity-70 hover:opacity-100">
-            <details className="bg-gray-800 text-white rounded-lg shadow-lg p-3 w-48">
-              <summary className="cursor-pointer text-sm font-semibold text-center hover:text-blue-400">
-                🧪 Dev Tools
-              </summary>
+{process.env.NODE_ENV === "development" && (
+  <div className="absolute bottom-2 right-2 z-50 opacity-70 hover:opacity-100">
+    <details className="bg-gray-800 text-white rounded-lg shadow-lg p-3 w-48">
+      <summary className="cursor-pointer text-sm font-semibold text-center hover:text-blue-400">
+        🧪 Dev Tools
+      </summary>
 
-              <div className="flex flex-col gap-2 mt-3">
-              <button
-  onClick={async () => {
-    try {
-      // Clear localStorage
-      localStorage.removeItem("nelsonUser");
-      
-      // Sign out of Firebase Auth
-      const { auth } = await import("@/app/firebase/config");
-      const { signOut } = await import("firebase/auth");
-      await signOut(auth);
-      
-      showToast({ message: "Signed out", type: "info" });
-      
-      // Redirect to login
-      router.push("/login");
-    } catch (err) {
-      console.error("Sign out failed:", err);
-      router.push("/login");
-    }
-  }}
-  className="bg-gray-700 hover:bg-gray-800 text-white rounded-md py-1 text-sm font-bold"
->
-  🚪 Sign Out
-</button>
-                <button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    // Delete all momentum docs except currentFocus, commitment, habitStack
-    const momentumCol = collection(db, "users", email, "momentum");
-    const momentumSnap = await getDocs(momentumCol);
-    
-    for (const doc of momentumSnap.docs) {
-      if (doc.id !== "currentFocus" && doc.id !== "commitment" && doc.id !== "habitStack") {
-        await deleteDoc(doc.ref);
-      }
-    }
-    
-    showToast({ message: "Cleared momentum history", type: "success" });
-    loadDashboardData();
-  }}
-  className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-md py-1 text-sm"
->
-  Clear Momentum History
-</button>
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    const stackRef = doc(db, "users", email, "momentum", "habitStack");
-    const stackSnap = await getDoc(stackRef);
-    
-    if (stackSnap.exists()) {
-      const habits = stackSnap.data().habits || [];
-      
-      // Remove duplicates by habitKey
-      const uniqueHabits = habits.reduce((acc: any[], habit: any) => {
-        if (!acc.some(h => h.habitKey === habit.habitKey)) {
-          acc.push(habit);
-        }
-        return acc;
-      }, []);
-      
-      await setDoc(stackRef, { habits: uniqueHabits });
-      showToast({ message: `Cleaned stack: ${habits.length} → ${uniqueHabits.length}`, type: "success" });
-      loadDashboardData();
-    }
-  }}
-  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
->
-  Clean Habit Stack
-</button>
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    try {
-      // 1. BACKDATE ACCOUNT
-      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
-      const tenDaysAgoISO = tenDaysAgo.toISOString();
-      const tenDaysAgoDate = tenDaysAgo.toLocaleDateString("en-CA");
-      
-      await setDoc(doc(db, "users", email), {
-        createdAt: tenDaysAgoISO
-      }, { merge: true });
-      
-      // 2. CREATE METADATA DOC
-      await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
-        firstCheckinDate: tenDaysAgoDate,
-        createdAt: tenDaysAgoISO,
-      }, { merge: true });
-      
-      // 3. GET CURRENT FOCUS
-      const focusRef = doc(db, "users", email, "momentum", "currentFocus");
-      const focusSnap = await getDoc(focusRef);
-      
-      if (!focusSnap.exists()) {
-        showToast({ message: "No current focus found", type: "error" });
-        return;
-      }
-      
-      const currentHabitKey = focusSnap.data().habitKey;
-      const targetMin = extractMinutes(currentHabitKey) || 10;
-      
-      // 4. CREATE 6 DAYS OF DATA (yesterday through 6 days ago)
-      for (let i = 6; i >= 1; i--) {
-        const dateKey = getLocalDateOffset(i);
-        const checkInNumber = 7 - i; // 1, 2, 3, 4, 5, 6
-        
-        // Calculate accountAgeDays from firstCheckinDate
-        const checkInDate = new Date(dateKey + "T00:00:00");
-        const firstDate = new Date(tenDaysAgoDate + "T00:00:00");
-        const accountAgeDays = Math.floor((checkInDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        
-        // Session
-        await setDoc(doc(db, "users", email, "sessions", `walk_${dateKey}`), {
-          id: `walk_${dateKey}`,
-          date: dateKey,
-          type: "walk",
-          activityName: `Walk ${targetMin} minutes daily`,
-          durationSec: targetMin * 60,
-          durationMin: targetMin,
-          completedAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
-          createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
-        });
-        
-        // Momentum doc with proper fields
-        await setDoc(doc(db, "users", email, "momentum", dateKey), {
-          date: dateKey,
-          accountAgeDays: accountAgeDays,
-          totalRealCheckIns: checkInNumber, // ← ADDED
-          
-          behaviorGrades: [ // ← ADDED
-            { name: "nutrition_pattern", grade: 100 },
-            { name: "energy_balance", grade: 100 },
-            { name: "protein", grade: 100 },
-            { name: "hydration", grade: 100 },
-            { name: "sleep", grade: 100 },
-            { name: "mindset", grade: 100 },
-            { name: "movement", grade: 100 },
-          ],
-          behaviorRatings: { // ← ADDED
-            nutrition_pattern: "elite",
-            energy_balance: "elite",
-            protein: "elite",
-            hydration: "elite",
-            sleep: "elite",
-            mindset: "elite",
-            movement: "elite",
-          },
-          
-          primary: { habitKey: currentHabitKey, done: true },
-          stack: {},
-          foundations: {
-            protein: true,
-            hydration: true,
-            sleep: true,
-            nutrition: true,
-            movement: true,
-          },
-          
-          checkinType: "real",
-          dailyScore: 100,
-          rawMomentumScore: 100,
-          momentumScore: 100,
-          momentumTrend: 'up', // ← ADDED
-          momentumDelta: 0, // ← ADDED
-          momentumMessage: "Test data",
-          visualState: "solid",
-          
-          primaryHabitHit: true,
-          stackedHabitsCompleted: 0,
-          totalStackedHabits: 0,
-          moved: true,
-          hydrated: true,
-          slept: true,
-          nutritionScore: 12,
-          
-          currentStreak: checkInNumber,
-          lifetimeStreak: checkInNumber,
-          streakSavers: 0,
-          
-          createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
-        });
-      }
-      
-      showToast({ message: "6 days created + account backdated to 10 days ago", type: "success" });
-      
-      // 5. RELOAD
-      await loadDashboardData();
-      
-    } catch (err) {
-      console.error("Trigger level-up failed:", err);
-      showToast({ message: "Failed", type: "error" });
-    }
-  }}
-  className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
->
-  Trigger Level-Up
-</button>
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    try {
-      // 1. BACKDATE ACCOUNT to 30 days ago
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
-      const thirtyDaysAgoDate = thirtyDaysAgo.toLocaleDateString("en-CA");
-      
-      await setDoc(doc(db, "users", email), {
-        createdAt: thirtyDaysAgoISO
-      }, { merge: true });
-      
-      // 2. CREATE METADATA DOC
-      await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
-        firstCheckinDate: thirtyDaysAgoDate,
-        createdAt: thirtyDaysAgoISO,
-      }, { merge: true });
-      
-      // 3. GET CURRENT FOCUS
-      const focusRef = doc(db, "users", email, "momentum", "currentFocus");
-      const focusSnap = await getDoc(focusRef);
-      
-      if (!focusSnap.exists()) {
-        showToast({ message: "No current focus found", type: "error" });
-        return;
-      }
-      
-      const currentHabitKey = focusSnap.data().habitKey;
-      
-      // 4. CREATE 15 CONSECUTIVE CHECK-INS ending 14 days ago
-      for (let i = 29; i >= 15; i--) {
-        const dateKey = getLocalDateOffset(i);
-        const checkInNumber = 30 - i; // 1, 2, 3... 15
-        
-        const checkInDate = new Date(dateKey + "T00:00:00");
-        const firstDate = new Date(thirtyDaysAgoDate + "T00:00:00");
-        const accountAgeDays = Math.floor((checkInDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        
-        await setDoc(doc(db, "users", email, "momentum", dateKey), {
-          date: dateKey,
-          accountAgeDays: accountAgeDays,
-          totalRealCheckIns: checkInNumber,
-          
-          behaviorGrades: [
-            { name: "nutrition_pattern", grade: 100 },
-            { name: "energy_balance", grade: 100 },
-            { name: "protein", grade: 100 },
-            { name: "hydration", grade: 100 },
-            { name: "sleep", grade: 100 },
-            { name: "mindset", grade: 100 },
-            { name: "movement", grade: 100 },
-          ],
-          behaviorRatings: {
-            nutrition_pattern: "elite",
-            energy_balance: "elite",
-            protein: "elite",
-            hydration: "elite",
-            sleep: "elite",
-            mindset: "elite",
-            movement: "elite",
-          },
-          
-          primary: { habitKey: currentHabitKey, done: true },
-          stack: {},
-          foundations: {
-            protein: true,
-            hydration: true,
-            sleep: true,
-            nutrition: true,
-            movement: true,
-          },
-          
-          checkinType: "real",
-          dailyScore: 100,
-          rawMomentumScore: 100,
-          momentumScore: 100,
-          momentumTrend: 'up',
-          momentumDelta: 0,
-          momentumMessage: "Building streak",
-          visualState: "solid",
-          
-          primaryHabitHit: true,
-          stackedHabitsCompleted: 0,
-          totalStackedHabits: 0,
-          moved: true,
-          hydrated: true,
-          slept: true,
-          nutritionScore: 12,
-          
-          currentStreak: checkInNumber,
-          lifetimeStreak: checkInNumber,
-          streakSavers: 0,
-          
-          createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
-        });
-      }
-      
-      showToast({ 
-        message: "15 check-ins created, 14-day gap before today", 
-        type: "success" 
-      });
-      
-      // 5. RELOAD
-      await loadDashboardData();
-      
-    } catch (err) {
-      console.error("Test gap recovery failed:", err);
-      showToast({ message: "Failed", type: "error" });
-    }
-  }}
-  className="bg-orange-600 hover:bg-orange-700 text-white rounded-md py-1 text-sm"
->
-  🔬 Test Gap Recovery
-</button>
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    try {
-      // Use the service to create proper currentFocus
-      const focusData: CurrentFocus = {
-        habit: "Walk 10 minutes daily",
-        habitKey: "walk_10min",
-        level: 1,
-        target: 10,
-        startedAt: getLocalDate(),
-        lastLevelUpAt: null,
-        consecutiveDays: 0,
-        eligibleForLevelUp: false,
-      };
-      
-      await setCurrentFocusService(email, focusData);
-      
-      // Clear level-up prompts from commitment
-      const commitRef = doc(db, "users", email, "momentum", "commitment");
-      await setDoc(commitRef, {
-        levelUpPrompts: {},
-      }, { merge: true });
-      
-      // Delete all sessions
-      const sessionsSnap = await getDocs(collection(db, "users", email, "sessions"));
-      for (const doc of sessionsSnap.docs) {
-        await deleteDoc(doc.ref);
-      }
-      
-      showToast({ message: "Reset to walk_10min, cleared sessions", type: "success" });
-      loadDashboardData();
-    } catch (err) {
-      console.error("Reset failed:", err);
-      showToast({ message: "Reset failed", type: "error" });
-    }
-  }}
-  className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
->
-  Reset Level-Up Test
-</button>
-                <button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    const today = getLocalDate();
-    
-    // Delete today's momentum doc
-    const todayRef = doc(db, "users", email, "momentum", today);
-    await deleteDoc(todayRef);
-    
-    showToast({ message: "Cleared today's check-in", type: "success" });
-    
-    // Reload dashboard
-    setTimeout(() => loadDashboardData(), 500);
-  }}
-  className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-md py-1 text-sm"
->
-  Clear Today's Check-In
-</button>
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    try {
-      // 1. Delete all momentum docs except config docs
-      const momentumSnap = await getDocs(collection(db, "users", email, "momentum"));
-      for (const d of momentumSnap.docs) {
-        // Only delete date-formatted docs (YYYY-MM-DD)
-        if (d.id.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          await deleteDoc(d.ref);
-        }
-      }
-      
-      // 2. Delete all sessions
-      const sessionsSnap = await getDocs(collection(db, "users", email, "sessions"));
-      for (const d of sessionsSnap.docs) {
-        await deleteDoc(d.ref);
-      }
-      
-      // 3. Delete all habit events
-      const eventsSnap = await getDocs(collection(db, "users", email, "habitEvents"));
-      for (const d of eventsSnap.docs) {
-        await deleteDoc(d.ref);
-      }
-      
-      // 4. Reset currentFocus to walk_10min
-      await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
-        habitKey: "walk_10min",
-        habit: "Walk 10 minutes",
-        level: 1,
-        target: 10,
-        startedAt: getLocalDate(),
-        lastLevelUpAt: null,
-        consecutiveDays: 0,
-        eligibleForLevelUp: false,
-      });
-      
-      // 5. Reset commitment to walk_10min
-      const sevenDaysFromNow = new Date();
-      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-      
-      await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-        habit: "Walk 10 minutes",
-        habitKey: "walk_10min",
-        acceptedAt: getLocalDate(),
-        endsAt: sevenDaysFromNow.toLocaleDateString("en-CA"),
-        isActive: true,
-        levelUpPrompts: {},
-      });
-      
-      // 6. Clear habit stack
-      await setDoc(doc(db, "users", email, "momentum", "habitStack"), {
-        habits: [],
-      });
-      
-      showToast({ message: "Fresh start ready!", type: "success" });
-      setTimeout(() => window.location.reload(), 1000);
-      
-    } catch (err) {
-      console.error("Reset failed:", err);
-      showToast({ message: "Reset failed", type: "error" });
-    }
-  }}
-  className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
->
-  🔄 Fresh Start
-</button>
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    // Delete today's check-in first
-    const today = getLocalDate();
-    await deleteDoc(doc(db, "users", email, "momentum", today));
-    
-    // Now simulate it's 11:58pm
-    const lateNight = new Date();
-    lateNight.setHours(23, 58, 0, 0);
-    
-    console.log("🌙 Simulating check-in at:", lateNight.toString());
-    console.log("📅 Local date should be:", lateNight.toLocaleDateString("en-CA"));
-    
- // The date we'll write to
-const dateToWrite = lateNight.toLocaleDateString("en-CA");
+      <div className="flex flex-col gap-2 mt-3">
+        {/* Sign Out */}
+        <button
+          onClick={async () => {
+            try {
+              localStorage.removeItem("nelsonUser");
+              const { auth } = await import("@/app/firebase/config");
+              const { signOut } = await import("firebase/auth");
+              await signOut(auth);
+              showToast({ message: "Signed out", type: "info" });
+              router.push("/login");
+            } catch (err) {
+              console.error("Sign out failed:", err);
+              router.push("/login");
+            }
+          }}
+          className="bg-gray-700 hover:bg-gray-800 text-white rounded-md py-1 text-sm font-bold"
+        >
+          🚪 Sign Out
+        </button>
 
-await writeDailyMomentum({
-  email,
-  date: dateToWrite,
-  behaviorGrades: [
-    { name: "Mindset", grade: 60 }, // sleepy
-    { name: "Protein", grade: 80 },
-    { name: "Hydration", grade: 80 },
-    { name: "Movement", grade: 80 },
-    { name: "Sleep", grade: 80 },
-    { name: "Energy Balance", grade: 80 },
-    { name: "Eating Pattern", grade: 80 },
-  ],
-  currentFocus: currentFocus,
-  habitStack: habitStack,
-  goal: "fat_loss",
-  accountAgeDays: 7,
-});
-    
-    console.log("✅ Written to Firestore date:", dateToWrite);
-    showToast({ message: `Check-in written to ${dateToWrite}`, type: "success" });
-    
-    loadDashboardData();
-  }}
-  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
->
-  🌙 Test 11:58pm Check-In
-</button>
-              </div>            </details>
-          </div>
-        )}
-      </motion.div>
-    </motion.main>
+        {/* Clear Momentum History */}
+        <button
+          onClick={async () => {
+            const email = getEmail();
+            if (!email) return;
+            
+            const momentumCol = collection(db, "users", email, "momentum");
+            const momentumSnap = await getDocs(momentumCol);
+            
+            for (const doc of momentumSnap.docs) {
+              if (doc.id !== "currentFocus" && doc.id !== "commitment" && doc.id !== "habitStack") {
+                await deleteDoc(doc.ref);
+              }
+            }
+            
+            showToast({ message: "Cleared momentum history", type: "success" });
+            loadDashboardData();
+          }}
+          className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-md py-1 text-sm"
+        >
+          Clear Momentum History
+        </button>
+
+        {/* Clean Habit Stack */}
+        <button
+          onClick={async () => {
+            const email = getEmail();
+            if (!email) return;
+            
+            const stackRef = doc(db, "users", email, "momentum", "habitStack");
+            const stackSnap = await getDoc(stackRef);
+            
+            if (stackSnap.exists()) {
+              const habits = stackSnap.data().habits || [];
+              const uniqueHabits = habits.reduce((acc: any[], habit: any) => {
+                if (!acc.some(h => h.habitKey === habit.habitKey)) {
+                  acc.push(habit);
+                }
+                return acc;
+              }, []);
+              
+              await setDoc(stackRef, { habits: uniqueHabits });
+              showToast({ message: `Cleaned stack: ${habits.length} → ${uniqueHabits.length}`, type: "success" });
+              loadDashboardData();
+            }
+          }}
+          className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+        >
+          Clean Habit Stack
+        </button>
+
+        {/* Trigger Level-Up (14 days) */}
+        <button
+          onClick={async () => {
+            const email = getEmail();
+            if (!email) return;
+            
+            try {
+              const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
+              const fifteenDaysAgoISO = fifteenDaysAgo.toISOString();
+              const fifteenDaysAgoDate = fifteenDaysAgo.toLocaleDateString("en-CA");
+              
+              await setDoc(doc(db, "users", email), {
+                createdAt: fifteenDaysAgoISO
+              }, { merge: true });
+              
+              await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
+                firstCheckinDate: fifteenDaysAgoDate,
+                createdAt: fifteenDaysAgoISO,
+              }, { merge: true });
+              
+              const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+              const focusSnap = await getDoc(focusRef);
+              
+              if (!focusSnap.exists()) {
+                showToast({ message: "No current focus found", type: "error" });
+                return;
+              }
+              
+              const currentHabitKey = focusSnap.data().habitKey;
+              const targetMin = extractMinutes(currentHabitKey) || 10;
+              
+              for (let i = 14; i >= 1; i--) {
+                const dateKey = getLocalDateOffset(i);
+                const checkInNumber = 15 - i;
+                
+                const checkInDate = new Date(dateKey + "T00:00:00");
+                const firstDate = new Date(fifteenDaysAgoDate + "T00:00:00");
+                const accountAgeDays = Math.floor((checkInDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                
+                await setDoc(doc(db, "users", email, "sessions", `walk_${dateKey}`), {
+                  id: `walk_${dateKey}`,
+                  date: dateKey,
+                  type: "walk",
+                  activityName: `Walk ${targetMin} minutes daily`,
+                  durationSec: targetMin * 60,
+                  durationMin: targetMin,
+                  completedAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+                  createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+                });
+                
+                await setDoc(doc(db, "users", email, "momentum", dateKey), {
+                  date: dateKey,
+                  accountAgeDays: accountAgeDays,
+                  totalRealCheckIns: checkInNumber,
+                  
+                  behaviorGrades: [
+                    { name: "nutrition_pattern", grade: 100 },
+                    { name: "energy_balance", grade: 100 },
+                    { name: "protein", grade: 100 },
+                    { name: "hydration", grade: 100 },
+                    { name: "sleep", grade: 100 },
+                    { name: "mindset", grade: 100 },
+                    { name: "movement", grade: 100 },
+                  ],
+                  behaviorRatings: {
+                    nutrition_pattern: "elite",
+                    energy_balance: "elite",
+                    protein: "elite",
+                    hydration: "elite",
+                    sleep: "elite",
+                    mindset: "elite",
+                    movement: "elite",
+                  },
+                  
+                  primary: { habitKey: currentHabitKey, done: true },
+                  stack: {},
+                  foundations: {
+                    protein: true,
+                    hydration: true,
+                    sleep: true,
+                    nutrition: true,
+                    movement: true,
+                  },
+                  
+                  checkinType: "real",
+                  dailyScore: 100,
+                  rawMomentumScore: 100,
+                  momentumScore: 100,
+                  momentumTrend: 'up',
+                  momentumDelta: 0,
+                  momentumMessage: "Test data",
+                  visualState: "solid",
+                  
+                  primaryHabitHit: true,
+                  stackedHabitsCompleted: 0,
+                  totalStackedHabits: 0,
+                  moved: true,
+                  hydrated: true,
+                  slept: true,
+                  nutritionScore: 12,
+                  
+                  exerciseCompleted: true,
+                  exerciseTargetMinutes: targetMin,
+                  
+                  currentStreak: checkInNumber,
+                  lifetimeStreak: checkInNumber,
+                  streakSavers: 0,
+                  
+                  createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+                });
+              }
+              
+              showToast({ message: "14 days created + comparison active", type: "success" });
+              await loadDashboardData();
+              
+            } catch (err) {
+              console.error("Trigger level-up failed:", err);
+              showToast({ message: "Failed", type: "error" });
+            }
+          }}
+          className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
+        >
+          Trigger Level-Up
+        </button>
+
+        {/* Test Gap Recovery */}
+        <button
+          onClick={async () => {
+            const email = getEmail();
+            if (!email) return;
+            
+            try {
+              const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+              const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
+              const thirtyDaysAgoDate = thirtyDaysAgo.toLocaleDateString("en-CA");
+              
+              await setDoc(doc(db, "users", email), {
+                createdAt: thirtyDaysAgoISO
+              }, { merge: true });
+              
+              await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
+                firstCheckinDate: thirtyDaysAgoDate,
+                createdAt: thirtyDaysAgoISO,
+              }, { merge: true });
+              
+              const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+              const focusSnap = await getDoc(focusRef);
+              
+              if (!focusSnap.exists()) {
+                showToast({ message: "No current focus found", type: "error" });
+                return;
+              }
+              
+              const currentHabitKey = focusSnap.data().habitKey;
+              
+              for (let i = 29; i >= 15; i--) {
+                const dateKey = getLocalDateOffset(i);
+                const checkInNumber = 30 - i;
+                
+                const checkInDate = new Date(dateKey + "T00:00:00");
+                const firstDate = new Date(thirtyDaysAgoDate + "T00:00:00");
+                const accountAgeDays = Math.floor((checkInDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                
+                await setDoc(doc(db, "users", email, "momentum", dateKey), {
+                  date: dateKey,
+                  accountAgeDays: accountAgeDays,
+                  totalRealCheckIns: checkInNumber,
+                  
+                  behaviorGrades: [
+                    { name: "nutrition_pattern", grade: 100 },
+                    { name: "energy_balance", grade: 100 },
+                    { name: "protein", grade: 100 },
+                    { name: "hydration", grade: 100 },
+                    { name: "sleep", grade: 100 },
+                    { name: "mindset", grade: 100 },
+                    { name: "movement", grade: 100 },
+                  ],
+                  behaviorRatings: {
+                    nutrition_pattern: "elite",
+                    energy_balance: "elite",
+                    protein: "elite",
+                    hydration: "elite",
+                    sleep: "elite",
+                    mindset: "elite",
+                    movement: "elite",
+                  },
+                  
+                  primary: { habitKey: currentHabitKey, done: true },
+                  stack: {},
+                  foundations: {
+                    protein: true,
+                    hydration: true,
+                    sleep: true,
+                    nutrition: true,
+                    movement: true,
+                  },
+                  
+                  checkinType: "real",
+                  dailyScore: 100,
+                  rawMomentumScore: 100,
+                  momentumScore: 100,
+                  momentumTrend: 'up',
+                  momentumDelta: 0,
+                  momentumMessage: "Building streak",
+                  visualState: "solid",
+                  
+                  primaryHabitHit: true,
+                  stackedHabitsCompleted: 0,
+                  totalStackedHabits: 0,
+                  moved: true,
+                  hydrated: true,
+                  slept: true,
+                  nutritionScore: 12,
+                  
+                  exerciseCompleted: true,
+                  exerciseTargetMinutes: 10,
+                  
+                  currentStreak: checkInNumber,
+                  lifetimeStreak: checkInNumber,
+                  streakSavers: 0,
+                  
+                  createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+                });
+              }
+              
+              showToast({ 
+                message: "15 check-ins created, 14-day gap before today", 
+                type: "success" 
+              });
+              
+              await loadDashboardData();
+              
+            } catch (err) {
+              console.error("Test gap recovery failed:", err);
+              showToast({ message: "Failed", type: "error" });
+            }
+          }}
+          className="bg-orange-600 hover:bg-orange-700 text-white rounded-md py-1 text-sm"
+        >
+          🔬 Test Gap Recovery
+        </button>
+
+        {/* Generate 60 Days */}
+        <button
+          onClick={async () => {
+            const email = getEmail();
+            if (!email) return;
+            
+            try {
+              const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+              const sixtyDaysAgoISO = sixtyDaysAgo.toISOString();
+              const sixtyDaysAgoDate = sixtyDaysAgo.toLocaleDateString("en-CA");
+              
+              await setDoc(doc(db, "users", email), {
+                createdAt: sixtyDaysAgoISO
+              }, { merge: true });
+              
+              await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
+                firstCheckinDate: sixtyDaysAgoDate,
+                createdAt: sixtyDaysAgoISO,
+              }, { merge: true });
+              
+              const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+              const focusSnap = await getDoc(focusRef);
+              
+              if (!focusSnap.exists()) {
+                showToast({ message: "No current focus found", type: "error" });
+                return;
+              }
+              
+              const currentHabitKey = focusSnap.data().habitKey;
+              const targetMin = extractMinutes(currentHabitKey) || 10;
+              
+              const randomRating = () => {
+                const rand = Math.random();
+                if (rand > 0.7) return "elite";
+                if (rand > 0.4) return "solid";
+                if (rand > 0.15) return "not_great";
+                return "off";
+              };
+              
+              const ratingToGrade = (rating: string) => {
+                if (rating === "elite") return 100;
+                if (rating === "solid") return 80;
+                if (rating === "not_great") return 50;
+                return 0;
+              };
+              
+              for (let i = 60; i >= 1; i--) {
+                const dateKey = getLocalDateOffset(i);
+                const checkInNumber = 61 - i;
+                
+                const checkInDate = new Date(dateKey + "T00:00:00");
+                const firstDate = new Date(sixtyDaysAgoDate + "T00:00:00");
+                const accountAgeDays = Math.floor((checkInDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                
+                const exerciseCompleted = Math.random() > 0.3;
+                
+                const nutritionRating = randomRating();
+                const energyRating = randomRating();
+                const proteinRating = randomRating();
+                const hydrationRating = randomRating();
+                const sleepRating = randomRating();
+                const mindsetRating = randomRating();
+                const movementRating = randomRating();
+                
+                const behaviorGrades = [
+                  { name: "nutrition_pattern", grade: ratingToGrade(nutritionRating) },
+                  { name: "energy_balance", grade: ratingToGrade(energyRating) },
+                  { name: "protein", grade: ratingToGrade(proteinRating) },
+                  { name: "hydration", grade: ratingToGrade(hydrationRating) },
+                  { name: "sleep", grade: ratingToGrade(sleepRating) },
+                  { name: "mindset", grade: ratingToGrade(mindsetRating) },
+                  { name: "movement", grade: ratingToGrade(movementRating) },
+                ];
+                
+                const avgGrade = behaviorGrades.reduce((sum, b) => sum + b.grade, 0) / 7;
+                const dailyScore = Math.round(avgGrade);
+                
+                if (exerciseCompleted) {
+                  await setDoc(doc(db, "users", email, "sessions", `walk_${dateKey}`), {
+                    id: `walk_${dateKey}`,
+                    date: dateKey,
+                    type: "walk",
+                    activityName: `Walk ${targetMin} minutes daily`,
+                    durationSec: targetMin * 60,
+                    durationMin: targetMin,
+                    completedAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+                    createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+                  });
+                }
+                
+                await setDoc(doc(db, "users", email, "momentum", dateKey), {
+                  date: dateKey,
+                  accountAgeDays: accountAgeDays,
+                  totalRealCheckIns: checkInNumber,
+                  
+                  behaviorGrades: behaviorGrades,
+                  behaviorRatings: {
+                    nutrition_pattern: nutritionRating,
+                    energy_balance: energyRating,
+                    protein: proteinRating,
+                    hydration: hydrationRating,
+                    sleep: sleepRating,
+                    mindset: mindsetRating,
+                    movement: movementRating,
+                  },
+                  
+                  primary: { habitKey: currentHabitKey, done: exerciseCompleted },
+                  stack: {},
+                  foundations: {
+                    protein: proteinRating !== "off",
+                    hydration: hydrationRating !== "off",
+                    sleep: sleepRating !== "off",
+                    nutrition: nutritionRating !== "off",
+                    movement: movementRating !== "off",
+                  },
+                  
+                  checkinType: "real",
+                  dailyScore: dailyScore,
+                  rawMomentumScore: dailyScore,
+                  momentumScore: dailyScore,
+                  momentumTrend: dailyScore >= 80 ? 'up' : dailyScore >= 50 ? 'stable' : 'down',
+                  momentumDelta: 0,
+                  momentumMessage: "Varied test data",
+                  visualState: dailyScore >= 80 ? "solid" : dailyScore >= 50 ? "not_great" : "off",
+                  
+                  primaryHabitHit: exerciseCompleted,
+                  stackedHabitsCompleted: 0,
+                  totalStackedHabits: 0,
+                  moved: movementRating !== "off",
+                  hydrated: hydrationRating !== "off",
+                  slept: sleepRating !== "off",
+                  nutritionScore: ratingToGrade(nutritionRating) / 10,
+                  
+                  exerciseCompleted: exerciseCompleted,
+                  exerciseTargetMinutes: targetMin,
+                  
+                  currentStreak: checkInNumber,
+                  lifetimeStreak: checkInNumber,
+                  streakSavers: 0,
+                  
+                  createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+                });
+              }
+              
+              showToast({ 
+                message: "60 days of varied data created! 30-day comparison ready", 
+                type: "success" 
+              });
+              
+              await loadDashboardData();
+              
+            } catch (err) {
+              console.error("60-day test failed:", err);
+              showToast({ message: "Failed", type: "error" });
+            }
+          }}
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-md py-1 text-sm"
+        >
+          📊 Generate 60 Days
+        </button>
+
+        {/* Toggle Exercise Gate */}
+        <button
+          onClick={async () => {
+            const email = getEmail();
+            if (!email) return;
+            
+            const today = getLocalDate();
+            const todayRef = doc(db, "users", email, "momentum", today);
+            const todaySnap = await getDoc(todayRef);
+            
+            if (!todaySnap.exists()) {
+              showToast({ message: "No check-in today", type: "error" });
+              return;
+            }
+            
+            const currentValue = todaySnap.data().exerciseCompleted;
+            await setDoc(todayRef, {
+              exerciseCompleted: !currentValue
+            }, { merge: true });
+            
+            showToast({ 
+              message: `Exercise: ${!currentValue ? "COMPLETED" : "SKIPPED"}`, 
+              type: "success" 
+            });
+            
+            loadDashboardData();
+          }}
+          className="bg-cyan-600 hover:bg-cyan-700 text-white rounded-md py-1 text-sm"
+        >
+          🏃 Toggle Exercise Gate
+        </button>
+
+        {/* Reset Level-Up Test */}
+        <button
+          onClick={async () => {
+            const email = getEmail();
+            if (!email) return;
+            
+            try {
+              const focusData = {
+                habit: "Walk 10 minutes daily",
+                habitKey: "walk_10min",
+                level: 1,
+                target: 10,
+                startedAt: getLocalDate(),
+                lastLevelUpAt: null,
+                consecutiveDays: 0,
+                eligibleForLevelUp: false,
+              };
+              
+              await setDoc(doc(db, "users", email, "momentum", "currentFocus"), focusData);
+              
+              const commitRef = doc(db, "users", email, "momentum", "commitment");
+              await setDoc(commitRef, {
+                levelUpPrompts: {},
+              }, { merge: true });
+              
+              const sessionsSnap = await getDocs(collection(db, "users", email, "sessions"));
+              for (const doc of sessionsSnap.docs) {
+                await deleteDoc(doc.ref);
+              }
+              
+              showToast({ message: "Reset to walk_10min, cleared sessions", type: "success" });
+              loadDashboardData();
+            } catch (err) {
+              console.error("Reset failed:", err);
+              showToast({ message: "Reset failed", type: "error" });
+            }
+          }}
+          className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
+        >
+          Reset Level-Up Test
+        </button>
+
+        {/* Clear Today's Check-In */}
+        <button
+          onClick={async () => {
+            const email = getEmail();
+            if (!email) return;
+            
+            const today = getLocalDate();
+            const todayRef = doc(db, "users", email, "momentum", today);
+            await deleteDoc(todayRef);
+            
+            showToast({ message: "Cleared today's check-in", type: "success" });
+            setTimeout(() => loadDashboardData(), 500);
+          }}
+          className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-md py-1 text-sm"
+        >
+          Clear Today's Check-In
+        </button>
+
+        {/* Fresh Start */}
+        <button
+          onClick={async () => {
+            const email = getEmail();
+            if (!email) return;
+            
+            try {
+              const momentumSnap = await getDocs(collection(db, "users", email, "momentum"));
+              for (const d of momentumSnap.docs) {
+                if (d.id.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                  await deleteDoc(d.ref);
+                }
+              }
+              
+              const sessionsSnap = await getDocs(collection(db, "users", email, "sessions"));
+              for (const d of sessionsSnap.docs) {
+                await deleteDoc(d.ref);
+              }
+              
+              const eventsSnap = await getDocs(collection(db, "users", email, "habitEvents"));
+              for (const d of eventsSnap.docs) {
+                await deleteDoc(d.ref);
+              }
+              
+              await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
+                habitKey: "walk_10min",
+                habit: "Walk 10 minutes",
+                level: 1,
+                target: 10,
+                startedAt: getLocalDate(),
+                lastLevelUpAt: null,
+                consecutiveDays: 0,
+                eligibleForLevelUp: false,
+              });
+              
+              const sevenDaysFromNow = new Date();
+              sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+              
+              await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                habit: "Walk 10 minutes",
+                habitKey: "walk_10min",
+                acceptedAt: getLocalDate(),
+                endsAt: sevenDaysFromNow.toLocaleDateString("en-CA"),
+                isActive: true,
+                levelUpPrompts: {},
+              });
+              
+              await setDoc(doc(db, "users", email, "momentum", "habitStack"), {
+                habits: [],
+              });
+              
+              showToast({ message: "Fresh start ready!", type: "success" });
+              setTimeout(() => window.location.reload(), 1000);
+              
+            } catch (err) {
+              console.error("Reset failed:", err);
+              showToast({ message: "Reset failed", type: "error" });
+            }
+          }}
+          className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
+        >
+          🔄 Fresh Start
+        </button>
+      </div>
+    </details>
+  </div>
+)}
+</motion.div>
+</motion.main>
   );
 }

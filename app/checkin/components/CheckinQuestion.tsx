@@ -25,7 +25,6 @@ export function CheckinQuestion({
     <div className="bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-8">
       <div className="mb-8">
         <div className="flex items-center mb-3">
-          {icon && <span className="text-3xl mr-3">{icon}</span>}
           <h2 className="text-2xl font-bold text-white">{title}</h2>
           {tooltip && <InfoTooltip text={tooltip} />}
         </div>
