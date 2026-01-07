@@ -48,7 +48,7 @@ export default function HowItWorksPage() {
             <div>
               <h3 className="text-white font-semibold mb-1">Check in once daily</h3>
               <p className="text-white/70 text-sm">
-                Rate 7 areas of your day. Takes 60 seconds.
+              Report honestly across key areas of your day. Takes about 60 seconds.
               </p>
             </div>
           </div>
@@ -61,7 +61,7 @@ export default function HowItWorksPage() {
             <div>
               <h3 className="text-white font-semibold mb-1">Build momentum</h3>
               <p className="text-white/70 text-sm">
-                Consistency creates a streak. Streaks earn rewards.
+              Repeated actions create motion. Gaps slow it down.
               </p>
             </div>
           </div>
@@ -72,9 +72,9 @@ export default function HowItWorksPage() {
               3
             </div>
             <div>
-              <h3 className="text-white font-semibold mb-1">Level up your habits</h3>
+              <h3 className="text-white font-semibold mb-1">Adjust when it makes sense</h3>
               <p className="text-white/70 text-sm">
-                When ready, increase your movement time. Small steps, big gains.
+              When ready, raise your movement floor. Only change what you can sustain.
               </p>
             </div>
           </div>
@@ -88,7 +88,7 @@ export default function HowItWorksPage() {
           className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-6 mb-8"
         >
           <p className="text-white text-center">
-            The goal isn't perfection. It's <span className="text-amber-300 font-semibold">showing up every day</span>.
+            The goal isn't perfection. <span className="text-amber-300 font-semibold">It’s consistency over time.</span>
           </p>
         </motion.div>
 

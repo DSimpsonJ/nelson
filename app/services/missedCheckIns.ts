@@ -165,10 +165,12 @@ async function fillMissedDays(input: {
         
         // Status
         checkinType: "gap_fill",
+        checkinCompleted: false, // ← ADD THIS LINE
         primaryHabitHit: false,
         stackedHabitsCompleted: 0,
         totalStackedHabits: 0,
         
+        // ... rest stays the same
         // Lifestyle
         moved: false,
         hydrated: false,

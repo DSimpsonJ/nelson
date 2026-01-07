@@ -72,7 +72,7 @@ export function getRewardForEvent(
       return {
         animation: "hero",
         intensity: "medium",
-        text: "Nice job, you're back on track. You got this!"
+        text: "You're back. Let's rebuild that pattern."
       };
     
     // ============================================================================
@@ -83,14 +83,14 @@ export function getRewardForEvent(
   return {
     animation: "burst",
     intensity: "large",
-    text: "You're expanding your capacity and stepping forward. Good stuff!'"
+    text: "You're expanding your capacity and stepping forward. Good stuff.'"
   };
     
     case "commitment_complete":
       return {
         animation: "hero",
         intensity: "large",
-        text: "Seven days, boom! You did what you said you'd do, be proud of yourself.",
+        text: "Seven days. You did what you said you'd do.",
         shareable: true
       };
     
@@ -98,14 +98,14 @@ export function getRewardForEvent(
         return {
           animation: "hero",
           intensity: "large",
-          text: "21 days! You're in the zone now, keep up the great work!"
+          text: "21 days straight. The pattern is established."
         };
       
       case "streak_30":
         return {
           animation: "hero",
           intensity: "large",
-          text: "30 day milestone. This is who you are now. Amazing execution!",
+          text: "30 day milestone. This is who you are now. Solid execution.",
           shareable: true
         };
     

@@ -30,10 +30,10 @@ export default function NotificationsPage() {
         >
           <div className="text-6xl mb-6">🔔</div>
           <h1 className="text-3xl font-bold text-white mb-3">
-            Daily check-in reminder
+            Daily Reminder
           </h1>
           <p className="text-white/70">
-            I'll send you a daily reminder to check in. Consistency is the goal.
+          This helps you remember to check in.
           </p>
         </motion.div>
 

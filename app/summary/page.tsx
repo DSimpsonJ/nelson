@@ -269,8 +269,6 @@ export default function SummaryPage() {
         <div className="text-center mt-6">
         <button
   onClick={() => {
-    // ✅ Set lifecycle flag so dashboard refreshes automatically
-    localStorage.setItem("sessionComplete", "true");
     router.push("/dashboard");
   }}
   className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium"

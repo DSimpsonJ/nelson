@@ -8,14 +8,13 @@ import { useMomentumHistory } from "./useMomentumHistory";
 
 export default function HistoryPage() {
   const router = useRouter();
-  const { loading, allHistory, currentWindow, comparisonWindow, accountAgeDays, comparisonSize } = useMomentumHistory();
-  const [showComparison, setShowComparison] = useState(false);
+  const { loading, allHistory, currentWindow, accountAgeDays } = useMomentumHistory();
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <p className="text-white/60">Loading history...</p>
+        <p className="text-white/60">Entering The Lab...</p>
       </main>
     );
   }
@@ -36,140 +35,106 @@ export default function HistoryPage() {
           <span className="text-sm font-medium">Back to Dashboard</span>
         </button>
 
-        <h1 className="text-2xl font-bold text-white mb-6">Your History</h1>
-{/* Sections */}
-<div className="space-y-4">
-        {/* Section 1: Momentum Trend */}
-<div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
-  <div className="flex items-center justify-between mb-4">
-    <div className="flex items-center gap-3">
-      <h2 className="text-lg font-semibold text-white">Momentum Trend</h2>
-      <div className={`text-sm px-2 py-1 rounded ${
-        increaseStatus === "ENABLED"
-          ? "bg-emerald-900/30 text-emerald-400"
-          : "bg-amber-900/30 text-amber-400"
-      }`}>
-        Increases: {increaseStatus}
-      </div>
-    </div>
-    <button
-      onClick={() => setShowComparison(!showComparison)}
-      disabled={comparisonSize === 0 || comparisonWindow.length === 0}
-      className={`text-sm px-3 py-1 rounded transition-colors ${
-        comparisonSize === 0 || comparisonWindow.length === 0
-          ? "bg-slate-700/50 text-white/30 cursor-not-allowed"
-          : showComparison
-            ? "bg-blue-600 text-white"
-            : "bg-slate-700 text-white/60 hover:text-white"
-      }`}
-    >
-      {comparisonSize === 0 
-        ? "Comparison available soon"
-        : `Compare previous ${comparisonSize} days`
-      }
-    </button>
-  </div>
+        <div className="text-center mb-8">
+          <div className="inline-block">
+            <h1 className="text-3xl font-bold text-white mb-2">The Lab</h1>
+            <p className="text-sm text-white/60">Pattern observation and calibration</p>
+          </div>
+          <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent mt-6"></div>
+        </div>
 
-  <div className="h-64">
-    <ResponsiveContainer width="100%" height="100%">
-      {(() => {
-        const N = currentWindow.length;
-        
-        const chartData = Array.from({ length: N }, (_, i) => {
-          const cur = currentWindow[i];
-          const prev = comparisonWindow[i];
+        {/* Sections */}
+        <div className="space-y-4">
+          {/* Section 1: Momentum Trend */}
+          <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-white">Momentum Trend</h2>
+                <div className={`text-sm px-2 py-1 rounded ${increaseStatus === "ENABLED"
+                  ? "bg-emerald-900/30 text-emerald-400"
+                  : "bg-amber-900/30 text-amber-400"
+                  }`}>
+                  Increases: {increaseStatus}
+                </div>
+              </div>
+            </div>
 
-          return {
-            i,
-            date: cur?.date,
-            current: cur?.momentumScore ?? null,
-            currentType: cur?.checkinType,
-            prev: prev?.momentumScore ?? null,
-            prevDate: prev?.date ?? null,
-            prevType: prev?.checkinType ?? null,
-          };
-        });
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                {(() => {
+                  const chartData = Array.from({ length: currentWindow.length }, (_, i) => {
+                    const cur = currentWindow[i];
+                    return {
+                      i,
+                      date: cur?.date,
+                      current: cur?.momentumScore ?? null,
+                      currentType: cur?.checkinType,
+                    };
+                  });
 
-        const formatMD = (dateStr?: string | null) => {
-          if (!dateStr) return "";
-          const [, mm, dd] = dateStr.split("-");
-          return `${parseInt(mm, 10)}/${parseInt(dd, 10)}`;
-        };
+                  const formatMD = (dateStr?: string | null) => {
+                    if (!dateStr) return "";
+                    const [, mm, dd] = dateStr.split("-");
+                    return `${parseInt(mm, 10)}/${parseInt(dd, 10)}`;
+                  };
 
-        return (
-          <LineChart data={chartData}>
-            <XAxis
-              dataKey="i"
-              tickFormatter={(i) => {
-                const d = chartData[i]?.date;
-                if (!d) return "";
-                const [, mm, dd] = d.split("-");
-                return `${parseInt(mm, 10)}/${parseInt(dd, 10)}`;
-              }}
-              stroke="#64748B"
-              fontSize={12}
-            />
-            <YAxis
-              domain={[0, 100]}
-              stroke="#64748B"
-              fontSize={12}
-              tickFormatter={(value) => `${value}%`}
-            />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const p = payload[0].payload;
+                  return (
+                    <LineChart data={chartData}>
+                      <XAxis
+                        dataKey="i"
+                        tickFormatter={(i) => {
+                          const d = chartData[i]?.date;
+                          if (!d) return "";
+                          const [, mm, dd] = d.split("-");
+                          return `${parseInt(mm, 10)}/${parseInt(dd, 10)}`;
+                        }}
+                        stroke="#64748B"
+                        fontSize={12}
+                      />
+                      <YAxis
+                        domain={[0, 100]}
+                        stroke="#64748B"
+                        fontSize={12}
+                        tickFormatter={(value) => `${value}%`}
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const p = payload[0].payload;
 
-                return (
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 shadow-lg">
-                    <p className="text-xs text-white/60">{formatMD(p.date)}</p>
-                    <p className="text-sm font-bold text-white">
-                      Current: {p.current ?? "—"}%
-                    </p>
-                    {showComparison && p.prev !== null && (
-                      <p className="text-sm font-bold text-white/70">
-                        Prev: {p.prev}% <span className="text-xs text-white/40">({formatMD(p.prevDate)})</span>
-                      </p>
-                    )}
-                    {p.currentType === "gap_fill" && (
-                      <p className="text-xs text-white/40">Gap day</p>
-                    )}
-                  </div>
-                );
-              }}
-            />
-            {showComparison && (
-              <Line
-                type="monotone"
-                dataKey="prev"
-                stroke="#64748B"
-                strokeWidth={2}
-                dot={false}
-                strokeDasharray="5 5"
-                opacity={0.35}
-                connectNulls
-              />
-            )}
-            <Line
-              type="monotone"
-              dataKey="current"
-              stroke="#2563EB"
-              strokeWidth={2}
-              dot={false}
-              connectNulls
-            />
-          </LineChart>
-        );
-      })()}
-    </ResponsiveContainer>
-  </div>
+                          return (
+                            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 shadow-lg">
+                              <p className="text-xs text-white/60">{formatMD(p.date)}</p>
+                              <p className="text-sm font-bold text-white">
+                                {p.current ?? "—"}%
+                              </p>
+                              {p.currentType === "gap_fill" && (
+                                <p className="text-xs text-white/40">Gap day</p>
+                              )}
+                            </div>
+                          );
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="current"
+                        stroke="#2563EB"
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                    </LineChart>
+                  );
+                })()}
+              </ResponsiveContainer>
+            </div>
 
-  <p className="text-xs text-white/40 mt-2 text-center">
-    Primary view: Last {currentWindow.length} days (rolling)
-  </p>
-</div>
+            <p className="text-xs text-white/40 mt-2 text-center">
+              Primary view: Last {currentWindow.length} days (rolling)
+            </p>
+          </div>
 
-{/* Section 2: Stats Bar */}
+          {/* Section 2: Stats Bar */}
           <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
             <div className="text-center text-base font-semibold text-white mb-4">
               Days Observed: {currentWindow.length}
@@ -203,10 +168,10 @@ export default function HistoryPage() {
           {/* Section 3: Behavior Distribution */}
           <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
             <h2 className="text-lg font-semibold text-white mb-4">Behavior Distribution</h2>
-            
+
             {(() => {
               const realCheckIns = currentWindow.filter(d => d.checkinType === "real");
-              
+
               if (realCheckIns.length === 0) {
                 return <p className="text-white/40 text-sm">No check-ins in selected window</p>;
               }
@@ -223,7 +188,7 @@ export default function HistoryPage() {
 
               const distributions = behaviors.map(behavior => {
                 const counts = { elite: 0, solid: 0, not_great: 0, off: 0 };
-                
+
                 realCheckIns.forEach(doc => {
                   const rating = doc.behaviorRatings?.[behavior.key];
                   if (rating && counts.hasOwnProperty(rating)) {
@@ -245,7 +210,11 @@ export default function HistoryPage() {
 
               const sorted = distributions.sort((a, b) => b.percentages.off - a.percentages.off);
 
-              return (
+              return realCheckIns.length < 3 ? (
+                <div className="py-8 text-center">
+                  <p className="text-white text-lg font-semibold">More Data Needed</p>
+                </div>
+              ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -272,8 +241,8 @@ export default function HistoryPage() {
                 </div>
               );
             })()}
-            
-            <p className="text-xs text-white/40 mt-3">Distribution for selected window</p>
+
+            <p className="text-sm text-white/40 mt-3">Distribution for selected window</p>
           </div>
 
           {/* Section 4: Calendar */}
@@ -281,23 +250,23 @@ export default function HistoryPage() {
             {(() => {
               const latestDate = allHistory[allHistory.length - 1]?.date || new Date().toLocaleDateString("en-CA");
               const [year, month] = latestDate.split("-").map(Number);
-              
+
               const firstDay = new Date(year, month - 1, 1).getDay();
               const daysInMonth = new Date(year, month, 0).getDate();
-              
+
               const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
               const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
               const monthDocs = allHistory.filter(d => d.date >= monthStart && d.date <= monthEnd);
-              
+
               const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-              
+
               const renderCalendar = () => {
                 const weeks = [];
                 let dayNum = 1;
-                
+
                 for (let week = 0; week < 6; week++) {
                   const days = [];
-                  
+
                   for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
                     if ((week === 0 && dayOfWeek < firstDay) || dayNum > daysInMonth) {
                       days.push(<div key={`empty-${week}-${dayOfWeek}`} className="h-16" />);
@@ -305,7 +274,7 @@ export default function HistoryPage() {
                       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
                       const dayDoc = monthDocs.find(d => d.date === dateStr);
                       const isExpanded = expandedDate === dateStr;
-                      
+
                       const behaviorOrder = [
                         { key: 'nutrition_pattern', label: 'Nutrition Pattern' },
                         { key: 'energy_balance', label: 'Energy Balance' },
@@ -315,16 +284,16 @@ export default function HistoryPage() {
                         { key: 'mindset', label: 'Mindset' },
                         { key: 'movement', label: 'Movement' }
                       ];
-                      
+
                       const capitalize = (str: string) => {
-                        return str.split('_').map(word => 
+                        return str.split('_').map(word =>
                           word.charAt(0).toUpperCase() + word.slice(1)
                         ).join(' ');
                       };
-                      
+
                       let popupPositionClass = '';
                       let arrowPositionClass = '';
-                      
+
                       if (dayOfWeek <= 1) {
                         popupPositionClass = 'left-0';
                         arrowPositionClass = 'left-8';
@@ -335,7 +304,7 @@ export default function HistoryPage() {
                         popupPositionClass = 'left-1/2 transform -translate-x-1/2';
                         arrowPositionClass = 'left-1/2 transform -translate-x-1/2';
                       }
-                      
+
                       days.push(
                         <div key={dateStr} className="h-16 relative overflow-visible">
                           <AnimatePresence mode="wait">
@@ -348,7 +317,10 @@ export default function HistoryPage() {
                                 transition={{ duration: 0.15, ease: "easeOut" }}
                                 className={`absolute bottom-full mb-2 z-50 w-96 max-w-[90vw] ${popupPositionClass}`}
                               >
-                                <div className="bg-slate-900 border border-blue-500 rounded-lg shadow-xl p-4">
+                                <div
+                                  className="bg-slate-900 border border-blue-500 rounded-lg shadow-xl p-4"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                >
                                   {/* Exercise commitment status */}
                                   <div className="mb-3 pb-3 border-b border-slate-700">
                                     <div className="flex justify-between text-sm">
@@ -358,11 +330,11 @@ export default function HistoryPage() {
                                       </span>
                                     </div>
                                   </div>
-                                  
+
                                   <div className="text-white font-bold text-center mb-3" style={{ fontSize: '0.9375rem' }}>
                                     Behaviors
                                   </div>
-                                  
+
                                   <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                                     {behaviorOrder.map(({ key, label }) => {
                                       const rating = dayDoc.behaviorRatings?.[key];
@@ -375,7 +347,7 @@ export default function HistoryPage() {
                                       );
                                     })}
                                   </div>
-                                  
+
                                   <div className={`absolute bottom-0 translate-y-full ${arrowPositionClass}`}>
                                     <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-blue-500"></div>
                                   </div>
@@ -383,12 +355,12 @@ export default function HistoryPage() {
                               </motion.div>
                             )}
                           </AnimatePresence>
-                          
+
                           <button
                             onClick={() => setExpandedDate(isExpanded ? null : dateStr)}
-                            className={`w-full h-full border rounded p-2 hover:border-slate-600 transition-colors text-left ${
-                              isExpanded ? 'border-blue-500 bg-slate-700/30' : 'border-slate-700'
-                            }`}
+                            onBlur={() => setTimeout(() => setExpandedDate(null), 150)}
+                            className={`w-full h-full border rounded p-2 hover:border-slate-600 transition-colors text-left ${isExpanded ? 'border-blue-500 bg-slate-700/30' : 'border-slate-700'
+                              }`}
                           >
                             <div className="text-xs text-white/60 mb-1">{dayNum}</div>
                             {dayDoc ? (
@@ -407,32 +379,32 @@ export default function HistoryPage() {
                       dayNum++;
                     }
                   }
-                  
+
                   weeks.push(
                     <div key={`week-${week}`} className="grid grid-cols-7 gap-1 overflow-visible">
                       {days}
                     </div>
                   );
-                  
+
                   if (dayNum > daysInMonth) break;
                 }
-                
+
                 return weeks;
               };
-              
+
               return (
                 <>
                   <h2 className="text-lg font-semibold text-white mb-4">
                     {monthNames[month - 1]} {year}
                   </h2>
-                  
+
                   <div style={{ overflowAnchor: 'none' }} className="overflow-visible">
                     <div className="grid grid-cols-7 gap-1 mb-2">
                       {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
                         <div key={idx} className="text-center text-xs font-semibold text-white/50">{day}</div>
                       ))}
                     </div>
-                    
+
                     <div className="space-y-1 overflow-visible">
                       {renderCalendar()}
                     </div>

@@ -24,7 +24,7 @@ export default function LoginPage() {
       showToast({
         message: "Please enter email and password.", 
         type: "error"
-    });
+      });
       return;
     }
 
@@ -48,69 +48,93 @@ export default function LoginPage() {
       showToast({
         message: "Welcome back!", 
         type: "success"
-    });
+      });
       router.replace("/dashboard");
 
     } catch (err: any) {
-        console.error("Login error:", err);
+      console.error("Login error:", err);
 
-        if (err.code === "auth/user-not-found") {
-          showToast({
-            message: "No account found. Please sign up.",
-            type: "error"
-          });
-        } else if (err.code === "auth/wrong-password") {
-          showToast({
-            message: "Incorrect password.",
-            type: "error"
-          });
-        } else {
-          showToast({
-            message: "Login failed. Try again.",
-            type: "error"
-          });
-        }
+      if (err.code === "auth/user-not-found") {
+        showToast({
+          message: "No account found. Please sign up.",
+          type: "error"
+        });
+      } else if (err.code === "auth/wrong-password") {
+        showToast({
+          message: "Incorrect password.",
+          type: "error"
+        });
+      } else {
+        showToast({
+          message: "Login failed. Try again.",
+          type: "error"
+        });
+      }
 
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center p-6 max-w-sm mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Welcome Back</h1>
+    <main className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-6 py-12">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-10">
+          <h1 className="text-5xl font-bold text-white tracking-tight mb-3">
+            Nelson
+          </h1>
+          <p className="text-xl text-blue-400 font-medium">
+            Welcome Back
+          </p>
+        </div>
 
-      <input
-  type="email"
-  placeholder="Email"
-  value={email}
-  onChange={(e) => setEmail(e.target.value)}
-  className="border p-2 rounded w-full mb-3"
-  required
-  autoCapitalize="none"
-  autoCorrect="off"
-  spellCheck={false}
-/>
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-xl">
+          <div className="space-y-5">
+            <div>
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </div>
 
-      <input
-        type="password"
-        placeholder="Password"
-        className="border p-2 rounded w-full mb-4"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+            <div>
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              />
+            </div>
 
-      <button
-        disabled={loading}
-        onClick={handleLogin}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-semibold"
-      >
-        {loading ? "Loading..." : "Login"}
-      </button>
+            <button
+              disabled={loading}
+              onClick={handleLogin}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? "Logging in..." : "Login"}
+            </button>
+          </div>
 
-      <p className="mt-4 text-sm text-gray-600">
-        Need an account?{" "}
-        <a href="/" className="text-blue-600 underline">/</a>
-      </p>
-    </div>
+          <div className="mt-6 pt-6 border-t border-slate-700 text-center">
+            <p className="text-slate-300 text-sm">
+              Need an account?{" "}
+              <a href="/" className="text-blue-400 hover:text-blue-300 font-medium transition">
+                Sign up
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <p className="text-center text-slate-400 text-sm mt-8">
+          Build consistent habits. One day at a time.
+        </p>
+      </div>
+    </main>
   );
 }

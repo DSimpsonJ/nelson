@@ -48,7 +48,7 @@ export function CheckinSuccess({ onComplete }: CheckinSuccessProps) {
           transition={{ delay: 0.5, duration: 0.5 }}
           className="text-white/70 text-lg"
         >
-          You showed up today. That's what matters.
+          You showed up today. One more brick in place.
         </motion.p>
       </motion.div>
     </div>

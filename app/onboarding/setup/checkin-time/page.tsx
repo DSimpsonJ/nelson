@@ -72,10 +72,10 @@ export default function CheckinTimePage() {
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-3">
-            What time of day are you typically available to check in?
+          When does it make sense for you to check in?
           </h1>
           <p className="text-white/60">
-            I recommend mornings, but you can always change this later.
+          This helps me schedule your reminder. You can change it anytime.
           </p>
         </div>
 

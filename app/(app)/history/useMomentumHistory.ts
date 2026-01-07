@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
-import { db } from "../firebase/config";
-import { getEmail } from "../utils/getEmail";
-import { getDaysBefore, shiftDate } from "./dateHelpers";
+import { db } from "../../firebase/config";
+import { getEmail } from "../../utils/getEmail";
+import { getDaysBefore } from "./dateHelpers";
 
 export interface DailyMomentumDoc {
   date: string;
@@ -31,9 +31,7 @@ export function useMomentumHistory() {
   const [loading, setLoading] = useState(true);
   const [allHistory, setAllHistory] = useState<DailyMomentumDoc[]>([]);
   const [currentWindow, setCurrentWindow] = useState<DailyMomentumDoc[]>([]);
-  const [comparisonWindow, setComparisonWindow] = useState<DailyMomentumDoc[]>([]);
   const [accountAgeDays, setAccountAgeDays] = useState(0);
-  const [comparisonSize, setComparisonSize] = useState(0);
 
   useEffect(() => {
     loadMomentumHistory();
@@ -62,30 +60,19 @@ export function useMomentumHistory() {
       const ageDays = latestDoc?.accountAgeDays ?? allDocs.length;
       const latestDate = latestDoc?.date;
 
-      // 1. Primary observation window (independent of comparison)
+      // Primary observation window (up to 30 days)
       const primarySize = Math.min(ageDays, 30);
 
-      // 2. Comparison window size (optional overlay)
-      let compareSize = 0;
-      if (ageDays >= 60) compareSize = 30;
-      else if (ageDays >= 14) compareSize = 7;
+      // Comparison intentionally removed.
+      // Reintroduce only as an advanced, opt-in analysis feature in v2.
 
-      // 3. Build date ranges
+      // Build date range
       let currentDates: string[] = [];
-      let previousDates: string[] = [];
-
       if (latestDate) {
         currentDates = getDaysBefore(latestDate, primarySize);
-
-        if (compareSize > 0) {
-          previousDates = getDaysBefore(
-            shiftDate(latestDate, primarySize),
-            compareSize
-          );
-        }
       }
 
-      // 4. Map dates to docs, preserving calendar truth
+      // Map dates to docs, preserving calendar truth
       const docMap = new Map(allDocs.map(d => [d.date, d]));
 
       const currentDocs = currentDates.map(date => {
@@ -108,15 +95,9 @@ export function useMomentumHistory() {
         } as DailyMomentumDoc;
       });
 
-      const previousDocs = previousDates.map(date => {
-        return docMap.get(date) ?? null;
-      }).filter(Boolean) as DailyMomentumDoc[];
-
       setAllHistory(allDocs);
       setCurrentWindow(currentDocs);
-      setComparisonWindow(previousDocs);
       setAccountAgeDays(ageDays);
-      setComparisonSize(compareSize);
     } catch (err) {
       console.error("Failed to load momentum history:", err);
     } finally {
@@ -128,8 +109,6 @@ export function useMomentumHistory() {
     loading,
     allHistory,
     currentWindow,
-    comparisonWindow,
-    accountAgeDays,
-    comparisonSize
+    accountAgeDays
   };
 }

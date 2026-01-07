@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
-export default function RewardsPage() {
+export default function TheLabPage() {
   const router = useRouter();
 
   return (
@@ -21,7 +21,7 @@ export default function RewardsPage() {
           transition={{ delay: 0.2 }}
           className="text-3xl font-bold text-white mb-3 text-center"
         >
-          You'll earn rewards
+          The Lab
         </motion.h1>
 
         <motion.p
@@ -30,10 +30,10 @@ export default function RewardsPage() {
           transition={{ delay: 0.3 }}
           className="text-white/70 mb-10 text-center"
         >
-          Be consistent, get celebrated.
+          This is where patterns show up.
         </motion.p>
 
-        {/* Rewards list */}
+        {/* Lab cards */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -41,57 +41,57 @@ export default function RewardsPage() {
           className="space-y-4 mb-10"
         >
           <div className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-6">
-            <div className="flex items-center gap-4">
-              <div className="text-4xl">🔥</div>
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">📊</div>
               <div>
-                <h3 className="text-white font-semibold">Check-in streaks</h3>
-                <p className="text-white/60 text-sm">How many consecutive days will you show up? </p>
+                <h3 className="text-white font-semibold mb-1">Daily check-ins</h3>
+                <p className="text-white/60 text-sm">Each day becomes a data point.</p>
               </div>
             </div>
           </div>
 
           <div className="bg-slate-800/40 backdrop-blur-sm border border-blue-500/30 rounded-xl p-6">
-            <div className="flex items-center gap-4">
-              <div className="text-4xl">⬆️</div>
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">📈</div>
               <div>
-                <h3 className="text-white font-semibold">Habit level-ups</h3>
-                <p className="text-white/60 text-sm">Are you ready to grow your daily commitment?</p>
+                <h3 className="text-white font-semibold mb-1">Momentum patterns</h3>
+                <p className="text-white/60 text-sm">See what actually moves the needle.</p>
               </div>
             </div>
           </div>
 
           <div className="bg-slate-800/40 backdrop-blur-sm border border-green-500/30 rounded-xl p-6">
-            <div className="flex items-center gap-4">
-              <div className="text-4xl">✨</div>
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">🔧</div>
               <div>
-                <h3 className="text-white font-semibold">Momentum milestones</h3>
-                <p className="text-white/60 text-sm">Can you stay Solid enough to hit 80%? </p>
+                <h3 className="text-white font-semibold mb-1">Habit adjustments</h3>
+                <p className="text-white/60 text-sm">Change what you do based on what you see.</p>
               </div>
             </div>
           </div>
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-6 mb-8"
-        >
-          <p className="text-white text-center">
-            Every celebration is <span className="text-amber-300 font-semibold">earned</span>, not given.
-          </p>
-        </motion.div>
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ delay: 0.6 }}
+  className="border-2 border-blue-500 bg-blue-500/10 rounded-xl p-6 mb-8"
+>
+  <p className="text-white text-center text-lg font-medium">
+    Off days don't reset progress. They add context.
+  </p>
+</motion.div>
 
         <div className="flex justify-center">
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          onClick={() => router.push("/onboarding/setup/connect")}
-          className="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-lg transition-all duration-200"
-        >
-          Continue
-        </motion.button>
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            onClick={() => router.push("/onboarding/setup/connect")}
+            className="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-lg transition-all duration-200"
+          >
+            Continue
+          </motion.button>
         </div>
       </motion.div>
     </main>

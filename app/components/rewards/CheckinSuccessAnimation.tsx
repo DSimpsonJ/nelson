@@ -95,10 +95,10 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
   className="text-center"
 >
 <h3 className="text-3xl font-bold text-white mb-4">
-  Nice job showing up!
+  Check-in complete!
 </h3>
-<p className="text-white/80 text-sm mb-8">
-  Momentum is built one check-in at a time.
+<p className="text-white/80 text-md mb-8">
+  Momentum has been updated.
 </p>
   
   <motion.button

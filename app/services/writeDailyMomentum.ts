@@ -21,6 +21,7 @@ export interface DailyMomentumDoc {
   date: string; // YYYY-MM-DD
   accountAgeDays: number;
   totalRealCheckIns: number;
+  checkinCompleted: boolean;
   missed?: boolean;
   behaviorRatings?: Record<string, string>;
   behaviorGrades?: { name: string; grade: number }[];
@@ -338,12 +339,12 @@ async function calculateDerivedFields(
   });
   
   // 6. Apply ramp cap if under 10 check-ins
-  let finalMomentumScore = momentumResult.momentumScore;
+  let finalMomentumScore = momentumResult.proposedScore;
   let finalMessage = momentumResult.message;
   
   if (totalRealCheckIns <= 9) {
     const { score: cappedScore, message: rampMessage } = applyRampCap(
-      momentumResult.momentumScore,
+      momentumResult.proposedScore,
       totalRealCheckIns
     );
     finalMomentumScore = cappedScore;
@@ -352,12 +353,23 @@ async function calculateDerivedFields(
     }
   }
   
+  // Calculate delta using CAPPED scores
+  const yesterdayMomentum = yesterdaySnap.exists() 
+    ? (yesterdaySnap.data().momentumScore ?? 0)
+    : 0;
+  const actualDelta = finalMomentumScore - yesterdayMomentum;
+  
+  let actualTrend: 'up' | 'down' | 'stable' = 'stable';
+  if (actualDelta > 2) actualTrend = 'up';
+  if (actualDelta < -2) actualTrend = 'down';
+  
   // 7. Return complete document
   return {
     ...merged,
     date: input.date,
     accountAgeDays: input.accountAgeDays,
     totalRealCheckIns: totalRealCheckIns,
+    checkinCompleted: true,
     behaviorRatings: input.behaviorRatings || {}, 
     behaviorGrades: input.behaviorGrades,
     
@@ -377,12 +389,12 @@ async function calculateDerivedFields(
     },
     
     dailyScore,
-    rawMomentumScore: momentumResult.rawScore,
-    momentumScore: finalMomentumScore,
-    momentumTrend: momentumResult.trend,
-    momentumDelta: momentumResult.delta,
-    momentumMessage: finalMessage,
-    visualState: "solid",
+rawMomentumScore: momentumResult.rawScore,
+momentumScore: finalMomentumScore,
+momentumTrend: actualTrend,
+momentumDelta: actualDelta,
+momentumMessage: finalMessage,
+visualState: "solid",
     
     primaryHabitHit: false,
     stackedHabitsCompleted: 0,

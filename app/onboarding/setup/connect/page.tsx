@@ -35,7 +35,7 @@ export default function ConnectPage() {
             Connect Apple Health
           </h1>
           <p className="text-white/70">
-            Optional. This helps track steps and workouts automatically.
+          Optional. This automatically captures activity so you don’t have to.
           </p>
         </motion.div>
 
@@ -63,26 +63,26 @@ export default function ConnectPage() {
         </motion.div>
 
         {/* Buttons */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="space-y-3"
-        >
-          <button
-            onClick={handleConnect}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-lg transition-all duration-200"
-          >
-            Connect Apple Health
-          </button>
+<motion.div
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ delay: 0.6 }}
+  className="flex flex-col items-center gap-3"
+>
+  <button
+    onClick={handleConnect}
+    className="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-lg transition-all duration-200"
+  >
+    Connect
+  </button>
 
-          <button
-            onClick={handleSkip}
-            className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-4 rounded-lg transition-all duration-200"
-          >
-            Skip for now
-          </button>
-        </motion.div>
+  <button
+    onClick={handleSkip}
+    className="w-full max-w-xs bg-slate-700 hover:bg-slate-600 text-white font-semibold py-4 rounded-lg transition-all duration-200"
+  >
+    Skip for now
+  </button>
+</motion.div>
 
         <p className="text-white/50 text-xs text-center mt-6">
           You can connect this later in settings

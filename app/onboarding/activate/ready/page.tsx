@@ -25,47 +25,48 @@ export default function ReadyPage() {
         </motion.div>
 
         <motion.h1
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="text-4xl font-bold text-white mb-4"
-        >
-          You're ready.
-        </motion.h1>
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ delay: 0.4 }}
+  className="text-4xl font-bold text-white mb-4"
+>
+  You're ready.
+</motion.h1>
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-xl text-white/80 mb-12"
-        >
-          Let's do your first check-in.
-        </motion.p>
+<motion.p
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ delay: 0.5 }}
+  className="text-xl text-white/80 mb-12"
+>
+  Let's do your first check-in.
+</motion.p>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-6 mb-10"
-        >
-         <p className="text-white/90 mb-4">
-  Today's walkthrough is a bit longer. After this, check-ins take about a minute.
-</p>
-<p className="text-white/70 text-sm">
-  Remember: <span className="text-amber-300 font-semibold">Solid is success</span>. Off days are data, not failure. Truth reveals patterns.
-</p>
+<motion.div
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ delay: 0.6 }}
+  className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-6 mb-10 max-w-xs mx-auto"
+>
+  <p className="text-white/90 text-center mb-3">
+    Today includes a little guidance.
+  </p>
+  <p className="text-white/90 text-center">
+    After this, <span className="text-amber-300 font-semibold">it's quick and repeatable.</span>
+  </p>
+</motion.div>
 
-        </motion.div>
-
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          onClick={() => router.push("/onboarding/activate/checkin")}
-          className="w-full max-w-xs mx-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-lg transition-all duration-200 shadow-lg shadow-blue-600/30"
-        >
-          Start First Check-In
-        </motion.button>
+<div className="flex justify-center">
+  <motion.button
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 0.8 }}
+    onClick={() => router.push("/onboarding/activate/checkin")}
+    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-8 rounded-lg transition-all duration-200 shadow-lg shadow-blue-600/30"
+  >
+    Start First Check-In
+  </motion.button>
+</div>
       </motion.div>
     </main>
   );

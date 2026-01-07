@@ -94,7 +94,7 @@ const hydrationMax = 100;
           transition={{ delay: 0.2 }}
           className="text-3xl font-bold text-white mb-3"
         >
-          Alright {firstName}, here's the plan.
+          Alright {firstName}. Here's the plan.
         </motion.h1>
 
         <motion.p
@@ -103,7 +103,7 @@ const hydrationMax = 100;
           transition={{ delay: 0.3 }}
           className="text-white/70 mb-10"
         >
-          This is what we'll be tracking together each day:
+          This is what will be tracked each day:
         </motion.p>
 
         {/* Plan cards */}
@@ -118,7 +118,7 @@ const hydrationMax = 100;
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-white font-semibold mb-1">Movement</h3>
-                <p className="text-white/60 text-sm">Daily focused training</p>
+                <p className="text-white/60 text-sm">Minimum exercise commitment</p>
               </div>
               <div className="text-right">
                 <div className="text-3xl font-bold text-amber-300">{plan.movement}</div>
@@ -132,7 +132,7 @@ const hydrationMax = 100;
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-white font-semibold mb-1">Protein</h3>
-                <p className="text-white/60 text-sm">Daily target intake</p>
+                <p className="text-white/60 text-sm">Target intake range based on body weight</p>
               </div>
               <div className="text-right">
               <div className="text-3xl font-bold text-amber-300">{plan.proteinMin}-{plan.proteinMax}g</div>
@@ -146,7 +146,7 @@ const hydrationMax = 100;
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-white font-semibold mb-1">Hydration</h3>
-                <p className="text-white/60 text-sm">Daily fluid intake</p>
+                <p className="text-white/60 text-sm">Fluid intake range</p>
               </div>
               <div className="text-right">
               <div className="text-3xl font-bold text-amber-300">{plan.hydrationMin}-{plan.hydrationMax}</div>
@@ -162,7 +162,7 @@ const hydrationMax = 100;
           transition={{ delay: 0.6 }}
           className="text-white/60 text-sm mb-8"
         >
-          Plus 4 more focus areas I'll help you track.
+          Plus 4 more focus areas tracked during check-in.
         </motion.p>
 
         <motion.button

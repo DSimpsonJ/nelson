@@ -71,7 +71,7 @@ export default function CelebrationPage() {
           transition={{ delay: 0.5 }}
           className="text-4xl font-bold text-white mb-4"
         >
-          Great!
+          You did it!
         </motion.h1>
 
         <motion.p
@@ -80,7 +80,7 @@ export default function CelebrationPage() {
           transition={{ delay: 0.7 }}
           className="text-xl text-white/80 mb-8"
         >
-          You just completed your first check-in.
+          Your first check-in is in the books.
         </motion.p>
 
         <motion.div
@@ -90,8 +90,8 @@ export default function CelebrationPage() {
           className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-6 max-w-md mx-auto"
         >
           <p className="text-white/90">
-            That's how easy it is. Do this daily, and you'll build{" "}
-            <span className="text-amber-300 font-semibold">unstoppable momentum</span>.
+            That's it, one honest reflection. {" "}
+            <span className="text-amber-300 font-semibold">Logged in The Lab.</span>
           </p>
         </motion.div>
       </motion.div>

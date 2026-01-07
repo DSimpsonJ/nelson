@@ -31,31 +31,34 @@ export default function IntakeCompletePage() {
         </motion.div>
 
         <motion.h1
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="text-3xl font-bold text-white mb-6"
-        >
-          Perfect. Let's get started.
-        </motion.h1>
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ delay: 0.4 }}
+  className="text-3xl font-bold text-white mb-6"
+>
+  Good. Let's get to work.
+</motion.h1>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-8 mb-10"
-        >
-          <p className="text-white/90 text-lg leading-relaxed mb-4">
-            First, we'll build your personalized plan and set your daily commitment. This is your long game.
-          </p>
+<motion.div
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ delay: 0.6 }}
+  className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-8 mb-10"
+>
+  <div className="space-y-4 text-white/90 text-lg leading-relaxed">
+    <p>
+      First, you'll set a daily commitment. This is an action you're agreeing to repeat.
+    </p>
 
-          <div className="w-12 h-px bg-amber-500/30 mx-auto my-6" />
+    <p>
+      Each day, you'll also check in across key areas to report what actually happened yesterday. Those inputs are important, but the commitment is your only promise.
+    </p>
 
-          <p className="text-white/70">
-            "Infinite-minded people understand that 'best' is not a permanent state. Instead, they strive to be 'better.' 'Better' suggests a journey of constant improvement."
-            ― Simon Sinek
-          </p>
-        </motion.div>
+    <p>
+      Momentum builds when your commitment and your check-in stay aligned over time.
+    </p>
+  </div>
+</motion.div>
 
         <motion.button
           initial={{ opacity: 0 }}

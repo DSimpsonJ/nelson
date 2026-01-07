@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuth } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { db } from '../../firebase/config';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckinShell } from './components/CheckinShell';
 import { CheckinQuestion } from './components/CheckinQuestion';
@@ -12,8 +12,8 @@ import { ProgressIndicator } from './components/ProgressIndicator';
 import CheckinSuccessAnimation from '@/app/components/rewards/CheckinSuccessAnimation';
 import { getBehaviors, answersToGrades } from './checkinModel';
 import { CheckinAnswers, BehaviorMetadata } from './types';
-import { writeDailyMomentum } from '../services/writeDailyMomentum';
-import { detectAndHandleMissedCheckIns } from '../services/missedCheckIns';
+import { writeDailyMomentum } from '../../services/writeDailyMomentum';
+import { detectAndHandleMissedCheckIns } from '../../services/missedCheckIns';
 
 // Helper to get current user email
 function getEmail(): string | null {

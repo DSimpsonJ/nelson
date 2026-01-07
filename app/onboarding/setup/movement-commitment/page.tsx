@@ -23,35 +23,44 @@ export default function MovementCommitmentPage() {
         return;
       }
 
-      // Write to profile/plan
+      const userRef = doc(db, "users", email);
+
+      // Write commitment data and activate system
+      await setDoc(
+        userRef,
+        {
+          hasCommitment: true,
+          notStartedAt: null,  // Clear timestamp since they're committing
+          commitment: {
+            type: "movement",
+            minutes: selectedTime,
+            createdAt: new Date().toISOString()
+          }
+        },
+        { merge: true }
+      );
+
+      // Write to profile/plan for backward compatibility
       await setDoc(
         doc(db, "users", email, "profile", "plan"),
         { movementCommitment: selectedTime },
         { merge: true }
       );
 
-      // Write to momentum/currentFocus with NEW schema
-// Write to momentum/currentFocus with NEW schema
-await setDoc(
-    doc(db, "users", email, "momentum", "currentFocus"),
-    {
-      habit: `Move ${selectedTime} minutes daily`,
-      habitKey: `movement_${selectedTime}min`,
-      level: 1,
-      target: selectedTime,
-      startedAt: new Date().toLocaleDateString("en-CA"), // YYYY-MM-DD
-      lastLevelUpAt: null,
-      consecutiveDays: 0,
-      eligibleForLevelUp: false,
-      createdAt: new Date().toISOString(),
-    },
-    { merge: true }
-  );
-
-      // Also update user doc for easy access
+      // Write to momentum/currentFocus
       await setDoc(
-        doc(db, "users", email),
-        { movementCommitment: selectedTime },
+        doc(db, "users", email, "momentum", "currentFocus"),
+        {
+          habit: `Move ${selectedTime} minutes daily`,
+          habitKey: `movement_${selectedTime}min`,
+          level: 1,
+          target: selectedTime,
+          startedAt: new Date().toLocaleDateString("en-CA"),
+          lastLevelUpAt: null,
+          consecutiveDays: 0,
+          eligibleForLevelUp: false,
+          createdAt: new Date().toISOString(),
+        },
         { merge: true }
       );
 
@@ -62,7 +71,7 @@ await setDoc(
     }
   };
 
-  const handleSkip = async () => {
+  const handleExit = async () => {
     setLoading(true);
     try {
       const email = getEmail();
@@ -71,22 +80,19 @@ await setDoc(
         return;
       }
 
-      // Set commitment to null (not ready)
-      await setDoc(
-        doc(db, "users", email, "profile", "plan"),
-        { movementCommitment: null },
-        { merge: true }
-      );
-
+      // Write hasCommitment=false and timestamp for first-visit detection
       await setDoc(
         doc(db, "users", email),
-        { movementCommitment: null },
+        { 
+          hasCommitment: false,
+          notStartedAt: new Date().toISOString()  // Track when they declined
+        },
         { merge: true }
       );
 
-      router.push("/onboarding/setup/plan");
+      router.push("/not-started");
     } catch (err) {
-      console.error("Error skipping movement commitment:", err);
+      console.error("Error exiting commitment flow:", err);
       setLoading(false);
     }
   };
@@ -106,7 +112,7 @@ await setDoc(
           transition={{ delay: 0.2 }}
           className="text-3xl font-bold text-white mb-3 text-center"
         >
-          Your movement floor
+          Your Movement Floor
         </motion.h1>
 
         <motion.p
@@ -115,7 +121,7 @@ await setDoc(
           transition={{ delay: 0.3 }}
           className="text-white/70 text-center mb-10"
         >
-          To build momentum, you'll commit to a minimum amount of movement each day. Pick a level that feels realistic on your busiest, lowest-energy days. You can always do more, but this is your baseline.
+          To build momentum, you'll commit to a minimum amount of movement each day. Pick a level you can sustain on your busiest, lowest-energy days. You can always do more. This is your floor.
         </motion.p>
 
         {/* Time options */}
@@ -140,7 +146,7 @@ await setDoc(
               )}
             </div>
             <p className="text-white/60 text-sm">
-              Perfect for beginners or busy schedules
+              A practical starting point if movement hasn't been consistent
             </p>
           </button>
 
@@ -159,7 +165,7 @@ await setDoc(
               )}
             </div>
             <p className="text-white/60 text-sm">
-              Sustainable for most people
+              A steady baseline that holds up for many schedules
             </p>
           </button>
 
@@ -178,12 +184,12 @@ await setDoc(
               )}
             </div>
             <p className="text-white/60 text-sm">
-              If you're already active
+              A higher baseline if you're already active
             </p>
           </button>
         </motion.div>
 
-        {/* Not ready option */}
+        {/* Not ready message */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -191,7 +197,7 @@ await setDoc(
           className="mb-8"
         >
           <p className="text-white/50 text-sm text-center mb-4">
-            If you're not ready to commit yet, that's okay. We'll build toward it.
+            If you're not ready to commit yet, no judgment. Come back when you are.
           </p>
         </motion.div>
 
@@ -212,11 +218,11 @@ await setDoc(
             </button>
 
             <button
-              onClick={handleSkip}
+              onClick={handleExit}
               disabled={loading}
               className="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-4 rounded-lg transition-all duration-200 disabled:opacity-50"
             >
-              I'm not ready to commit yet
+              Exit without committing
             </button>
           </motion.div>
         </div>

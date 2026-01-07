@@ -30,7 +30,7 @@ export default function IdentityPage() {
           transition={{ delay: 0.3 }}
           className="text-white/70 mb-10 text-center"
         >
-          Four simple categories. No perfectionism.
+          Four simple categories. No perfection required.
         </motion.p>
 
         {/* Rating system */}
@@ -84,7 +84,7 @@ export default function IdentityPage() {
             Most healthy, consistent people average <span className="text-amber-300 font-semibold">Solid</span>.
           </p>
           <p className="text-white/70 text-sm text-center">
-            Solid is success and builds momentum. Elite days rarely happen when everything clicks. Off day? It's data, not failure.
+            Solid is success and builds momentum. Elite days are rare, not the standard. Off day? It's data, not failure.
           </p>
         </motion.div>
 
@@ -93,7 +93,7 @@ export default function IdentityPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.7 }}
-          onClick={() => router.push("/onboarding/setup/rewards")}
+          onClick={() => router.push("/onboarding/setup/the-lab")}
           className="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-lg transition-all duration-200"
         >
           Continue

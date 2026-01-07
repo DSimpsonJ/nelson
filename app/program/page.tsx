@@ -787,10 +787,8 @@ try {
 localStorage.removeItem("nelsonRepsData");
 localStorage.removeItem("nelsonWeightData");
 
-// ✅ Lifecycle flag for summary → dashboard refresh
-localStorage.setItem("sessionComplete", "true");
-
 showToast({ message: "Session saved successfully!", type: "success" });
+// No localStorage needed - dashboard will load fresh data on mount
 
 // Short delay so toast appears before routing
 setTimeout(() => router.push("/summary"), 800);

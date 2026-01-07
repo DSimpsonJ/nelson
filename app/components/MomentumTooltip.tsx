@@ -40,37 +40,28 @@ export default function MomentumTooltip({ isVisible, onDismiss }: MomentumToolti
             </button>
 
             {/* Headline - BIGGER PRESENCE */}
-            <h3 className="text-lg font-bold text-slate-900 mb-2.5 pr-6">
-              Momentum is physics.
-            </h3>
+<h3 className="text-lg font-bold text-slate-900 mb-2.5 pr-6">
+  Momentum is physics.
+</h3>
 
-            {/* Content - CLEANED UP HIERARCHY */}
-            <div className="space-y-2 text-sm text-slate-700 leading-relaxed text-justify">
-              <p className="italic text-slate-600">
-                An object in motion remains in motion unless acted upon by an external force.
-              </p>
-              
-              <p className="text-amber-500 font-bold text-base text-center">
-                You're the object.
-              </p>
-              
-              <p>
-                The bar will track whether you're <span className="text-slate-900 font-semibold">building motion</span> or{' '}
-                <span className="text-slate-900 font-semibold">standing still</span>.
-              </p>
-              
-              <p>
-                The more you show up, the more <span className="text-slate-900 font-semibold">unstoppable</span> you become. No judgment. Just data based on your effort.
-              </p>
-              
-              <p>
-                One off day won't stop you. <span className="text-slate-900 font-semibold">Patterns do.</span>
-              </p>
-              
-              <p className="text-slate-500 text-sm mt-2">
-                You don't move the boulder today. Today is the day you discovered it!
-              </p>
-            </div>
+{/* Content - CLEANED UP HIERARCHY */}
+<div className="space-y-2 text-sm text-slate-700 leading-relaxed text-justify">
+  <p>
+    An object in motion stays in motion unless something slows it down.
+  </p>
+  
+  <p>
+    Here, your daily actions apply force. Over time, those actions build momentum.
+  </p>
+  
+  <p>
+    This bar reflects patterns, not effort or intent. One off day usually doesn't matter. Repeated breaks do.
+  </p>
+  
+  <p>
+    That's not judgment. It's how momentum works.
+  </p>
+</div>
 
             {/* Footer action */}
             <button

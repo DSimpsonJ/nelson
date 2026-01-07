@@ -31,11 +31,9 @@ interface MomentumCalculationInput {
 }
 
 interface MomentumResult {
-  momentumScore: number;        // Final momentum (0-100)
+  proposedScore: number;        // Proposed momentum (before external caps)
   rawScore: number;             // Before dampening
   dampeningApplied: number;     // Percentage of drop that was dampened
-  trend: 'up' | 'down' | 'stable';
-  delta: number;                // Change from previous momentum
   message: string;              // Contextual message for user
 }
 
@@ -245,24 +243,18 @@ export function calculateNewtonianMomentum(input: MomentumCalculationInput): Mom
     if (delta < -2) trend = 'down';
   }
   
-  // Step 6: Apply exercise gate
-  // Only apply gate if exerciseCompleted is explicitly false
-  // If undefined (old code paths), allow momentum to change normally
-  if (exerciseCompleted === false && delta > 0) {
-    finalScore = prevMomentum;
-    delta = 0;
-    trend = 'stable';
-  }
+ // Step 6: Apply exercise gate
+if (exerciseCompleted === false && finalScore > prevMomentum) {
+  finalScore = prevMomentum;
+}
   
   // Step 7: Generate message
   const message = generateMessage(finalScore, trend, currentStreak, dampeningApplied);
   
   return {
-    momentumScore: Math.max(0, Math.min(100, finalScore)), // Clamp 0-100
+    proposedScore: Math.max(0, Math.min(100, finalScore)),
     rawScore,
     dampeningApplied,
-    trend,
-    delta,
     message
   };
 }
