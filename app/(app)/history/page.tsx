@@ -141,7 +141,7 @@ export default function HistoryPage() {
             </div>
             <div className="flex items-center gap-3 text-sm flex-wrap">
               <div className="px-3 py-1.5 bg-slate-900/50 rounded border border-slate-700">
-                <span className="text-white/60">Check-ins: </span>
+                <span className="text-white/60">Lifetime Check-ins: </span>
                 <span className="text-white font-medium">{currentWindow.filter(d => d.checkinType === "real").length}</span>
               </div>
               <div className="px-3 py-1.5 bg-slate-900/50 rounded border border-slate-700">
@@ -155,11 +155,11 @@ export default function HistoryPage() {
                 </span>
               </div>
               <div className="px-3 py-1.5 bg-slate-900/50 rounded border border-slate-700">
-                <span className="text-white/60">Current Streak: </span>
+                <span className="text-white/60">Current Run: </span>
                 <span className="text-white font-medium">{currentWindow[currentWindow.length - 1]?.currentStreak || 0}</span>
               </div>
               <div className="px-3 py-1.5 bg-slate-900/50 rounded border border-slate-700">
-                <span className="text-white/60">Longest Streak: </span>
+                <span className="text-white/60">Longest Run: </span>
                 <span className="text-white font-medium">{Math.max(...allHistory.map(d => d.lifetimeStreak || 0))}</span>
               </div>
             </div>

@@ -48,6 +48,7 @@ export async function detectAndHandleMissedCheckIns(
   // 2. Calculate how many days between last check-in and today
   const lastDate = new Date(lastCheckIn.date + "T00:00:00");
   const daysBetween = Math.floor((today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+  console.log("[GAP DEBUG] daysBetween:", daysBetween, "lastCheckIn:", lastCheckIn.date, "today:", todayKey);
   
   // 3. If checked in today or yesterday, no gap
   if (daysBetween <= 1) {

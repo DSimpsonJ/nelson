@@ -12,6 +12,17 @@
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 import { calculateNewtonianMomentum, calculateDailyScore } from './newtonianMomentum';
+import { 
+  resolveReward, 
+  isSolidDay,
+  RewardResult,
+  RewardContext 
+} from './rewardEngine';
+import { 
+  getMilestoneState, 
+  updateMilestoneState, 
+  getDaysSinceLastCheckin 
+} from './milestoneState';
 
 // ============================================================================
 // CANONICAL SCHEMA
@@ -422,7 +433,7 @@ visualState: "solid",
 
 export async function writeDailyMomentum(
   input: WriteDailyMomentumInput
-): Promise<DailyMomentumDoc> {
+): Promise<{ doc: DailyMomentumDoc; reward: RewardResult }> {
   console.log("[WriteDailyMomentum] Starting for date:", input.date);
   
   try {
@@ -453,17 +464,64 @@ export async function writeDailyMomentum(
     }
     
     const docRef = doc(db, "users", input.email, "momentum", input.date);
-    await setDoc(docRef, finalDoc);
-    
-    console.log(
-      "[WriteDailyMomentum] Success:", 
-      finalDoc.date, 
-      `${finalDoc.momentumScore}% ${finalDoc.momentumTrend === 'up' ? '↑' : finalDoc.momentumTrend === 'down' ? '↓' : '→'}`,
-      `(Check-in #${finalDoc.totalRealCheckIns})`,
-      `Exercise: ${finalDoc.exerciseCompleted ? 'Yes' : 'No'}`
-    );
-    
-    return finalDoc;
+await setDoc(docRef, finalDoc);
+
+// ===== REWARD ENGINE INTEGRATION =====
+
+// Get milestone state
+const milestoneState = await getMilestoneState(input.email);
+
+// Calculate days since last check-in
+const daysSinceLastCheckin = await getDaysSinceLastCheckin(input.email, input.date);
+
+// Calculate if this is a solid day
+const isSolid = isSolidDay(
+  input.behaviorRatings || {},
+  finalDoc.exerciseCompleted
+);
+
+// Get previous momentum for reward context
+const yesterday = new Date(input.date + "T00:00:00");
+yesterday.setDate(yesterday.getDate() - 1);
+const yesterdayKey = yesterday.toLocaleDateString("en-CA");
+const yesterdayRef = doc(db, "users", input.email, "momentum", yesterdayKey);
+const yesterdaySnap = await getDoc(yesterdayRef);
+
+const previousMomentum = yesterdaySnap.exists() 
+  ? (yesterdaySnap.data().momentumScore || 0)
+  : 0;
+
+// Build reward context
+const rewardContext: RewardContext = {
+  momentum: finalDoc.momentumScore,
+  previousMomentum: previousMomentum,
+  consecutiveDays: finalDoc.currentStreak,
+  maxConsecutiveDaysEver: milestoneState.maxConsecutiveDaysEver,
+  hasEverHitSolidMomentum: milestoneState.hasEverHitSolidMomentum,
+  daysSinceLastCheckin,
+  isSolidDay: isSolid,
+};
+
+// Resolve reward
+const reward = resolveReward(rewardContext);
+
+// Update milestone state if needed
+if (reward.stateUpdates) {
+  await updateMilestoneState(input.email, reward.stateUpdates);
+  
+  console.log("[WriteDailyMomentum] Milestone state updated:", reward.stateUpdates);
+}
+
+console.log(
+  "[WriteDailyMomentum] Success:", 
+  finalDoc.date, 
+  `${finalDoc.momentumScore}% ${finalDoc.momentumTrend === 'up' ? '↑' : finalDoc.momentumTrend === 'down' ? '↓' : '→'}`,
+  `(Check-in #${finalDoc.totalRealCheckIns})`,
+  `Exercise: ${finalDoc.exerciseCompleted ? 'Yes' : 'No'}`,
+  reward.event ? `Reward: ${reward.event}` : 'No reward'
+);
+
+return { doc: finalDoc, reward };
     
   } catch (error) {
     console.error("[WriteDailyMomentum] Error:", error);

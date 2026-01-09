@@ -35,14 +35,16 @@ export default function HistoryAccess({
         </div>
 
         {/* Quick Stats Preview */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-white">{currentStreak}</p>
-            <p className="text-xs text-white/50 mt-1">Day Streak</p>
-          </div>
+        <div className={`grid gap-4 ${currentStreak > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+  {currentStreak > 0 && (
+    <div className="text-center">
+      <p className="text-2xl font-bold text-white">{currentStreak}</p>
+      <p className="text-xs text-white/50 mt-1">Current Run</p>
+    </div>
+  )}
           <div className="text-center">
             <p className="text-2xl font-bold text-white">{totalCheckIns}</p>
-            <p className="text-xs text-white/50 mt-1">Total Check-ins</p>
+            <p className="text-xs text-white/50 mt-1">Lifetime Check-ins</p>
           </div>
           <div className="text-center">
             <p className="text-2xl font-bold text-white">{monthlyConsistency}%</p>

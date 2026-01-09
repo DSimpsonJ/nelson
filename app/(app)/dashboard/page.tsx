@@ -12,6 +12,7 @@ import {
   query,
   orderBy,
   limit,
+  where,
   writeBatch,
 } from "firebase/firestore";
 import { db, auth } from "../../firebase/config";
@@ -62,7 +63,6 @@ import {
   type CurrentFocus 
 } from "@/app/services/currentFocus";
 import { getLocalDate, getLocalDateOffset, daysBetween } from "@/app/utils/date";
-import { getRewardForEvent, type RewardPayload } from "@/app/services/rewardEngine";
 import RewardRenderer from "@/app/components/rewards/RewardRenderer";
 import CheckinSuccessAnimation from "@/app/components/rewards/CheckinSuccessAnimation";
 import FirstTimeDashboard from "./FirstTimeDashboard";
@@ -71,6 +71,9 @@ import { selectMomentumMessage } from '@/app/services/messagingGuide';
 import MomentumTooltip from '@/app/components/MomentumTooltip';
 import HistoryAccess from "@/app/components/HistoryAccess";
 import { NelsonLogo, NelsonLogoAnimated  } from '@/app/components/logos';
+import { resolveReward, type RewardPayload } 
+from "@/app/services/rewardEngine";
+
 
 
 /** ---------- Types ---------- */
@@ -347,21 +350,24 @@ export default function DashboardPage() {
   const today = getLocalDate();
   const [hasSessionToday, setHasSessionToday] = useState(false);
   const [levelUpEligible, setLevelUpEligible] = useState(false);
+  const [completedLast7Days, setCompletedLast7Days] = useState(0);
   const [averageDuration, setAverageDuration] = useState(0);
   const [showLevelUp, setShowLevelUp] = useState(false);
+  const [showAdjustOptions, setShowAdjustOptions] = useState(false);
+  const [adjustOptions, setAdjustOptions] = useState<'increase' | 'decrease'>('increase');
   const [levelUpStage, setLevelUpStage] = useState<"prompt" | "reflection" | "alternative" | "adjust">("prompt");
   const [levelUpReason, setLevelUpReason] = useState<string>("");
   const [levelUpNextStep, setLevelUpNextStep] = useState<string>("");
   const [habitStack, setHabitStack] = useState<any[]>([]);
-  const [pendingReward, setPendingReward] = useState<RewardPayload | null>(null);
+  // Rewards are now handled in check-in flow, not dashboard
+// This state can be removed entirely or kept as unused for now
+const [pendingReward, setPendingReward] = useState<any | null>(null);
   const [checkinSuccess, setCheckinSuccess] = useState(false);
   const [showMomentumTooltip, setShowMomentumTooltip] = useState(false);
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
   const [consistencyPercentage, setConsistencyPercentage] = useState<number>(0);
 
-  const handleRewardComplete = useCallback(() => {
-    setPendingReward(prev => (prev ? null : prev));
-  }, []);
+  
 
   const hasCompletedCheckin = (): boolean => {
     // Check canonical completion field
@@ -704,9 +710,25 @@ const sorted = momentumSnaps.docs
   const mostRecentCompleted = sorted.find(
     d => d.id <= todayKey && (d.data.checkinCompleted === true || (d.data.checkinCompleted === undefined && d.data.checkinType === "real"))
   );
+  const missedDays =
+  mostRecentCompleted
+    ? daysBetween(mostRecentCompleted.id, todayKey) - 1
+    : 0;
+    const missedDaysSafe = Math.max(0, missedDays);
 
 const currentStreak = mostRecentCompleted?.data.currentStreak ?? 0;
-
+// If most recent check-in is more than 1 day old, streak is broken
+let finalStreak = currentStreak;
+if (mostRecentCompleted) {
+  const lastCheckInDate = mostRecentCompleted.id;
+  const daysSinceLastCheckIn = Math.floor(
+    (new Date(todayKey).getTime() - new Date(lastCheckInDate).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  
+  if (daysSinceLastCheckIn > 1) {
+    finalStreak = 0; // Streak is broken
+  }
+}
 // Count ONLY date-formatted docs (exclude metadata)
 const totalCheckIns = momentumSnaps.docs.filter(d => {
   const docId = d.id;
@@ -753,7 +775,7 @@ const realCheckIns = momentumSnaps.docs.filter(d => {
 
 const monthlyConsistency = Math.round((realCheckIns / windowSize) * 100);
 
-setHistoryStats({ currentStreak, totalCheckIns: realCheckIns, monthlyConsistency });
+setHistoryStats({ currentStreak: finalStreak, totalCheckIns: realCheckIns, monthlyConsistency });
 setCheckinStreak(currentStreak);
 console.log(`[Dashboard] History stats: Streak ${currentStreak}, Total ${realCheckIns}, Month ${monthlyConsistency}%`);
 // =========================================================
@@ -791,8 +813,6 @@ if (allMomentumDocs.length > 0) {
   
   const diffTime = todayDate.getTime() - lastCheckin.getTime();
   const missed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  
-  setMissedDays(missed);
 }
       const note = await refreshCoachNote(email, plan as any);
       setCoachNote(note);
@@ -901,9 +921,29 @@ if (promptSnap.exists()) {
     setLevelUpEligible(true);
   }
 }
-// Get streak from most recent completed check-in (reuse existing sorted data)
+
+// Get streak from most recent completed check-in
 const streakValue = mostRecentCompleted?.data.currentStreak ?? 0;
 setCheckinStreak(streakValue);
+
+// Check level-up eligibility
+const sevenDaysAgo = new Date();
+sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+const sessionsSnap = await getDocs(
+  query(
+    collection(db, "users", email, "sessions"),
+    where("date", ">=", sevenDaysAgo.toLocaleDateString("en-CA"))
+  )
+);
+
+const completed = sessionsSnap.docs.filter(
+  doc => doc.data().durationMin >= (currentFocus?.target || 10)
+).length;
+
+setCompletedLast7Days(completed);
+setLevelUpEligible(completed >= 5);
+
 } catch (err) {
   console.error("Dashboard load error:", err);
   showToast({ message: "Error loading dashboard", type: "error" });
@@ -1117,6 +1157,49 @@ const evaluateLevelUpEligibilityPure = (inputs: {
     accountAgeDays: inputs.accountAgeDays,
   });
 };
+const getNextLevel = (current: number) => {
+  const ladder = [5, 10, 12, 15, 20, 25, 30];
+  const currentIndex = ladder.indexOf(current);
+  return ladder[currentIndex + 1] || current + 5;
+};
+
+const handleLevelUp = async () => {
+  setSaving(true);
+  const email = getEmail();
+  if (!email || !currentFocus) return;
+  
+  const nextMinutes = getNextLevel(currentFocus.target);
+  
+  await setCurrentFocusService(email, {
+    ...currentFocus,
+    target: nextMinutes,
+    habit: `Walk ${nextMinutes} minutes daily`,
+    habitKey: `walk_${nextMinutes}min`,
+    lastLevelUpAt: getLocalDate(),
+  });
+  
+  setLevelUpEligible(false);
+  setSaving(false);
+  showToast({ message: `Leveled up to ${nextMinutes} minutes!`, type: "success" });
+};
+
+const handleAdjustLevel = async (minutes: number) => {
+  setSaving(true);
+  const email = getEmail();
+  if (!email || !currentFocus) return;
+  
+  await setCurrentFocusService(email, {
+    ...currentFocus,
+    target: minutes,
+    habit: `Walk ${minutes} minutes daily`,
+    habitKey: `walk_${minutes}min`,
+  });
+  
+  setShowAdjustOptions(false);
+  setLevelUpEligible(false);
+  setSaving(false);
+  showToast({ message: `Adjusted to ${minutes} minutes`, type: "success" });
+};
 const recordLevelUpPrompt = async (email: string, today: string) => {
 const promptRef = doc(db, "users", email, "momentum", "levelUpPrompt");
 
@@ -1303,65 +1386,9 @@ if (commitmentData?.expiresAt && commitmentData?.accepted && !commitmentData?.ce
   }
 }
   
- // ✅ CHECK FOR MILESTONE REWARDS
-
-// Check for perfect day (all foundations + primary)
-const isPerfectDay = 
-data.proteinHit === "yes" &&
-data.hydrationHit === "yes" &&
-data.sleepHit === "yes" &&
-data.movedToday === "yes" &&
-data.energyBalance === "normal" &&
-data.eatingPattern === "meals" &&
-momentumDoc.primaryHabitHit;
-
-// Check for return from break (7+ days away)
-const isReturningFromBreak = missedDays >= 7;
-
-// Check for lifetime check-in milestones
-const isMilestone50 = allCheckinsCount === 50;
-const isMilestone100 = allCheckinsCount === 100;
-const currentStreak = momentumDoc.currentStreak;
-const hasMilestone = 
-  currentStreak === 30 || 
-  currentStreak === 21 || 
-  currentStreak === 7 || 
-  currentStreak === 3 ||
-  isPerfectDay ||
-  isCommitmentComplete ||
-  isReturningFromBreak ||
-  isMilestone50 ||
-  isMilestone100;
-
-if (hasMilestone) {
-// Skip daily celebration, go straight to milestone
-// PRIORITY ORDER: Commitment > Return from Break > Streaks > Perfect Day
-if (isCommitmentComplete) {
-  setPendingReward(getRewardForEvent("commitment_complete"));
-} else if (isReturningFromBreak) {
-  setPendingReward(getRewardForEvent("return_from_break"));
-} else if (isMilestone100) {
-  setPendingReward(getRewardForEvent("milestone_100"));
-} else if (isMilestone50) {
-  setPendingReward(getRewardForEvent("milestone_50"));
-} else if (currentStreak === 30) {
-  setPendingReward(getRewardForEvent("streak_30"));
-} else if (currentStreak === 21) {
-  setPendingReward(getRewardForEvent("streak_21"));
-} else if (currentStreak === 7) {
-  setPendingReward(getRewardForEvent("streak_7"));
-} else if (currentStreak === 3) {
-  setPendingReward(getRewardForEvent("streak_3"));
-} else if (isPerfectDay) {
-  setPendingReward(getRewardForEvent("perfect_day"));
-}
-
-// Mark check-in as complete immediately (no daily animation)
+ // Reward already determined in writeDailyMomentum and stored in sessionStorage
+// CheckinSuccessAnimation will handle display
 setCheckinSubmitted(true);
-} else {
-// Show daily celebration
-setCheckinSuccess(true);
-}
   
     } catch (err) {
       console.error("handleCheckinSubmit error:", err);
@@ -1446,10 +1473,6 @@ setCheckinSubmitted(false);
       
       // Close modal
       setShowLevelUp(false);
-      
-    // ✅ FIRE LEVEL-UP CELEBRATION
-const levelUpReward = getRewardForEvent("level_up");
-setPendingReward(levelUpReward);
       
      // Update only the affected state
 setCurrentFocus(updatedFocus);
@@ -1558,13 +1581,6 @@ if (levelUpNextStep === "try_different") {
         if (!email) return;
         
         const today = new Date().toLocaleDateString("en-CA");
-        
-        const { checkMilestones } = await import('../../services/checkMilestones');
-        const result = await checkMilestones(email, today);
-        
-        if (result.hasMilestone && result.type) {
-          setPendingReward(getRewardForEvent(result.type));
-        }
         
         // Level-up eligibility (event-driven)
         const inputs = await gatherLevelUpInputs(email, today);
@@ -1838,8 +1854,7 @@ useEffect(() => {
     >
       {pendingReward && (
   <RewardRenderer 
-    reward={pendingReward} 
-    onComplete={handleRewardComplete}
+    reward={pendingReward}
   />
 )}
       <motion.div
@@ -1890,15 +1905,11 @@ useEffect(() => {
 )}
 
       {/* Streak Message */}
-      {checkinStreak > 0 && missedDays === 0 && (() => {
-        const { icon, message } = getStreakMessage(checkinStreak);
-        return (
-          <div className="flex items-center gap-2 text-sm font-medium text-amber-400 mt-2">
-            <span>{icon}</span>
-            <span>{message}</span>
-          </div>
-        );
-      })()}
+      {historyStats.currentStreak > 0 && missedDays === 0 && (
+  <div className="text-sm text-amber-400 mt-2">
+    {historyStats.currentStreak} consecutive days
+  </div>
+)}
 
       <p className="text-[11px] tracking-widest uppercase text-white/40 font-semibold mt-2">
         Patience • Perseverance • Progress
@@ -1910,672 +1921,72 @@ useEffect(() => {
 </div>
   </div>
 
-  {/* Commitment/Level-Up Section */}
-  <div className="mt-4 pt-4 border-t border-slate-700 transition-all duration-500 ease-in-out">
-    {/* LEVEL-UP PROMPT - Shows when eligible, overrides commitment display */}
-    {showLevelUp && levelUpEligible ? (
-      <div className="transition-all duration-500 ease-in-out">
-        {levelUpStage === "prompt" && (
-          <div className="animate-fadeIn">
-            <p className="text-white/80 mb-1 text-sm">
-  Nice effort, you're ready to level up.
-</p>
-            <p className="text-white mb-2 font-semibold text-lg">
-              You're averaging {averageDuration} minutes over the last 7 days
-            </p>
-            <p className="text-white/80 mb-4 text-sm">
-              What feels doable for the next 7 days?
-            </p>
-            
-            <div className="flex flex-col gap-2">
+  {/* Level-Up Prompt */}
+{levelUpEligible && completedLast7Days >= 5 && (
+  <div className="mt-4 pt-4 border-t border-slate-700 animate-fadeIn">
+    <p className="text-white mb-2 font-semibold">
+      You've completed your exercise {completedLast7Days} out of 7 days.
+    </p>
+    <p className="text-white/80 mb-4 text-sm">
+      What will you commit to for the next 7 days?
+    </p>
+    
+    {!showAdjustOptions ? (
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={() => { setAdjustOptions('increase'); setShowAdjustOptions(true); }}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition"
+        >
+          Increase my commitment
+        </button>
+        
+        <button
+          onClick={() => setLevelUpEligible(false)}
+          className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
+        >
+          Keep my current commitment
+        </button>
+        
+        <button
+          onClick={() => { setAdjustOptions('decrease'); setShowAdjustOptions(true); }}
+          className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
+        >
+          Decrease my commitment
+        </button>
+      </div>
+    ) : (
+      <div>
+        <div className="space-y-2">
+          {[5, 10, 12, 15, 20, 25, 30]
+            .filter(min => {
+              const current = currentFocus?.target || 10;
+              return adjustOptions === 'increase' ? min > current : min < current;
+            })
+            .map(minutes => (
               <button
-                onClick={handleLevelUpAccept}
+                key={minutes}
+                onClick={() => handleAdjustLevel(minutes)}
                 disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition disabled:opacity-50"
+                className="w-full text-left p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
               >
-                {saving ? "Saving..." : `Level Up to ${(() => {
-                  const current = getTargetMinutes(currentFocus?.habitKey || "");
-                  const next = current === 5 ? 10 : current === 10 ? 12 : current === 12 ? 15 : current === 15 ? 20 : current === 20 ? 25 : current === 25 ? 30 : current + 5;
-                  return next;
-                })()} Minutes`}
-              </button>
-              
-              <button
-                onClick={() => {
-                  setShowLevelUp(false);
-                  showToast({ message: "You got it. Keep building at your current pace.", type: "success" });
-                }}
-                className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
-              >
-                Stay at This Level
-              </button>
-              
-              <button
-                onClick={() => setLevelUpStage("adjust")}
-                className="w-full bg-slate-700 hover:bg-slate-600 text-blue-400 font-semibold rounded-lg py-2 border-2 border-blue-500/50 transition"
-              >
-                Adjust My Plan
-              </button>
-            </div>
-          </div>
-        )}
-        {levelUpStage === "adjust" && (
-          <div className="animate-fadeIn">
-            <p className="text-white/80 mb-3 font-semibold">
-              Sounds good. Sustainability beats intensity every time.
-            </p>
-            <p className="text-white/80 mb-3 text-sm">
-              What feels more manageable right now?
-            </p>
-
-            <div className="space-y-2">
-              {(() => {
-                const currentMinutes = extractMinutes(currentFocus?.habitKey || "walk_10min") || 10;
-                const ladder = [5, 10, 12, 15, 20, 25, 30];
-                
-                const lowerOptions = ladder.filter(min => min < currentMinutes);
-                
-                if (lowerOptions.length === 0) {
-                  return (
-                    <p className="text-sm text-white/60 p-3 bg-slate-700/30 rounded-lg">
-                      You're already at the starting level! Keep building consistency here.
-                    </p>
-                  );
-                }
-                
-                return lowerOptions.reverse().map((minutes) => (
-                  <button
-                    key={minutes}
-                    onClick={async () => {
-                      setSaving(true);
-                      try {
-                        const email = getEmail();
-                        if (!email) return;
-
-                        const newHabitKey = `walk_${minutes}min`;
-                        const newHabit = `Walk ${minutes} minutes`;
-                        
-                        const focusData: CurrentFocus = {
-                          habitKey: newHabitKey,
-                          habit: newHabit,
-                          level: ladder.indexOf(minutes) + 1,
-                          target: minutes,
-                          startedAt: currentFocus?.startedAt || getLocalDate(),
-                          lastLevelUpAt: getLocalDate(),
-                          consecutiveDays: 0,
-                          eligibleForLevelUp: false,
-                        };
-                        
-                        await setCurrentFocusService(email, focusData);
-                        
-                        await logHabitEvent(email, {
-                          type: "level_up",
-                          date: getLocalDate(),
-                          habitKey: newHabitKey,
-                          habitName: newHabit,
-                          fromLevel: currentFocus?.level,
-                          toLevel: focusData.level,
-                        });
-                        
-                        await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                          habitOffered: newHabit,
-                          habitKey: newHabitKey,
-                          acceptedAt: getLocalDate(),
-                          isActive: true,
-                        }, { merge: true });
-                        
-                        setShowLevelUp(false);
-                        showToast({ 
-                          message: "Plan adjusted. Focus on consistency at this level.", 
-                          type: "success" 
-                        });
-                        
-                        // Update local state with the adjusted habit
-                        setCurrentFocus({
-                          habit: newHabit,
-                          habitKey: newHabitKey,
-                          level: 1,
-                          target: extractMinutes(newHabitKey) ?? 10,
-                          startedAt: getLocalDate(),
-                          lastLevelUpAt: null,
-                          consecutiveDays: 0,
-                          eligibleForLevelUp: false,
-                        });
-                        setCommitment({
-                          habitOffered: newHabit,
-                          habitKey: newHabitKey,
-                          acceptedAt: getLocalDate(),
-                          isActive: true,
-                        });
-                        
-                      } catch (err) {
-                        console.error("Failed to adjust plan:", err);
-                        showToast({ message: "Failed to adjust plan", type: "error" });
-                      } finally {
-                        setSaving(false);
-                      }
-                    }}
-                    disabled={saving}
-                    className="w-full text-left p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
-                  >
-                    <p className="font-semibold text-white text-sm">Walk {minutes} minutes daily</p>
-                    <p className="text-xs text-white/60">
-                      {minutes === 5 ? "Start small, build the habit" : "Dial it back, stay consistent"}
-                    </p>
-                  </button>
-                ));
-              })()}
-            </div>
-
-            <button
-              onClick={() => setLevelUpStage("prompt")}
-              className="w-full mt-3 text-sm text-white/60 hover:text-white"
-            >
-              ← Back
-            </button>
-          </div>
-        )}
-      </div>
-    ) : showCommitment && currentFocus ? (
-      <div className="transition-all duration-500 ease-in-out">
-        {commitmentStage === "initial" && (
-          <div className="animate-fadeIn">
-            <p className="text-white/80 mb-1 text-sm">
-              {currentFocus.suggested && currentFocus.habitKey !== "custom_habit" && currentFocus.habitKey?.includes("movement_") 
-                ? "Based on your intake, I recommend:" 
-                : "Your focus:"}
-            </p>
-            <p className="text-white mb-3 font-semibold text-lg">
-              {currentFocus.habit}
-            </p>
-            <p className="text-white/80 mb-4 text-sm">
-              Can you commit to this for 7 days, rain or shine?
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={async () => {
-                  setSaving(true);
-                  try {
-                    const email = getEmail();
-                    if (!email) return;
-
-                    const weekId = getISOWeekId(new Date());
-                    const expiresAt = new Date();
-                    expiresAt.setDate(expiresAt.getDate() + 7);
-
-                    await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                      habitOffered: currentFocus.habit,
-                      habitKey: currentFocus.habitKey,
-                      accepted: true,
-                      acceptedAt: new Date().toISOString(),
-                      weekStarted: weekId,
-                      expiresAt: expiresAt.toISOString(),
-                      createdAt: new Date().toISOString(),
-                    });
-
-                    const focusData: CurrentFocus = {
-                      habit: currentFocus.habit,
-                      habitKey: currentFocus.habitKey,
-                      level: 1,
-                      target: extractMinutes(currentFocus.habitKey) ?? 10,
-                      startedAt: today,
-                      lastLevelUpAt: null,
-                      consecutiveDays: 0,
-                      eligibleForLevelUp: false,
-                    };
-                    await setCurrentFocusService(email, focusData);
-
-                    setCurrentFocus(focusData);
-                    setCommitment({
-                      habitOffered: focusData.habit,
-                      habitKey: focusData.habitKey,
-                      accepted: true,
-                      acceptedAt: new Date().toISOString(),
-                      weekStarted: weekId,
-                      expiresAt: expiresAt.toISOString(),
-                      createdAt: new Date().toISOString(),
-                    });
-                    setShowCommitment(false);
-                  } catch (err) {
-                    console.error("Failed to save commitment:", err);
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-                disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "I'm In"}
-              </button>
-              
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCommitmentStage("reason")}
-                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
-                >
-                  Not Yet
-                </button>
-                
-                {currentFocus.suggested && (
-                  <button
-                    onClick={() => setCommitmentStage("choose")}
-                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-blue-400 font-semibold rounded-lg py-2 border-2 border-blue-500/50 transition"
-                  >
-                    Choose Different
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {commitmentStage === "reason" && (
-          <div className="animate-fadeIn">
-            <p className="text-white/80 mb-3 font-semibold">
-              I respect that. Let's figure out what would work better.
-            </p>
-            <p className="text-white/80 mb-3 text-sm">What's making this feel difficult?</p>
-
-            <div className="space-y-2 mb-3">
-              <label className="flex items-center gap-3 p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 cursor-pointer text-sm bg-slate-700/30">
-                <input
-                  type="radio"
-                  name="reason"
-                  value="time_too_big"
-                  checked={commitmentReason === "time_too_big"}
-                  onChange={(e) => setCommitmentReason(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span className="text-white/80">The time commitment feels too big</span>
-              </label>
-
-              <label className="flex items-center gap-3 p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 cursor-pointer text-sm bg-slate-700/30">
-                <input
-                  type="radio"
-                  name="reason"
-                  value="different_habit"
-                  checked={commitmentReason === "different_habit"}
-                  onChange={(e) => setCommitmentReason(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span className="text-white/80">I'd rather focus on a different habit first</span>
-              </label>
-
-              <label className="flex items-center gap-3 p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 cursor-pointer text-sm bg-slate-700/30">
-                <input
-                  type="radio"
-                  name="reason"
-                  value="something_else"
-                  checked={commitmentReason === "something_else"}
-                  onChange={(e) => setCommitmentReason(e.target.value)}
-                  className="w-4 h-4"
-                />
-                <span className="text-white/80">Something else is in the way</span>
-              </label>
-            </div>
-
-            <button
-              onClick={async () => {
-                if (!commitmentReason) return;
-
-                setSaving(true);
-                try {
-                  const email = getEmail();
-                  if (!email) return;
-
-                  await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                    habitOffered: currentFocus.habit,
-                    habitKey: currentFocus.habitKey,
-                    accepted: false,
-                    reason: commitmentReason,
-                    createdAt: new Date().toISOString(),
-                  });
-
-                  if (commitmentReason === "time_too_big" || commitmentReason === "different_habit") {
-                    setCommitmentStage("alternative");
-                  } else {
-                    setCommitmentStage("choose");
-                    setCommitmentReason("");
-                  }
-                } catch (err) {
-                  console.error("Failed to save reason:", err);
-                } finally {
-                  setSaving(false);
-                }
-              }}
-              disabled={!commitmentReason || saving}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? "Saving..." : "Continue"}
-            </button>
-          </div>
-        )}
-
-        {commitmentStage === "alternative" && (
-          <div className="animate-fadeIn">
-            {commitmentReason === "time_too_big" ? (
-              <>
-                <p className="text-white/80 mb-3 font-semibold">
-                  No problem. Would 5 minutes work better?
+                <p className="font-semibold text-white text-sm">
+                  {minutes} minutes daily
                 </p>
-                <p className="text-white/80 mb-3 text-sm">
-                  Sometimes starting smaller is the key. Can you commit to a 5-minute walk every day for 7 days?
-                </p>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={async () => {
-                      setSaving(true);
-                      try {
-                        const email = getEmail();
-                        if (!email) return;
-
-                        const weekId = getISOWeekId(new Date());
-                        const expiresAt = new Date();
-                        expiresAt.setDate(expiresAt.getDate() + 7);
-
-                        await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                          habitOffered: currentFocus.habit,
-                          habitKey: currentFocus.habitKey,
-                          accepted: false,
-                          reason: commitmentReason,
-                          alternativeOffered: "Walk 5 minutes daily",
-                          alternativeAccepted: true,
-                          acceptedAt: new Date().toISOString(),
-                          weekStarted: weekId,
-                          expiresAt: expiresAt.toISOString(),
-                          createdAt: new Date().toISOString(),
-                        }, { merge: true });
-
-                        const focusData: CurrentFocus = {
-                          habit: "Walk 5 minutes daily",
-                          habitKey: "walk_5min",
-                          level: 1,
-                          target: 5,
-                          startedAt: getLocalDate(),
-                          lastLevelUpAt: null,
-                          consecutiveDays: 0,
-                          eligibleForLevelUp: false,
-                        };
-                        await setCurrentFocusService(email, focusData);
-
-setCurrentFocus(focusData);
-setCommitment({
-  habitOffered: focusData.habit,
-  habitKey: focusData.habitKey,
-  accepted: false,
-  reason: commitmentReason,
-  alternativeOffered: "Walk 5 minutes daily",
-  alternativeAccepted: true,
-  acceptedAt: new Date().toISOString(),
-  weekStarted: weekId,
-  expiresAt: expiresAt.toISOString(),
-  createdAt: new Date().toISOString(),
-});
-setShowCommitment(false);
-                      } catch (err) {
-                        console.error("Failed to save alternative:", err);
-                      } finally {
-                        setSaving(false);
-                      }
-                    }}
-                    disabled={saving}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50"
-                  >
-                    {saving ? "Saving..." : "Yes, 5 Minutes"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowCommitment(false);
-                      setCommitmentStage("initial");
-                    }}
-                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
-                  >
-                    I'll Think About It
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-white/80 mb-3 font-semibold">
-                  No problem. What would you rather focus on?
-                </p>
-                <p className="text-white/80 mb-3 text-sm">Pick the habit that feels most important right now:</p>
-
-                <div className="space-y-2">
-                  {[
-                    { habit: "Walk 10 minutes daily", key: "walk_10min", desc: "Build the movement habit" },
-                    { habit: "Hit your protein target daily", key: "protein_daily", desc: "Fuel muscle and recovery" },
-                    { habit: "Drink 100 oz of water daily", key: "hydration_100oz", desc: "Stay hydrated and energized" },
-                    { habit: "Sleep 7+ hours nightly", key: "sleep_7plus", desc: "Recover and rebuild" },
-                  ].map((option) => (
-                    <button
-                      key={option.key}
-                      onClick={async () => {
-                        setSaving(true);
-                        try {
-                          const email = getEmail();
-                          if (!email) return;
-
-                          const weekId = getISOWeekId(new Date());
-                          const expiresAt = new Date();
-                          expiresAt.setDate(expiresAt.getDate() + 7);
-
-                          await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                            habitOffered: currentFocus.habit,
-                            habitKey: currentFocus.habitKey,
-                            accepted: false,
-                            reason: "different_habit",
-                            alternativeOffered: option.habit,
-                            alternativeAccepted: true,
-                            acceptedAt: new Date().toISOString(),
-                            weekStarted: weekId,
-                            expiresAt: expiresAt.toISOString(),
-                            createdAt: new Date().toISOString(),
-                          }, { merge: true });
-
-                          const focusData: CurrentFocus = {
-                            habit: option.habit,
-                            habitKey: option.key,
-                            level: 1,
-                            target: extractMinutes(option.key) ?? 10,
-                            startedAt: getLocalDate(),
-                            lastLevelUpAt: null,
-                            consecutiveDays: 0,
-                            eligibleForLevelUp: false,
-                          };
-                          await setCurrentFocusService(email, focusData);
-
-setCurrentFocus(focusData);
-setCommitment({
-  habitOffered: focusData.habit,
-  habitKey: focusData.habitKey,
-  accepted: false,
-  reason: "different_habit",
-  alternativeOffered: option.habit,
-  alternativeAccepted: true,
-  acceptedAt: new Date().toISOString(),
-  weekStarted: weekId,
-  expiresAt: expiresAt.toISOString(),
-  createdAt: new Date().toISOString(),
-});
-setShowCommitment(false);
-                        } catch (err) {
-                          console.error("Failed to save habit selection:", err);
-                        } finally {
-                          setSaving(false);
-                        }
-                      }}
-                      disabled={saving}
-                      className="w-full text-left p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
-                    >
-                      <p className="font-semibold text-white text-sm">{option.habit}</p>
-                      <p className="text-xs text-white/60">{option.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {commitmentStage === "choose" && (
-          <div className="animate-fadeIn">
-            <p className="text-white/80 mb-3 font-semibold">
-              What would you rather focus on?
-            </p>
-            <p className="text-white/80 mb-3 text-sm">Pick the habit that feels most important right now:</p>
-
-            <div className="space-y-2">
-              {[
-                { habit: "Walk 5 minutes daily", key: "walk_5min", desc: "Start small, build consistency" },
-                { habit: "Walk 10 minutes daily", key: "walk_10min", desc: "Build the movement habit" },
-                { habit: "Walk 15 minutes daily", key: "walk_15min", desc: "Increase daily activity" },
-                { habit: "Hit your protein target daily", key: "protein_daily", desc: "Fuel muscle and recovery" },
-                { habit: "Eat protein at every meal", key: "protein_every_meal", desc: "Build the protein habit" },
-                { habit: "Eat 3 servings of vegetables daily", key: "vegetables_3_servings", desc: "Increase nutrient density" },
-                { habit: "No eating within 2 hours of bedtime", key: "no_late_eating", desc: "Improve digestion and sleep" },
-                { habit: "Drink 100 oz of water daily", key: "hydration_100oz", desc: "Stay hydrated and energized" },
-                { habit: "Sleep 7+ hours nightly", key: "sleep_7plus", desc: "Recover and rebuild" },
-              ]
-              .filter(option => option.key !== currentFocus?.habitKey)
-              .map((option) => (
-                <button
-                  key={option.key}
-                  onClick={() => {
-                    setCurrentFocus({
-                      habit: option.habit,
-                      habitKey: option.key,
-                      suggested: true,
-                      createdAt: new Date().toISOString(),
-                    });
-                  
-                    setCommitmentStage("initial");
-                  }}
-                  disabled={saving}
-                  className="w-full text-left p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
-                >
-                  <p className="font-semibold text-white text-sm">{option.habit}</p>
-                  <p className="text-xs text-white/60">{option.desc}</p>
-                </button>
-              ))}
-            </div>
-            
-            <button
-              onClick={() => setCommitmentStage("custom")}
-              className="w-full mt-3 text-center p-3 border-2 border-blue-500/50 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition text-blue-400 font-semibold"
-            >
-              + Create My Own Habit
-            </button>
-          </div>
-        )}
-
-        {commitmentStage === "custom" && (
-          <div className="animate-fadeIn">
-            <p className="text-white/80 mb-3 font-semibold">
-              What is ONE small habit can you do EVERY day for 7 days?
-            </p>
-            <p className="text-white/60 mb-3 text-sm">
-              Examples: Eat 1 serving of vegetables, Do 10 pushups, Journal for 5 minutes
-            </p>
-            
-            <input
-              type="text"
-              maxLength={50}
-              placeholder="One small daily habit..."
-              value={commitmentReason}
-              onChange={(e) => setCommitmentReason(e.target.value)}
-              className="w-full border-2 border-slate-600 bg-slate-700/50 rounded-lg p-3 text-white mb-3 focus:border-blue-400 focus:outline-none placeholder-white/40"
-            />
-            
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setCommitmentStage("choose");
-                  setCommitmentReason("");
-                }}
-                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 border-2 border-slate-600 transition"
-              >
-                Back
               </button>
-              
-              <button
-                onClick={() => {
-                  if (!commitmentReason.trim()) return;
-                  
-                  setCurrentFocus({
-                    habit: commitmentReason.trim(),
-                    habitKey: "custom_habit",
-                    suggested: true,
-                    createdAt: new Date().toISOString(),
-                  });
-                  
-                  setCommitmentStage("initial");
-                  setCommitmentReason("");
-                }}
-                disabled={!commitmentReason.trim()}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        )}
+            ))}
+        </div>
+        
+        <button
+          onClick={() => setShowAdjustOptions(false)}
+          className="w-full mt-3 text-sm text-white/60 hover:text-white"
+        >
+          ← Back
+        </button>
       </div>
-    ) : commitment && (commitment.isActive || commitment.accepted || commitment.alternativeAccepted) ? (
-      <div className="animate-fadeIn">
-        {hasCompletedPrimaryHabit() ? (
-          <div className="relative bg-gradient-to-br from-green-900/40 to-emerald-900/40 border-2 border-green-500/50 rounded-lg p-4 overflow-hidden backdrop-blur-sm">
-            <div className="absolute top-0 right-0 text-6xl opacity-20">🎯</div>
-            
-            <div className="relative">
-              <p className="text-xs text-green-400 font-semibold uppercase tracking-wide">
-                ✓ Commitment Complete
-              </p>
-              <p className="text-lg font-bold text-white mt-1">
-                {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
-              </p>
-              <p className="text-sm text-green-400 mt-2 font-medium">
-                That's the kind of consistency that compounds.
-              </p>
-              <p className="text-xs text-white/60 mt-2">
-                Day {commitment?.acceptedAt ? daysBetween(commitment.acceptedAt.split("T")[0], getLocalDate()) + 1 : 1} of 7
-              </p>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => {
-              if (currentFocus && isMovementHabit(currentFocus.habitKey)) {
-                router.push('/walk');
-              } else {
-                showToast({ 
-                  message: "Track this in your daily check-in!", 
-                  type: "info" 
-                });
-              }
-            }}
-            className="w-full flex items-center justify-between bg-blue-900/30 hover:bg-blue-900/50 rounded-lg p-3 transition-all border-2 border-transparent hover:border-blue-500/50 group backdrop-blur-sm"
-          >
-            <div className="text-left">
-              <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide">Your Commitment</p>
-              <p className="text-sm font-bold text-white mt-1">
-                🎯 {commitment?.alternativeOffered || commitment?.habitOffered || currentFocus?.habit}
-              </p>
-              <p className="text-xs text-blue-400 mt-1 group-hover:underline">
-                {currentFocus && isMovementHabit(currentFocus.habitKey) 
-                  ? "Tap to start →" 
-                  : "Track in check-in →"}
-              </p>
-            </div>
-            <p className="text-xs text-white/60 font-semibold">
-              Day {commitment?.acceptedAt ? Math.floor((new Date().getTime() - new Date(commitment.acceptedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 1} of 7
-            </p>
-          </button>
-        )}
-      </div>
-    ) : null}
+    )}
   </div>
+)}
+
 </motion.div>
 
 {/* Momentum Engine */}

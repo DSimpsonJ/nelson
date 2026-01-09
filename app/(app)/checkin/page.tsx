@@ -147,6 +147,7 @@ export default function CheckinPage() {
       
       // ===== CRITICAL: Detect and fill gaps BEFORE writing today's check-in =====
       const gapInfo = await detectAndHandleMissedCheckIns(email);
+      console.log("[GAP DEBUG]", gapInfo);
       if (gapInfo.hadGap) {
         console.log(`[CheckIn] Gap detected: ${gapInfo.daysMissed} days - filled with gap-fill docs`);
         console.log(`[CheckIn] Last check-in was ${gapInfo.lastCheckInDate}, frozen momentum: ${gapInfo.frozenMomentum}%`);
