@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, redirect } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { hasUnreadEligibleArticles } from "../services/learnService";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -20,7 +21,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   const checkCommitmentStatus = async () => {
-    // Exclude /not-started, movement commitment, and learn pages from gate
+    // Exclude these paths from gate
     if (
       pathname === "/not-started" ||
       pathname?.startsWith("/onboarding/setup/movement-commitment") ||
@@ -29,35 +30,46 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setIsCheckingCommitment(false);
       return;
     }
-
+  
     try {
-      const userEmail = getUserEmail();
-      if (!userEmail) {
-        window.location.href = "/login";
-        return;
-      }
-
-      const userRef = doc(db, "users", userEmail);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        window.location.href = "/not-started";
-        return;
-      }
-
-      const userData = userSnap.data();
-      const hasCommitment = userData.hasCommitment === true;
-
-      if (!hasCommitment) {
-        window.location.href = "/not-started";
-        return;
-      }
-
-      // User has commitment - allow access
-      setIsCheckingCommitment(false);
+      const auth = getAuth();
+      
+      // Wait for auth to resolve - THREE STATES
+      return new Promise((resolve) => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+          unsubscribe(); // Clean up listener
+          
+          // State 1: Auth resolved but no user -> redirect to login
+          if (!currentUser?.email) {
+            redirect("/login");
+            return;
+          }
+  
+          // State 2 & 3: Auth resolved with user -> check Firestore
+          const userRef = doc(db, "users", currentUser.email);
+          const userSnap = await getDoc(userRef);
+  
+          if (!userSnap.exists()) {
+            redirect("/not-started");
+            return;
+          }
+  
+          const userData = userSnap.data();
+          const hasCommitment = userData.hasCommitment === true;
+  
+          if (!hasCommitment) {
+            redirect("/not-started");
+            return;
+          }
+  
+          // All checks passed
+          setIsCheckingCommitment(false);
+          resolve(true);
+        });
+      });
     } catch (error) {
       console.error("Error checking commitment status:", error);
-      window.location.href = "/not-started";
+      redirect("/not-started");
     }
   };
 

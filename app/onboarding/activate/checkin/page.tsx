@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, redirect } from "next/navigation";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 import { getEmail } from "@/app/utils/getEmail";
 import { getLocalDate } from "@/app/utils/date";
 import { motion, AnimatePresence } from "framer-motion";
 import { writeDailyMomentum } from "@/app/services/writeDailyMomentum";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 type Rating = "elite" | "solid" | "not-great" | "off";
 
