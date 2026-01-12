@@ -178,11 +178,15 @@ export default function CheckInPage() {
 
   const submitCheckIn = async (data: CheckInData) => {
     try {
-      const email = getEmail();
-      if (!email) {
-        router.replace("/");
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      
+      if (!currentUser?.email) {
+        // Don't redirect - layout guard handles this
         return;
       }
+      
+      const email = currentUser.email;
   
       const today = getLocalDate();
   
