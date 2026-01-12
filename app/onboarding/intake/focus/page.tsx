@@ -9,7 +9,7 @@ import { motion } from "framer-motion";
 import IntakeProgress from "@/app/components/onboarding/IntakeProgress";
 
 const options = [
-  { value: "consistency", label: "Build consistent habits" },
+  { value: "consistency", label: "Build consistency" },
   { value: "stronger_leaner", label: "Feel stronger and leaner" },
   { value: "energy", label: "Have more daily energy" },
   { value: "control", label: "Get back in control" },
@@ -83,10 +83,10 @@ export default function FocusPage() {
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-3">
-            What's your main focus right now?
+            What brought you here?
           </h1>
           <p className="text-white/60">
-            Pick the one that describes what you want most.
+            Pick the one that resonates the most right now.
           </p> 
         </div>
 

@@ -629,7 +629,38 @@ if (!hasSeenWelcome) {
         setCurrentFocus(suggestedFocus);
       }
       console.log("[Dashboard] currentFocus:", focusSnap.exists() ? focusSnap.data() : "NOT FOUND");
+// ===== CHECK LEVEL-UP ELIGIBILITY =====
+const loadedFocus = focusSnap.exists() ? focusSnap.data() : null;
 
+if (loadedFocus) {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const sessionsSnap = await getDocs(
+    query(
+      collection(db, "users", email, "sessions"),
+      where("date", ">=", sevenDaysAgo.toLocaleDateString("en-CA"))
+    )
+  );
+
+  const completed = sessionsSnap.docs.filter(
+    doc => doc.data().durationMin >= (loadedFocus.target || 10)
+  ).length;
+
+  const daysSinceLastDecision = loadedFocus.lastLevelUpAt
+    ? daysBetween(loadedFocus.lastLevelUpAt, today)
+    : 999;
+
+  console.log('[LevelUp Debug]', {
+    completed,
+    lastLevelUpAt: loadedFocus.lastLevelUpAt,
+    daysSinceLastDecision,
+    eligible: completed >= 5 && daysSinceLastDecision >= 7
+  });
+
+  setCompletedLast7Days(completed);
+  setLevelUpEligible(completed >= 5 && daysSinceLastDecision >= 7);
+}
       // Load habit stack
 const stackRef = doc(db, "users", email, "momentum", "habitStack");
 const stackSnap = await getDoc(stackRef);
@@ -926,24 +957,6 @@ if (promptSnap.exists()) {
 const streakValue = mostRecentCompleted?.data.currentStreak ?? 0;
 setCheckinStreak(streakValue);
 
-// Check level-up eligibility
-const sevenDaysAgo = new Date();
-sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-const sessionsSnap = await getDocs(
-  query(
-    collection(db, "users", email, "sessions"),
-    where("date", ">=", sevenDaysAgo.toLocaleDateString("en-CA"))
-  )
-);
-
-const completed = sessionsSnap.docs.filter(
-  doc => doc.data().durationMin >= (currentFocus?.target || 10)
-).length;
-
-setCompletedLast7Days(completed);
-setLevelUpEligible(completed >= 5);
-
 } catch (err) {
   console.error("Dashboard load error:", err);
   showToast({ message: "Error loading dashboard", type: "error" });
@@ -1193,12 +1206,25 @@ const handleAdjustLevel = async (minutes: number) => {
     target: minutes,
     habit: `Walk ${minutes} minutes daily`,
     habitKey: `walk_${minutes}min`,
+    lastLevelUpAt: getLocalDate(),
   });
   
   setShowAdjustOptions(false);
   setLevelUpEligible(false);
   setSaving(false);
-  showToast({ message: `Adjusted to ${minutes} minutes`, type: "success" });
+  showToast({ message: "Commitment updated.", type: "success" });
+};
+const handleKeepCurrent = async () => {
+  const email = getEmail();
+  if (!email || !currentFocus) return;
+  
+  await setCurrentFocusService(email, {
+    ...currentFocus,
+    lastLevelUpAt: getLocalDate(),
+  });
+  
+  setLevelUpEligible(false);
+  showToast({ message: "Got it. Keep building at your current pace.", type: "success" });
 };
 const recordLevelUpPrompt = async (email: string, today: string) => {
 const promptRef = doc(db, "users", email, "momentum", "levelUpPrompt");
@@ -1876,7 +1902,7 @@ useEffect(() => {
 {showWelcomeMessage ? (
  // FIRST-TIME WELCOME
 <div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
-  <p className="font-semibold">Welcome to your dashboard.</p>
+  <p className="font-semibold">Welcome to your Dashboard.</p>
   <p>This is where you check in once per day and reflect on yesterday's actions.</p>
   <p>Momentum builds from patterns, not motivation.</p>
   <p>When there's new learning available, you'll see a small indicator on Learn.</p>
@@ -1928,7 +1954,7 @@ useEffect(() => {
       You've completed your exercise {completedLast7Days} out of 7 days.
     </p>
     <p className="text-white/80 mb-4 text-sm">
-      What will you commit to for the next 7 days?
+      What will you commit to for the upcoming week?
     </p>
     
     {!showAdjustOptions ? (
@@ -1941,11 +1967,11 @@ useEffect(() => {
         </button>
         
         <button
-          onClick={() => setLevelUpEligible(false)}
-          className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
-        >
-          Keep my current commitment
-        </button>
+  onClick={handleKeepCurrent}
+  className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
+>
+  Keep my current commitment
+</button>
         
         <button
           onClick={() => { setAdjustOptions('decrease'); setShowAdjustOptions(true); }}

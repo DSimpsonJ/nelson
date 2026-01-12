@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,6 +10,20 @@ export default function HistoryPage() {
   const router = useRouter();
   const { loading, allHistory, currentWindow, accountAgeDays } = useMomentumHistory();
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
+  const [expandedNote, setExpandedNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (expandedDate && !target.closest('[data-calendar-popup]')) {
+        setExpandedDate(null);
+        setExpandedNote(null);
+      }
+    };
+  
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [expandedDate]);
 
   if (loading) {
     return (
@@ -316,6 +330,7 @@ export default function HistoryPage() {
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 transition={{ duration: 0.15, ease: "easeOut" }}
                                 className={`absolute bottom-full mb-2 z-50 w-96 max-w-[90vw] ${popupPositionClass}`}
+                                data-calendar-popup
                               >
                                 <div
                                   className="bg-slate-900 border border-blue-500 rounded-lg shadow-xl p-4"
@@ -347,7 +362,26 @@ export default function HistoryPage() {
                                       );
                                     })}
                                   </div>
-
+{/* Note display */}
+{dayDoc.note && (
+                                    <div className="mt-4 pt-3 border-t border-slate-700">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpandedNote(expandedNote === dateStr ? null : dateStr);
+                                        }}
+                                        className="text-xs text-blue-400 hover:text-blue-300 mb-2"
+                                      >
+                                        {expandedNote === dateStr ? "Hide note" : "View note"}
+                                      </button>
+                                      
+                                      {expandedNote === dateStr && (
+                                        <div className="p-3 bg-slate-800/50 rounded border border-slate-700 text-sm text-white/80">
+                                          {dayDoc.note}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                   <div className={`absolute bottom-0 translate-y-full ${arrowPositionClass}`}>
                                     <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-blue-500"></div>
                                   </div>
@@ -357,8 +391,10 @@ export default function HistoryPage() {
                           </AnimatePresence>
 
                           <button
-                            onClick={() => setExpandedDate(isExpanded ? null : dateStr)}
-                            onBlur={() => setTimeout(() => setExpandedDate(null), 150)}
+  onClick={() => {
+    setExpandedDate(isExpanded ? null : dateStr);
+    if (isExpanded) setExpandedNote(null);
+  }}
                             className={`w-full h-full border rounded p-2 hover:border-slate-600 transition-colors text-left ${isExpanded ? 'border-blue-500 bg-slate-700/30' : 'border-slate-700'
                               }`}
                           >

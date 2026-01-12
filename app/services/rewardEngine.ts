@@ -24,7 +24,6 @@ export type RewardEventType =
   // Positive Acknowledgment (forward progress, no celebration)
   | "early_consistency"        // first time hitting 3 OR 7 consecutive days
   | "mid_consistency"          // first time hitting 14 OR 21 consecutive days
-  | "return_to_pattern"        // consistency resumes after a break
   | "solid_day"                // all foundations solid+ including exercise
   | "progress_signal"          // includes 100% momentum, general forward delta
   
@@ -102,14 +101,6 @@ const RESPONSE_CONFIG: Record<RewardEventType, {
     shareable: false,
   },
   
-  return_to_pattern: {
-    class: "positive",
-    animation: "pulse",
-    intensity: "small",
-    text: "Back at it. Let's rebuild the pattern.",
-    shareable: false,
-  },
-  
   solid_day: {
     class: "positive",
     animation: "pulse",
@@ -165,7 +156,6 @@ const PRIORITY: RewardEventType[] = [
   // Positive acknowledgment
   "mid_consistency",
   "early_consistency",
-  "return_to_pattern",
   "solid_day",
   "progress_signal",
   
@@ -263,7 +253,6 @@ export function resolveReward(ctx: RewardContext): RewardResult {
     
     mid_consistency: eligibleMidConsistency(ctx),
     early_consistency: eligibleEarlyConsistency(ctx),
-    return_to_pattern: eligibleReturnToPattern(ctx),
     solid_day: eligibleSolidDay(ctx),
     progress_signal: eligibleProgressSignal(ctx),
     

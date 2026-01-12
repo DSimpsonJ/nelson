@@ -24,6 +24,7 @@ export interface DailyMomentumDoc {
   visualState: string;
   exerciseCompleted?: boolean;
   exerciseTargetMinutes?: number;
+  note?: string;
 }
 
 export function useMomentumHistory() {

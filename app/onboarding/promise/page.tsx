@@ -83,12 +83,14 @@ export default function PromisePage() {
           className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-2xl p-8 shadow-2xl mb-8"
         >
           <p className="text-xl text-white leading-relaxed mb-6">
-          I’ll keep you accountable and focused on what works: consistent action backed by real science.
+          I’m here to help you discover what actually works.
+Small, consistent actions backed by real science.
           </p>
           <p className="text-xl text-white leading-relaxed">
-            Forget perfection.{" "}
+          You check in honestly,
+          I'll help you see the patterns.{" "}
             <span className="text-amber-300 font-semibold">
-              Just show up every day.
+            Over time, momentum becomes visible.
             </span>
           </p>
         </motion.div>

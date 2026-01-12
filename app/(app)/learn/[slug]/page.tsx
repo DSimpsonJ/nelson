@@ -1,11 +1,101 @@
-import { notFound } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { notFound, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getItemBySlug } from "../../../data/learnContent";
+import { doc, getDoc, setDoc, arrayUnion } from "firebase/firestore";
+import { db } from "@/app/firebase/config";
 
-export default function LearnItemPage({ params }: { params: { slug: string } }) {
-  const item = getItemBySlug(params.slug);
+type Article = {
+  slug: string;
+  title: string;
+  format: "read" | "watch";
+  duration: string;
+  category: string;
+  content: string;
+};
 
-  if (!item) {
+export default function LearnItemPage({ params }: { params: Promise<{ slug: string }> }) {
+  const [article, setArticle] = useState<Article | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [slug, setSlug] = useState<string>("");
+
+  useEffect(() => {
+    const unwrapParams = async () => {
+      const resolvedParams = await params;
+      setSlug(resolvedParams.slug);
+    };
+    unwrapParams();
+  }, [params]);
+
+  useEffect(() => {
+    if (slug) {
+      loadArticle();
+    }
+  }, [slug]);
+
+  const loadArticle = async () => {
+    try {
+      // Fetch article from Firestore
+      const articleRef = doc(db, "articles", slug);
+      const articleSnap = await getDoc(articleRef);
+
+      if (!articleSnap.exists()) {
+        setLoading(false);
+        return;
+      }
+
+      setArticle(articleSnap.data() as Article);
+      
+      // Mark as read
+      await markAsRead();
+      
+      setLoading(false);
+    } catch (error) {
+      console.error("Error loading article:", error);
+      setLoading(false);
+    }
+  };
+
+  const markAsRead = async () => {
+    try {
+      const userEmail = getUserEmail();
+      if (!userEmail) return;
+
+      const userRef = doc(db, "users", userEmail);
+      
+      // Add this article slug to readLearnSlugs array
+      await setDoc(
+        userRef,
+        { readLearnSlugs: arrayUnion(slug) },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Error marking article as read:", error);
+    }
+  };
+
+  const getUserEmail = (): string | null => {
+    if (typeof window === "undefined") return null;
+    const userStr = localStorage.getItem("nelsonUser");
+    if (!userStr) return null;
+    try {
+      const user = JSON.parse(userStr);
+      return user.email || null;
+    } catch {
+      return null;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!article) {
     notFound();
   }
 
@@ -23,16 +113,16 @@ export default function LearnItemPage({ params }: { params: { slug: string } }) 
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-            <span className="capitalize">{item.format}</span>
+            <span className="capitalize">{article.format}</span>
             <span>·</span>
-            <span>{item.duration}</span>
+            <span>{article.duration}</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">{item.title}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{article.title}</h1>
         </div>
 
         {/* Content */}
         <div className="bg-white rounded-lg p-6 border border-gray-200">
-          {item.format === "watch" ? (
+          {article.format === "watch" ? (
             <div className="space-y-4">
               {/* Video placeholder container */}
               <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
@@ -61,14 +151,14 @@ export default function LearnItemPage({ params }: { params: { slug: string } }) 
               {/* Video text content */}
               <div className="prose prose-gray max-w-none">
                 <p className="whitespace-pre-line text-gray-700 leading-relaxed">
-                  {item.content}
+                  {article.content}
                 </p>
               </div>
             </div>
           ) : (
             <div className="prose prose-gray max-w-none">
               <p className="whitespace-pre-line text-gray-700 leading-relaxed">
-                {item.content}
+                {article.content}
               </p>
             </div>
           )}

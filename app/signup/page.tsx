@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { setDoc, doc } from "firebase/firestore";
+import { setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 
 export default function SignupPage() {
@@ -54,7 +54,9 @@ await setDoc(doc(db, "users", form.email), {
   lastName: form.lastName,
   email: form.email,
   birthday: form.birthday,
-  createdAt: new Date().toISOString(),
+  accountCreatedAt: serverTimestamp(),
+  firstCheckInAt: null,
+  readLearnSlugs: [],
   isActivated: false, // 🆕 New users start inactive
 });
     

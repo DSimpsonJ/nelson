@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { getNewestArticleDate } from "../data/learnContent";
+import { hasUnreadEligibleArticles } from "../services/learnService";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -20,10 +20,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   const checkCommitmentStatus = async () => {
-    // Exclude /not-started and movement commitment page from gate
+    // Exclude /not-started, movement commitment, and learn pages from gate
     if (
       pathname === "/not-started" ||
-      pathname?.startsWith("/onboarding/setup/movement-commitment")
+      pathname?.startsWith("/onboarding/setup/movement-commitment") ||
+      pathname?.startsWith("/learn")
     ) {
       setIsCheckingCommitment(false);
       return;
@@ -32,7 +33,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     try {
       const userEmail = getUserEmail();
       if (!userEmail) {
-        // Not logged in - this shouldn't happen in (app) routes, but be defensive
         window.location.href = "/login";
         return;
       }
@@ -41,7 +41,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        // No user doc means no commitment
         window.location.href = "/not-started";
         return;
       }
@@ -50,7 +49,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const hasCommitment = userData.hasCommitment === true;
 
       if (!hasCommitment) {
-        // User hasn't set commitment - redirect to holding page
         window.location.href = "/not-started";
         return;
       }
@@ -84,20 +82,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       const userRef = doc(db, "users", userEmail);
       const userSnap = await getDoc(userRef);
+      
+      const metadataRef = doc(userRef, "metadata", "accountInfo");
+      const metadataSnap = await getDoc(metadataRef);
 
-      if (userSnap.exists()) {
+      if (userSnap.exists() && metadataSnap.exists()) {
         const userData = userSnap.data();
-        const lastLearnVisit = userData.lastLearnVisit || "2020-01-01T00:00:00Z";
+        const metadata = metadataSnap.data();
+        
+        const firstCheckinDate = metadata.firstCheckinDate || null;
+        const readLearnSlugs = userData.readLearnSlugs || [];
         const hasSeenDotTooltip = userData.hasSeenLearnDotTooltip || false;
         
-        const newestArticleDate = getNewestArticleDate();
+        // Check if there are unread eligible articles
+        const hasUnread = await hasUnreadEligibleArticles(
+          firstCheckinDate,
+          readLearnSlugs
+        );
         
-        // Show dot if newest article is newer than last visit
-        if (new Date(newestArticleDate) > new Date(lastLearnVisit)) {
-          setShowLearnDot(true);
-        }
-        
-        // Show tooltip on first hover if not seen before
+        setShowLearnDot(hasUnread);
         setHasSeenTooltip(hasSeenDotTooltip);
       }
     } catch (error) {
@@ -151,7 +154,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard" },
-    { href: "/history", label: "The Lab" },  // Renamed from "History"
+    { href: "/history", label: "The Lab" },
     { href: "/learn", label: "Learn", showDot: showLearnDot },
   ];
 

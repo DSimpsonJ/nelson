@@ -45,16 +45,20 @@ export default function IntakeCompletePage() {
   transition={{ delay: 0.6 }}
   className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-8 mb-10"
 >
-  <div className="space-y-4 text-white/90 text-lg leading-relaxed">
-    <p>
-      First, you'll set a daily commitment. This is an action you're agreeing to repeat.
+  <div className="space-y-6 text-white/90 leading-relaxed">
+    <p className="text-lg">
+      First, you'll set a <span className="text-amber-400 font-semibold">daily commitment</span>. This is an action you're agreeing to repeat.
     </p>
 
-    <p>
-      Each day, you'll also check in across key areas to report what actually happened yesterday. Those inputs are important, but the commitment is your only promise.
+    <div className="h-px bg-white/10" />
+
+    <p className="text-base">
+      Each day, you'll check in across key areas to report what actually happened yesterday. Those inputs are important, but <span className="font-semibold">the commitment is your only promise</span>.
     </p>
 
-    <p>
+    <div className="h-px bg-white/10" />
+
+    <p className="text-base text-white/80">
       Momentum builds when your commitment and your check-in stay aligned over time.
     </p>
   </div>

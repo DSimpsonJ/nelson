@@ -33,6 +33,7 @@ export default function CheckinPage() {
   const [loading, setLoading] = useState(true);
   const [habitName, setHabitName] = useState("Move 10 minutes");
   const [targetMinutes, setTargetMinutes] = useState(10);
+  const [note, setNote] = useState("");
 
   // Load user data and generate dynamic behaviors
   useEffect(() => {
@@ -70,9 +71,10 @@ export default function CheckinPage() {
     loadUserData();
   }, [router]);
 
-  const totalSteps = behaviors.length + 1; // 1 exercise + 7 behaviors
-  const isOnExerciseQuestion = currentStep === 0; // Exercise is now FIRST
-  const currentBehavior = !isOnExerciseQuestion ? behaviors[currentStep - 1] : null;
+  const isOnExerciseQuestion = currentStep === 0;
+const isOnNoteScreen = currentStep === behaviors.length + 1; // After all behaviors
+const currentBehavior = !isOnExerciseQuestion && !isOnNoteScreen ? behaviors[currentStep - 1] : null;
+const totalSteps = behaviors.length + 2;
 
   // Swipe animation variants
   const slideVariants = {
@@ -94,22 +96,18 @@ export default function CheckinPage() {
     if (isAdvancing) return;
     
     setIsAdvancing(true);
-
+  
     const newAnswers = {
       ...answers,
       [currentBehavior!.id]: rating,
     } as Partial<CheckinAnswers>;
     
     setAnswers(newAnswers);
-
+  
     setTimeout(() => {
-      // Check if we just completed the last behavior (step 7)
-      if (currentStep === behaviors.length) {
-        handleSubmit(newAnswers as CheckinAnswers, exerciseCompleted!);
-      } else {
-        setCurrentStep(currentStep + 1);
-        setIsAdvancing(false);
-      }
+      // Move to next step (note screen will be after last behavior)
+      setCurrentStep(currentStep + 1);
+      setIsAdvancing(false);
     }, 600);
   };
 
@@ -132,7 +130,7 @@ export default function CheckinPage() {
     }
   };
 
-  const handleSubmit = async (finalAnswers: CheckinAnswers, exerciseDeclared: boolean) => {
+  const handleSubmit = async (finalAnswers: CheckinAnswers, exerciseDeclared: boolean, noteText?: string) => {
     if (submitting) return;
     
     setSubmitting(true);
@@ -181,17 +179,23 @@ export default function CheckinPage() {
       
       const habitStack: Array<{ habitKey: string; habit: string }> = [];
   
-      // Write today's check-in with exercise declaration
-      await writeDailyMomentum({
-        email,
-        date: today,
-        behaviorGrades,
-        behaviorRatings: finalAnswers,
-        currentFocus,
-        habitStack,
-        accountAgeDays,
-        exerciseDeclared,
-      });
+     // Write today's check-in with exercise declaration
+console.log('[CheckIn] Submitting with note:', noteText);
+
+const { doc: momentumDoc, reward } = await writeDailyMomentum({
+  email,
+  date: today,
+  behaviorGrades,
+  behaviorRatings: finalAnswers,
+  currentFocus,
+  habitStack,
+  accountAgeDays,
+  exerciseDeclared,
+  note: noteText?.trim() || undefined,
+});
+      
+      // Store reward for success animation
+      sessionStorage.setItem('pendingReward', JSON.stringify(reward));
   
       setShowSuccess(true);
   
@@ -250,57 +254,86 @@ export default function CheckinPage() {
         total={totalSteps} 
       />
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentStep}
-          variants={slideVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{
-            x: { type: "spring", stiffness: 200, damping: 25 },
-            opacity: { duration: 0.3 },
-          }}
+<AnimatePresence mode="wait">
+  <motion.div
+    key={currentStep}
+    variants={slideVariants}
+    initial="enter"
+    animate="center"
+    exit="exit"
+    transition={{
+      x: { type: "spring", stiffness: 200, damping: 25 },
+      opacity: { duration: 0.3 },
+    }}
+  >
+    {isOnNoteScreen ? (
+      <div className="flex flex-col items-center px-6 py-8">
+        <h2 className="text-xl font-semibold text-white mb-2">
+          Anything worth noting?
+        </h2>
+        <p className="text-white/60 text-sm mb-6 text-center">
+          Optional. For your reference only.
+        </p>
+        
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Context, wins, challenges..."
+          maxLength={500}
+          className="w-full max-w-md bg-slate-800 border border-slate-600 rounded-lg p-4 text-white placeholder-white/40 focus:outline-none focus:border-blue-500 resize-none h-32"
+        />
+        
+        <p className="text-white/40 text-xs mt-2">
+          {note.length}/500
+        </p>
+        
+        <button
+          onClick={() => handleSubmit(answers as CheckinAnswers, exerciseCompleted!, note)}
+          disabled={submitting}
+          className="mt-6 px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
         >
-          {isOnExerciseQuestion ? (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] px-6">
-              <div className="text-center max-w-md">
-                <h2 className="text-2xl font-bold text-white mb-3">
-                  Did you complete your {targetMinutes} minute exercise commitment yesterday?
-                </h2>
-                <p className="text-white/60 text-sm mb-8">
-                  This includes any form of dedicated exercise that met your target.
-                </p>
-                <div className="flex gap-4 justify-center">
-                  <button
-                    onClick={() => handleExerciseSelect(true)}
-                    disabled={isAdvancing}
-                    className="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
-                  >
-                    Yes
-                  </button>
-                  <button
-                    onClick={() => handleExerciseSelect(false)}
-                    disabled={isAdvancing}
-                    className="px-8 py-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
-                  >
-                    No
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <CheckinQuestion
-              title={currentBehavior!.title}
-              prompt={currentBehavior!.prompt}
-              tooltip={currentBehavior!.tooltip}
-              icon={currentBehavior!.icon}
-              selected={answers[currentBehavior!.id]}
-              onSelect={handleSelect}
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
+          {submitting ? "Saving..." : "Complete Check-in"}
+        </button>
+      </div>
+    ) : isOnExerciseQuestion ? (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6">
+        <div className="text-center max-w-md">
+          <h2 className="text-2xl font-bold text-white mb-3">
+            Did you complete your {targetMinutes} minute exercise commitment yesterday?
+          </h2>
+          <p className="text-white/60 text-sm mb-8">
+            This includes any form of dedicated exercise that met your target.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => handleExerciseSelect(true)}
+              disabled={isAdvancing}
+              className="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+            >
+              Yes
+            </button>
+            <button
+              onClick={() => handleExerciseSelect(false)}
+              disabled={isAdvancing}
+              className="px-8 py-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+            >
+              No
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <CheckinQuestion
+        title={currentBehavior!.title}
+        prompt={currentBehavior!.prompt}
+        tooltip={currentBehavior!.tooltip}
+        icon={currentBehavior!.icon}
+        selected={answers[currentBehavior!.id]}
+        onSelect={handleSelect}
+      />
+    )}
+  </motion.div>
+</AnimatePresence>
     </CheckinShell>
   );
 }

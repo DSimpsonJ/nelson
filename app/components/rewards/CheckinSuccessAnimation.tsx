@@ -110,12 +110,18 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
           transition={{ delay: 0.4, duration: 0.5 }}
           className="text-center"
         >
-          <h3 className="text-3xl font-bold text-white mb-4">
-            Check-in complete.
-          </h3>
-          <p className="text-white/80 text-md mb-8">
-            Momentum has been updated.
-          </p>
+<h1 className="text-3xl font-bold text-white mb-3">
+  Check-in complete.
+</h1>
+{reward ? (
+  <p className="text-white/70 text-lg">
+    {reward.text}
+  </p>
+) : (
+  <p className="text-white/70 text-lg">
+    Momentum has been updated.
+  </p>
+)}
       
           <motion.button
             initial={{ opacity: 0, scale: 0.8 }}
@@ -147,15 +153,7 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
             transform: 'translate(-50%, -50%)'
           }}
         />
-      </motion.div>
-
-      {/* Reward overlay - renders on top of success animation if present */}
-      {reward && (
-        <RewardRenderer 
-          reward={reward}
-          onComplete={onComplete}
-        />
-      )}
+          </motion.div>
     </>
   );
 }

@@ -133,8 +133,8 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <p className="text-center text-slate-400 text-sm mt-8">
-          Build consistent habits. One day at a time.
+        <p className="text-center text-slate-400 text-md mt-8">
+        Build momentum through consistent action.
         </p>
       </div>
     </main>

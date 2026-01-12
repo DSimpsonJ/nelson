@@ -237,25 +237,29 @@ const behaviorGrades = [
     accountAgeDays: 1,
   });
   
-      // Mark user as activated
+  // Mark user as activated AND set firstCheckInAt
 await setDoc(
-    doc(db, "users", email),
-    {
-      isActivated: true,
-      lastCheckInDate: today,
-    },
-    { merge: true }
-  );
+  doc(db, "users", email),
+  {
+    isActivated: true,
+    lastCheckInDate: today,
+    // Only set firstCheckInAt if it doesn't exist
+    ...(userData && !userData.firstCheckInAt && {
+      firstCheckInAt: new Date().toISOString()
+    })
+  },
+  { merge: true }
+);
   
-  // ===== NEW: Create metadata doc with firstCheckInDate =====
-  await setDoc(
-    doc(db, "users", email, "metadata", "accountInfo"),
-    {
-      firstCheckinDate: today,
-      createdAt: new Date().toISOString(),
-    },
-    { merge: true }
-  );
+// ===== NEW: Create metadata doc with firstCheckInDate =====
+await setDoc(
+  doc(db, "users", email, "metadata", "accountInfo"),
+  {
+    firstCheckinDate: today,
+    createdAt: new Date().toISOString(),
+  },
+  { merge: true }
+);
   // ==========================================================
   
       // Redirect to celebration

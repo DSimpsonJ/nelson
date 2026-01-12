@@ -36,6 +36,8 @@ export interface DailyMomentumDoc {
   missed?: boolean;
   behaviorRatings?: Record<string, string>;
   behaviorGrades?: { name: string; grade: number }[];
+  note?: string;
+  
   
   primary: {
     habitKey: string;
@@ -85,7 +87,7 @@ export interface WriteDailyMomentumInput {
   date: string;
   behaviorGrades: { name: string; grade: number }[];
   behaviorRatings?: Record<string, string>;
-  
+
   currentFocus: {
     habitKey: string;
     habit: string;
@@ -98,6 +100,7 @@ export interface WriteDailyMomentumInput {
   goal?: string;
   accountAgeDays: number;
   exerciseDeclared?: boolean;
+  note?: string;
 }
 
 // ============================================================================
@@ -364,15 +367,33 @@ async function calculateDerivedFields(
     }
   }
   
-  // Calculate delta using CAPPED scores
-  const yesterdayMomentum = yesterdaySnap.exists() 
-    ? (yesterdaySnap.data().momentumScore ?? 0)
-    : 0;
-  const actualDelta = finalMomentumScore - yesterdayMomentum;
-  
-  let actualTrend: 'up' | 'down' | 'stable' = 'stable';
-  if (actualDelta > 2) actualTrend = 'up';
-  if (actualDelta < -2) actualTrend = 'down';
+// Calculate delta - use last REAL momentum, not gap day
+let previousRealMomentum = 0;
+if (yesterdaySnap.exists()) {
+  const yesterdayData = yesterdaySnap.data();
+  // If yesterday was a gap-fill, search backwards for last real check-in
+  if (yesterdayData.checkinType === "gap_fill") {
+    for (let i = 2; i <= 30; i++) {
+      const lookbackDate = new Date(baseDate);
+      lookbackDate.setDate(lookbackDate.getDate() - i);
+      const lookbackKey = lookbackDate.toLocaleDateString("en-CA");
+      const lookbackRef = doc(db, "users", input.email, "momentum", lookbackKey);
+      const lookbackSnap = await getDoc(lookbackRef);
+      if (lookbackSnap.exists() && lookbackSnap.data().checkinType === "real") {
+        previousRealMomentum = lookbackSnap.data().momentumScore ?? 0;
+        break;
+      }
+    }
+  } else {
+    previousRealMomentum = yesterdayData.momentumScore ?? 0;
+  }
+}
+
+const actualDelta = finalMomentumScore - previousRealMomentum;
+
+let actualTrend: 'up' | 'down' | 'stable' = 'stable';
+if (actualDelta > 2) actualTrend = 'up';
+if (actualDelta < -2) actualTrend = 'down';
   
   // 7. Return complete document
   return {
@@ -421,6 +442,7 @@ visualState: "solid",
     
     exerciseCompleted,
     exerciseTargetMinutes,
+    note: input.note,
     
     checkinType: "real",
     createdAt: merged.createdAt || new Date().toISOString(),
