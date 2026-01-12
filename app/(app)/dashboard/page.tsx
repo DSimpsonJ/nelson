@@ -73,6 +73,7 @@ import HistoryAccess from "@/app/components/HistoryAccess";
 import { NelsonLogo, NelsonLogoAnimated  } from '@/app/components/logos';
 import { resolveReward, type RewardPayload } 
 from "@/app/services/rewardEngine";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 
 
@@ -554,15 +555,17 @@ await logHabitEvent(email, {
 
 // Then inside the component:
 const loadDashboardData = async () => {
-  
-  
-  console.count("[DASHBOARD LOAD COUNT]");
-  try {
-    const email = getEmail();
-    if (!email) {
-      router.replace("/signup");
-      return;
-    }
+    console.count("[DASHBOARD LOAD COUNT]");
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      
+      if (!currentUser?.email) {
+        // Don't redirect - layout guard handles this
+        return;
+      }
+    
+      const email = currentUser.email;
 // ===== NEW: STEP 3 - Detect missed check-ins FIRST =====
 const gapInfo = await detectAndHandleMissedCheckIns(email);
 if (gapInfo.hadGap) {
@@ -1627,7 +1630,6 @@ if (levelUpNextStep === "try_different") {
         }
         
         setCheckinSubmitted(true);
-        router.replace('/dashboard'); // No shallow option - guard in parent useEffect prevents loop
       };
       
       checkForMilestone();

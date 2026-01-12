@@ -396,7 +396,7 @@ if (actualDelta > 2) actualTrend = 'up';
 if (actualDelta < -2) actualTrend = 'down';
   
   // 7. Return complete document
-  return {
+  const finalDocBase = {
     ...merged,
     date: input.date,
     accountAgeDays: input.accountAgeDays,
@@ -421,12 +421,12 @@ if (actualDelta < -2) actualTrend = 'down';
     },
     
     dailyScore,
-rawMomentumScore: momentumResult.rawScore,
-momentumScore: finalMomentumScore,
-momentumTrend: actualTrend,
-momentumDelta: actualDelta,
-momentumMessage: finalMessage,
-visualState: "solid",
+    rawMomentumScore: momentumResult.rawScore,
+    momentumScore: finalMomentumScore,
+    momentumTrend: actualTrend,
+    momentumDelta: actualDelta,
+    momentumMessage: finalMessage,
+    visualState: "solid" as const,
     
     primaryHabitHit: false,
     stackedHabitsCompleted: 0,
@@ -442,11 +442,18 @@ visualState: "solid",
     
     exerciseCompleted,
     exerciseTargetMinutes,
-    note: input.note,
     
-    checkinType: "real",
+    checkinType: "real" as const,
     createdAt: merged.createdAt || new Date().toISOString(),
+  };
+
+  // Conditionally add note only if it exists and has content
+  const finalDoc = {
+    ...finalDocBase,
+    ...(input.note && input.note.trim() !== "" ? { note: input.note } : {})
   } as DailyMomentumDoc;
+
+  return finalDoc;
 }
 
 // ============================================================================
