@@ -263,7 +263,7 @@ await setDoc(
   // ==========================================================
   
       // Redirect to celebration
-      router.push("/onboarding/activate/celebration");
+      router.push("/dashboard");
     } catch (err) {
       console.error("Error submitting check-in:", err);
       console.error("Full error details:", JSON.stringify(err, null, 2));
