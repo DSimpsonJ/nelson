@@ -9,11 +9,13 @@ import { hasUnreadEligibleArticles } from "../services/learnService";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const [authReady, setAuthReady] = useState(false);
   const pathname = usePathname();
   const [showLearnDot, setShowLearnDot] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [hasSeenTooltip, setHasSeenTooltip] = useState(true);
   const [isCheckingCommitment, setIsCheckingCommitment] = useState(true);
+  
 
   // Commitment gate - check if user has started the system
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return new Promise((resolve) => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
           unsubscribe(); // Clean up listener
-          
+          setAuthReady(true); // Mark auth as resolved
           // State 1: Auth resolved but no user -> redirect to login
           if (!currentUser?.email) {
             redirect("/login");
@@ -170,10 +172,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/learn", label: "Learn", showDot: showLearnDot },
   ];
 
-  // Don't render anything until commitment check completes
-  if (isCheckingCommitment) {
-    return null;
-  }
+ // Don't render anything until auth resolves AND commitment check completes
+if (!authReady || isCheckingCommitment) {
+  return null;
+}
 
   return (
     <div className="min-h-screen">
