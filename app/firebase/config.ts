@@ -1,7 +1,6 @@
-// app/firebase/config.ts
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCeLRnpUbGepbODUNtVRSAKvMHlWQYVUDg",
@@ -16,3 +15,14 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+let persistencePromise: Promise<void> | null = null;
+
+export function ensureAuthPersistence() {
+  if (typeof window === "undefined") return Promise.resolve();
+
+  if (!persistencePromise) {
+    persistencePromise = setPersistence(auth, browserLocalPersistence);
+  }
+  return persistencePromise;
+}

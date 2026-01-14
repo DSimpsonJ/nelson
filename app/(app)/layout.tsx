@@ -5,6 +5,7 @@ import { usePathname, redirect } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
+import { ensureAuthPersistence } from "../firebase/config";
 import { hasUnreadEligibleArticles } from "../services/learnService";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
@@ -36,9 +37,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setCommitmentChecked(true);
       return;
     }
-
+  
     try {
       const auth = getAuth();
+          
+      // Ensure persistence is set BEFORE listening to auth state
+      await ensureAuthPersistence();
       
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         console.log("🔍 Auth state changed:", currentUser?.email || "NO USER");
@@ -50,15 +54,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           setCommitmentChecked(true);
           return;
         }
-
+  
         const userRef = doc(db, "users", currentUser.email);
         const userSnap = await getDoc(userRef);
-
+  
         if (!userSnap.exists()) {
           setCommitmentChecked(true);
           return;
         }
-
+  
         const userData = userSnap.data();
         setHasCommitment(userData.hasCommitment === true);
         setCommitmentChecked(true);

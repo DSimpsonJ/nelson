@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "../context/ToastContext";
 import { getEmail } from "@/app/utils/getEmail";
-import { setPersistence, browserLocalPersistence, signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from "@/app/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -33,10 +33,6 @@ export default function LoginPage() {
     setLoading(true);
   
     try {
-      // Set persistence BEFORE signing in
-      await setPersistence(auth, browserLocalPersistence);
-      console.log("✅ Persistence set to LOCAL");
-  
       // Firebase authentication
       await signInWithEmailAndPassword(auth, email, password);
       console.log("✅ Signed in, current user:", auth.currentUser?.email);
