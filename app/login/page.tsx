@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [debugMsg, setDebugMsg] = useState("");
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -42,6 +43,8 @@ export default function LoginPage() {
       if (!snap.exists()) throw new Error("Missing Firestore profile.");
   
       localStorage.setItem("nelsonUser", JSON.stringify({ email }));
+      localStorage.setItem("lastLogin", new Date().toISOString());
+      setDebugMsg(`Logged in at ${new Date().toLocaleTimeString()}`);
   
       showToast({
         message: "Welcome back", 
@@ -128,7 +131,11 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
-
+        {debugMsg && (
+          <div className="mt-4 p-3 bg-green-900/50 text-green-200 rounded text-xs">
+            {debugMsg}
+          </div>
+        )}
         <p className="text-center text-slate-400 text-md mt-8">
         Build momentum through consistent action.
         </p>

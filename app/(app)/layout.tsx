@@ -27,6 +27,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   const checkCommitmentStatus = async () => {
+    const lastLogin = localStorage.getItem("lastLogin");
+    const nelsonUser = localStorage.getItem("nelsonUser");
+    console.log("🔍 LocalStorage check:", { lastLogin, nelsonUser });
     // Exclude these paths from gate
     if (
       pathname === "/not-started" ||
