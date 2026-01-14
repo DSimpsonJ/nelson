@@ -36,9 +36,9 @@ export function InfoTooltip({ text }: InfoTooltipProps) {
       </button>
       
       {show && (
-        <div className="absolute z-10 w-72 p-4 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white/80 left-0 top-8 shadow-xl">
+        <div className="absolute z-10 w-[90vw] max-w-md p-4 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white/80 right-0 top-8 shadow-xl break-words">
           {formatTooltipText(text)}
-          <div className="absolute -top-2 left-4 w-4 h-4 bg-slate-900 border-l border-t border-slate-700 transform rotate-45"></div>
+          <div className="absolute -top-2 right-4 w-4 h-4 bg-slate-900 border-l border-t border-slate-700 transform rotate-45"></div>
         </div>
       )}
     </div>

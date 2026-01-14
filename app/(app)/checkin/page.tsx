@@ -72,9 +72,9 @@ export default function CheckinPage() {
   }, [router]);
 
   const isOnExerciseQuestion = currentStep === 0;
-const isOnNoteScreen = currentStep === behaviors.length + 1; // After all behaviors
-const currentBehavior = !isOnExerciseQuestion && !isOnNoteScreen ? behaviors[currentStep - 1] : null;
-const totalSteps = behaviors.length + 2;
+  const isOnNoteScreen = currentStep === behaviors.length + 1;
+  const currentBehavior = !isOnExerciseQuestion && !isOnNoteScreen ? behaviors[currentStep - 1] : null;
+  const totalSteps = behaviors.length + 2;
 
   // Swipe animation variants
   const slideVariants = {
@@ -105,7 +105,6 @@ const totalSteps = behaviors.length + 2;
     setAnswers(newAnswers);
   
     setTimeout(() => {
-      // Move to next step (note screen will be after last behavior)
       setCurrentStep(currentStep + 1);
       setIsAdvancing(false);
     }, 600);
@@ -118,7 +117,6 @@ const totalSteps = behaviors.length + 2;
     setExerciseCompleted(completed);
 
     setTimeout(() => {
-      // Move to first behavior question (step 1)
       setCurrentStep(1);
       setIsAdvancing(false);
     }, 600);
@@ -127,6 +125,14 @@ const totalSteps = behaviors.length + 2;
   const handleBack = () => {
     if (currentStep > 0 && !isAdvancing) {
       setCurrentStep(currentStep - 1);
+    }
+  };
+
+  // Swipe handler - swipe right to go back
+  const handleDragEnd = (event: any, info: any) => {
+    // If swiped right with enough velocity or distance, go back
+    if (info.offset.x > 100 || info.velocity.x > 500) {
+      handleBack();
     }
   };
 
@@ -143,7 +149,6 @@ const totalSteps = behaviors.length + 2;
   
       const today = new Date().toLocaleDateString("en-CA");
       
-      // ===== CRITICAL: Detect and fill gaps BEFORE writing today's check-in =====
       const gapInfo = await detectAndHandleMissedCheckIns(email);
       console.log("[GAP DEBUG]", gapInfo);
       if (gapInfo.hadGap) {
@@ -151,26 +156,22 @@ const totalSteps = behaviors.length + 2;
         console.log(`[CheckIn] Last check-in was ${gapInfo.lastCheckInDate}, frozen momentum: ${gapInfo.frozenMomentum}%`);
       }
       
-      // Convert ratings to grades using the dynamic behaviors
       const behaviorGrades = behaviors.map((behavior) => ({
         name: behavior.id,
         grade: answersToGrades(finalAnswers)[behaviors.indexOf(behavior)]
       }));
   
-      // Get firstCheckinDate from metadata to calculate accountAgeDays
       const metadataRef = doc(db, 'users', email, 'metadata', 'accountInfo');
       const metadataSnap = await getDoc(metadataRef);
       const firstCheckinDate = metadataSnap.exists() 
         ? metadataSnap.data().firstCheckinDate 
         : today;
   
-      // Calculate accountAgeDays
       const firstDate = new Date(firstCheckinDate);
       const currentDate = new Date(today);
       const diffTime = currentDate.getTime() - firstDate.getTime();
       const accountAgeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
   
-      // Get currentFocus and habitStack
       const focusRef = doc(db, 'users', email, 'momentum', 'currentFocus');
       const focusSnap = await getDoc(focusRef);
       const currentFocus = focusSnap.exists() 
@@ -179,22 +180,20 @@ const totalSteps = behaviors.length + 2;
       
       const habitStack: Array<{ habitKey: string; habit: string }> = [];
   
-     // Write today's check-in with exercise declaration
-console.log('[CheckIn] Submitting with note:', noteText);
+      console.log('[CheckIn] Submitting with note:', noteText);
 
-const { doc: momentumDoc, reward } = await writeDailyMomentum({
-  email,
-  date: today,
-  behaviorGrades,
-  behaviorRatings: finalAnswers,
-  currentFocus,
-  habitStack,
-  accountAgeDays,
-  exerciseDeclared,
-  note: noteText?.trim() || undefined,
-});
+      const { doc: momentumDoc, reward } = await writeDailyMomentum({
+        email,
+        date: today,
+        behaviorGrades,
+        behaviorRatings: finalAnswers,
+        currentFocus,
+        habitStack,
+        accountAgeDays,
+        exerciseDeclared,
+        note: noteText?.trim() || undefined,
+      });
       
-      // Store reward for success animation
       sessionStorage.setItem('pendingReward', JSON.stringify(reward));
   
       setShowSuccess(true);
@@ -230,110 +229,95 @@ const { doc: momentumDoc, reward } = await writeDailyMomentum({
 
   return (
     <CheckinShell>
-      <button
-        onClick={handleBack}
-        disabled={currentStep === 0 || isAdvancing}
-        className={`
-          absolute top-6 left-6 z-10
-          flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-          transition-all duration-200
-          ${currentStep === 0 || isAdvancing
-            ? 'opacity-0 pointer-events-none'
-            : 'text-white/70 hover:text-white hover:bg-white/10 active:scale-95'
-          }
-        `}
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        Back
-      </button>
-
       <ProgressIndicator 
         current={currentStep + 1} 
         total={totalSteps} 
       />
 
-<AnimatePresence mode="wait">
-  <motion.div
-    key={currentStep}
-    variants={slideVariants}
-    initial="enter"
-    animate="center"
-    exit="exit"
-    transition={{
-      x: { type: "spring", stiffness: 200, damping: 25 },
-      opacity: { duration: 0.3 },
-    }}
-  >
-    {isOnNoteScreen ? (
-      <div className="flex flex-col items-center px-6 py-8">
-        <h2 className="text-xl font-semibold text-white mb-2">
-          Anything worth noting?
-        </h2>
-        <p className="text-white/60 text-sm mb-6 text-center">
-          Optional. For your reference only.
-        </p>
-        
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Context, wins, challenges..."
-          maxLength={500}
-          className="w-full max-w-md bg-slate-800 border border-slate-600 rounded-lg p-4 text-white placeholder-white/40 focus:outline-none focus:border-blue-500 resize-none h-32"
-        />
-        
-        <p className="text-white/40 text-xs mt-2">
-          {note.length}/500
-        </p>
-        
-        <button
-          onClick={() => handleSubmit(answers as CheckinAnswers, exerciseCompleted!, note)}
-          disabled={submitting}
-          className="mt-6 px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentStep}
+          variants={slideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{
+            x: { type: "spring", stiffness: 200, damping: 25 },
+            opacity: { duration: 0.3 },
+          }}
+          drag={currentStep > 0 ? "x" : false}
+          dragConstraints={{ left: 0, right: 300 }}
+          dragElastic={0.2}
+          onDragEnd={handleDragEnd}
         >
-          {submitting ? "Saving..." : "Complete Check-in"}
-        </button>
-      </div>
-    ) : isOnExerciseQuestion ? (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6">
-        <div className="text-center max-w-md">
-          <h2 className="text-2xl font-bold text-white mb-3">
-            Did you complete your {targetMinutes} minute exercise commitment yesterday?
-          </h2>
-          <p className="text-white/60 text-sm mb-8">
-            This includes any form of dedicated exercise that met your target.
-          </p>
-          <div className="flex gap-4 justify-center">
-            <button
-              onClick={() => handleExerciseSelect(true)}
-              disabled={isAdvancing}
-              className="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
-            >
-              Yes
-            </button>
-            <button
-              onClick={() => handleExerciseSelect(false)}
-              disabled={isAdvancing}
-              className="px-8 py-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
-            >
-              No
-            </button>
-          </div>
-        </div>
-      </div>
-    ) : (
-      <CheckinQuestion
-        title={currentBehavior!.title}
-        prompt={currentBehavior!.prompt}
-        tooltip={currentBehavior!.tooltip}
-        icon={currentBehavior!.icon}
-        selected={answers[currentBehavior!.id]}
-        onSelect={handleSelect}
-      />
-    )}
-  </motion.div>
-</AnimatePresence>
+          {isOnNoteScreen ? (
+            <div className="flex flex-col items-center px-6 py-8">
+              <h2 className="text-xl font-semibold text-white mb-2">
+                Anything worth noting?
+              </h2>
+              <p className="text-white/60 text-sm mb-6 text-center">
+                Optional. For your reference only.
+              </p>
+              
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Context, wins, challenges..."
+                maxLength={500}
+                className="w-full max-w-md bg-slate-800 border border-slate-600 rounded-lg p-4 text-white placeholder-white/40 focus:outline-none focus:border-blue-500 resize-none h-32"
+              />
+              
+              <p className="text-white/40 text-xs mt-2">
+                {note.length}/500
+              </p>
+              
+              <button
+                onClick={() => handleSubmit(answers as CheckinAnswers, exerciseCompleted!, note)}
+                disabled={submitting}
+                className="mt-6 px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
+              >
+                {submitting ? "Saving..." : "Complete Check-in"}
+              </button>
+            </div>
+          ) : isOnExerciseQuestion ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] px-6">
+              <div className="text-center max-w-md">
+                <h2 className="text-2xl font-bold text-white mb-3">
+                  Did you complete your {targetMinutes} minute exercise commitment yesterday?
+                </h2>
+                <p className="text-white/60 text-sm mb-8">
+                  This includes any form of dedicated exercise that met your target.
+                </p>
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => handleExerciseSelect(true)}
+                    disabled={isAdvancing}
+                    className="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={() => handleExerciseSelect(false)}
+                    disabled={isAdvancing}
+                    className="px-8 py-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+                  >
+                    No
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <CheckinQuestion
+              title={currentBehavior!.title}
+              prompt={currentBehavior!.prompt}
+              tooltip={currentBehavior!.tooltip}
+              icon={currentBehavior!.icon}
+              selected={answers[currentBehavior!.id]}
+              onSelect={handleSelect}
+            />
+          )}
+        </motion.div>
+      </AnimatePresence>
     </CheckinShell>
   );
 }

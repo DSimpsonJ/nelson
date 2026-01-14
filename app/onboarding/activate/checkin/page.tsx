@@ -85,7 +85,7 @@ export default function CheckInPage() {
         elite: "All whole foods. Every meal was planned and clean. No processed foods, no convenience eating, no deviation.",
         solid: "Mostly whole foods and intentional choices throughout the day. No fast food or junk. Quality stayed consistent, even with some flexibility.",
         notGreat: "Mix of whole foods and processed convenience items. Quality wasn't the priority.",
-        off: "Fast food, heavy snacking, desserts, or unstructured eating. Health wasn’t part of the decision-making.",
+        off: "Fast food, heavy snacking, desserts, or unstructured eating. Health wasn't part of the decision-making.",
       },
     },
     {
@@ -106,14 +106,14 @@ export default function CheckInPage() {
       examples: {
         elite: "Protein was a clear priority. You intentionally hit the upper end of your target range and knew you were there.",
         solid: "Included protein at every meal and stayed within your target range. You were confident you got enough.",
-        notGreat: "Got some protein, but it wasn’t a priority and you likely missed your target range.",
+        notGreat: "Got some protein, but it wasn't a priority and you likely missed your target range.",
         off: "Didn't think about protein at all. No attention to the target.",
       },
     },
     {
       id: "hydration" as keyof CheckInData,
       title: "Hydration",
-      description: "Hydration isn’t just volume. It’s what you drank and why.",
+      description: "Hydration isn't just volume. It's what you drank and why.",
       examples: {
         elite: "Stayed hydrated all day with intentional beverage choices. 64+ oz primarily from water. No soda, alcohol, or unnecessary liquid calories.",
         solid: "Stayed hydrated and supported health. Mostly water. Minimal caloric beverages that did not drive intake.",
@@ -150,8 +150,8 @@ export default function CheckInPage() {
         examples: {
           elite: "You looked for movement opportunities all day and took them. Stairs, extra walking, active errands.",
           solid: "You added one or two intentional movement opportunities beyond your normal routine.",
-          notGreat: "You moved through the day as usual, but didn’t intentionally add extra movement.",
-          off: "Movement stayed minimal and you didn’t add anything beyond what was required.",
+          notGreat: "You moved through the day as usual, but didn't intentionally add extra movement.",
+          off: "Movement stayed minimal and you didn't add anything beyond what was required.",
         },
       },
   ];
@@ -173,6 +173,12 @@ export default function CheckInPage() {
     } else {
       // Move to next step
       setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
     }
   };
 
@@ -247,6 +253,7 @@ await setDoc(
   doc(db, "users", email),
   {
     isActivated: true,
+    hasCommitment: true,
     lastCheckInDate: today,
     // Only set firstCheckInAt if it doesn't exist
     ...(userData && !userData.firstCheckInAt && {
@@ -279,6 +286,24 @@ await setDoc(
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center px-6 py-12">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent pointer-events-none" />
+
+      {/* Back button */}
+      <button
+        onClick={handleBack}
+        disabled={currentStep === 0 || submitting}
+        className={`
+          absolute top-6 left-6 z-10
+          ${currentStep === 0 || submitting
+            ? 'opacity-0 pointer-events-none'
+            : 'text-white/70 hover:text-white'
+          }
+          transition-opacity duration-200
+        `}
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
 
       <div className="relative z-10 w-full max-w-lg">
         {/* Progress bar */}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { setDoc, doc } from "firebase/firestore";
 import { auth, db } from "./firebase/config";
+import { setPersistence, browserLocalPersistence } from 'firebase/auth';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -36,6 +37,7 @@ export default function LandingPage() {
     setLoading(true);
 
     try {
+      await setPersistence(auth, browserLocalPersistence);
       await createUserWithEmailAndPassword(auth, email, password);
 
       await setDoc(doc(db, "users", email), {

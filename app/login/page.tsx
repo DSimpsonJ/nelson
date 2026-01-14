@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "../context/ToastContext";
 import { getEmail } from "@/app/utils/getEmail";
+import { setPersistence, browserLocalPersistence } from 'firebase/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,10 +32,13 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { signInWithEmailAndPassword } = await import("firebase/auth");
+      const { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } = await import("firebase/auth");
       const { auth } = await import("@/app/firebase/config");
       const { db } = await import("../firebase/config");
       const { doc, getDoc } = await import("firebase/firestore");
+
+      // Set persistence BEFORE signing in
+      await setPersistence(auth, browserLocalPersistence);
 
       // ✅ Firebase authentication
       await signInWithEmailAndPassword(auth, email, password);
@@ -46,7 +50,7 @@ export default function LoginPage() {
       localStorage.setItem("nelsonUser", JSON.stringify({ email }));
 
       showToast({
-        message: "Welcome back!", 
+        message: "Welcome back", 
         type: "success"
       });
       router.replace("/dashboard");
@@ -83,7 +87,7 @@ export default function LoginPage() {
             Nelson
           </h1>
           <p className="text-xl text-blue-400 font-medium">
-            Welcome Back!!!!
+            Welcome Back
           </p>
         </div>
 
