@@ -9,18 +9,21 @@ import { hasUnreadEligibleArticles } from "../services/learnService";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [authReady, setAuthReady] = useState(false);
   const pathname = usePathname();
   const [showLearnDot, setShowLearnDot] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [hasSeenTooltip, setHasSeenTooltip] = useState(true);
-  const [isCheckingCommitment, setIsCheckingCommitment] = useState(true);
   
+  // Auth state
+  const [user, setUser] = useState<any>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [hasCommitment, setHasCommitment] = useState(false);
+  const [commitmentChecked, setCommitmentChecked] = useState(false);
 
-  // Commitment gate - check if user has started the system
+  // Check auth and commitment on mount and pathname changes
   useEffect(() => {
     checkCommitmentStatus();
-  }, []);
+  }, [pathname]);
 
   const checkCommitmentStatus = async () => {
     // Exclude these paths from gate
@@ -29,58 +32,49 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       pathname?.startsWith("/onboarding/setup/movement-commitment") ||
       pathname?.startsWith("/learn")
     ) {
-      setIsCheckingCommitment(false);
+      setAuthReady(true);
+      setCommitmentChecked(true);
       return;
     }
-  
+
     try {
       const auth = getAuth();
       
-      // Wait for auth to resolve - THREE STATES
-      return new Promise((resolve) => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-          unsubscribe(); // Clean up listener
-          setAuthReady(true); // Mark auth as resolved
-          // State 1: Auth resolved but no user -> redirect to login
-          if (!currentUser?.email) {
-            redirect("/login");
-            return;
-          }
-  
-          // State 2 & 3: Auth resolved with user -> check Firestore
-          const userRef = doc(db, "users", currentUser.email);
-          const userSnap = await getDoc(userRef);
-  
-          if (!userSnap.exists()) {
-            redirect("/not-started");
-            return;
-          }
-  
-          const userData = userSnap.data();
-          const hasCommitment = userData.hasCommitment === true;
-  
-          if (!hasCommitment) {
-            redirect("/not-started");
-            return;
-          }
-  
-          // All checks passed
-          setIsCheckingCommitment(false);
-          resolve(true);
-        });
+      const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        unsubscribe();
+        setUser(currentUser);
+        setAuthReady(true);
+        
+        if (!currentUser?.email) {
+          setCommitmentChecked(true);
+          return;
+        }
+
+        const userRef = doc(db, "users", currentUser.email);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+          setCommitmentChecked(true);
+          return;
+        }
+
+        const userData = userSnap.data();
+        setHasCommitment(userData.hasCommitment === true);
+        setCommitmentChecked(true);
       });
     } catch (error) {
       console.error("Error checking commitment status:", error);
-      redirect("/not-started");
+      setAuthReady(true);
+      setCommitmentChecked(true);
     }
   };
 
   useEffect(() => {
     // Only check for new content after commitment check passes
-    if (!isCheckingCommitment) {
+    if (authReady && commitmentChecked && user) {
       checkForNewContent();
     }
-  }, [isCheckingCommitment]);
+  }, [authReady, commitmentChecked, user]);
 
   useEffect(() => {
     // If user visits any Learn page, clear the dot
@@ -91,7 +85,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const checkForNewContent = async () => {
     try {
-      const userEmail = getUserEmail();
+      const userEmail = user?.email;
       if (!userEmail) return;
 
       const userRef = doc(db, "users", userEmail);
@@ -108,7 +102,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         const readLearnSlugs = userData.readLearnSlugs || [];
         const hasSeenDotTooltip = userData.hasSeenLearnDotTooltip || false;
         
-        // Check if there are unread eligible articles
         const hasUnread = await hasUnreadEligibleArticles(
           firstCheckinDate,
           readLearnSlugs
@@ -124,7 +117,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const markLearnVisited = async () => {
     try {
-      const userEmail = getUserEmail();
+      const userEmail = user?.email;
       if (!userEmail) return;
 
       const userRef = doc(db, "users", userEmail);
@@ -140,7 +133,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const markTooltipSeen = async () => {
     try {
-      const userEmail = getUserEmail();
+      const userEmail = user?.email;
       if (!userEmail) return;
 
       const userRef = doc(db, "users", userEmail);
@@ -154,28 +147,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const getUserEmail = (): string | null => {
-    if (typeof window === "undefined") return null;
-    const userStr = localStorage.getItem("nelsonUser");
-    if (!userStr) return null;
-    try {
-      const user = JSON.parse(userStr);
-      return user.email || null;
-    } catch {
-      return null;
-    }
-  };
-
   const navItems = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/history", label: "The Lab" },
     { href: "/learn", label: "Learn", showDot: showLearnDot },
   ];
 
- // Don't render anything until auth resolves AND commitment check completes
-if (!authReady || isCheckingCommitment) {
-  return null;
-}
+  // Redirect logic happens in render, not in effects
+  if (authReady && commitmentChecked) {
+    // Not logged in -> login page
+    if (!user) {
+      redirect("/login");
+    }
+
+    // Logged in but no commitment -> not-started page
+    if (user && !hasCommitment && pathname !== "/not-started") {
+      redirect("/not-started");
+    }
+  }
+
+  // Don't render until checks complete
+  if (!authReady || !commitmentChecked) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen">
@@ -214,7 +208,6 @@ if (!authReady || isCheckingCommitment) {
                         )}
                       </Link>
                       
-                      {/* Tooltip */}
                       {item.showDot && showTooltip && !hasSeenTooltip && (
                         <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
                           New article available
