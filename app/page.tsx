@@ -71,7 +71,7 @@ export default function LandingPage() {
             Nelson
           </h1>
           <p className="text-xl text-blue-400 font-medium">
-            Momentum Beats Motivation (Test)
+            Momentum Beats Motivation
           </p>
         </div>
 

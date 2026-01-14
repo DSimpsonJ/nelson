@@ -32,7 +32,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } = await import("firebase/auth");
+      const { signInWithEmailAndPassword } = await import("firebase/auth");
       const { auth } = await import("@/app/firebase/config");
       const { db } = await import("../firebase/config");
       const { doc, getDoc } = await import("firebase/firestore");
