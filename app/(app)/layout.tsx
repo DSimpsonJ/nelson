@@ -41,6 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const auth = getAuth();
       
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        console.log("🔍 Auth state changed:", currentUser?.email || "NO USER");
         unsubscribe();
         setUser(currentUser);
         setAuthReady(true);

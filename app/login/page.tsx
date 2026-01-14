@@ -1,10 +1,11 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "../context/ToastContext";
 import { getEmail } from "@/app/utils/getEmail";
-import { setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { setPersistence, browserLocalPersistence, signInWithEmailAndPassword } from 'firebase/auth';
+import { auth, db } from "@/app/firebase/config";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,36 +29,33 @@ export default function LoginPage() {
       });
       return;
     }
-
+  
     setLoading(true);
-
+  
     try {
-      const { signInWithEmailAndPassword } = await import("firebase/auth");
-      const { auth } = await import("@/app/firebase/config");
-      const { db } = await import("../firebase/config");
-      const { doc, getDoc } = await import("firebase/firestore");
-
       // Set persistence BEFORE signing in
       await setPersistence(auth, browserLocalPersistence);
-
-      // ✅ Firebase authentication
+      console.log("✅ Persistence set to LOCAL");
+  
+      // Firebase authentication
       await signInWithEmailAndPassword(auth, email, password);
-
-      // ✅ Load user profile from Firestore
+      console.log("✅ Signed in, current user:", auth.currentUser?.email);
+  
+      // Load user profile from Firestore
       const snap = await getDoc(doc(db, "users", email));
       if (!snap.exists()) throw new Error("Missing Firestore profile.");
-
+  
       localStorage.setItem("nelsonUser", JSON.stringify({ email }));
-
+  
       showToast({
         message: "Welcome back", 
         type: "success"
       });
       router.replace("/dashboard");
-
+  
     } catch (err: any) {
       console.error("Login error:", err);
-
+  
       if (err.code === "auth/user-not-found") {
         showToast({
           message: "No account found. Please sign up.",
@@ -74,7 +72,7 @@ export default function LoginPage() {
           type: "error"
         });
       }
-
+  
       setLoading(false);
     }
   };
