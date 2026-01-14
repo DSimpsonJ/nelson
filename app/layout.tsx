@@ -9,6 +9,7 @@ export const metadata: Metadata = {
     icon: "/icon.svg",
     apple: "/icon.png",
   },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
