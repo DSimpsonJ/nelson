@@ -65,7 +65,6 @@ import {
 import { getLocalDate, getLocalDateOffset, daysBetween } from "@/app/utils/date";
 import RewardRenderer from "@/app/components/rewards/RewardRenderer";
 import CheckinSuccessAnimation from "@/app/components/rewards/CheckinSuccessAnimation";
-import FirstTimeDashboard from "./FirstTimeDashboard";
 import { detectAndHandleMissedCheckIns } from '@/app/services/missedCheckIns';
 import { selectMomentumMessage } from '@/app/services/messagingGuide';
 import MomentumTooltip from '@/app/components/MomentumTooltip';
@@ -734,7 +733,11 @@ if (todayMomentumSnap.exists()) {
 
 // ===== Calculate history stats for preview =====
 const todayKey = getLocalDate(); // Single date source
-
+console.log('[DATE DEBUG]', {
+  todayKey,
+  actualToday: new Date().toLocaleDateString("en-CA"),
+  rawDate: new Date().toString()
+});
 // Reuse today's momentum doc already fetched above
 
 // Has real check-in today?
@@ -758,8 +761,7 @@ if (todayMomentumSnap.exists()) {
 }
 
 if (!sourceDoc) {
-  console.error("No momentum data found");
-  setHistoryStats({ currentStreak: 0, totalCheckIns: 0, monthlyConsistency: 0 });
+  router.replace("/onboarding/activate/checkin");
   return;
 }
 
@@ -793,10 +795,8 @@ const effectiveDays = hasCheckedInToday
   : Math.max(accountAge - 1, 0);
 const windowSize = Math.min(effectiveDays, 30);
 
-// Window boundaries (inclusive, local timezone)
-const windowStartDate = new Date(todayKey);
-windowStartDate.setDate(windowStartDate.getDate() - (windowSize - 1));
-const windowStartKey = windowStartDate.toLocaleDateString("en-CA");
+// Window boundaries based on firstCheckinDate (Canon-compliant)
+const windowStartKey = firstCheckinDate; // Always start from Day 1
 
 const windowEndKey = hasCheckedInToday ? todayKey : (() => {
   const yesterday = new Date(todayKey);
@@ -804,7 +804,7 @@ const windowEndKey = hasCheckedInToday ? todayKey : (() => {
   return yesterday.toLocaleDateString("en-CA");
 })();
 
-// Count real check-ins in window (inclusive boundaries)
+// Count real check-ins in window (from Day 1 to yesterday or today)
 const realCheckInsInWindow = momentumSnaps.docs.filter(d => {
   const id = d.id;
   const data = d.data();
@@ -813,10 +813,15 @@ const realCheckInsInWindow = momentumSnaps.docs.filter(d => {
   return id >= windowStartKey && id <= windowEndKey;
 }).length;
 
-const monthlyConsistency = windowSize > 0 
-  ? Math.round((realCheckInsInWindow / windowSize) * 100)
-  : 0;
+// Window size is the span (for display/calculation)
+const actualWindowSize = Math.floor(
+  (new Date(windowEndKey).getTime() - new Date(windowStartKey).getTime()) 
+  / (1000 * 60 * 60 * 24)
+) + 1;
 
+const monthlyConsistency = actualWindowSize > 0 
+  ? Math.round((realCheckInsInWindow / actualWindowSize) * 100)
+  : 0;
 setHistoryStats({ 
   currentStreak,
   totalCheckIns: lifetimeCheckIns,
@@ -1868,18 +1873,6 @@ useEffect(() => {
       );
     }
     
-    return (
-      <FirstTimeDashboard 
-        profile={profile}
-        currentFocus={currentFocus}
-        checkin={checkin}
-        setCheckin={setCheckin}
-        handleCheckinSubmit={handleCheckinSubmit}
-        checkinSuccess={checkinSuccess}
-        setCheckinSuccess={setCheckinSuccess}
-        checkinSubmitted={checkinSubmitted}
-      />
-    );
   }
   return (
     <motion.main

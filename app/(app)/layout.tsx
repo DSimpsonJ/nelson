@@ -101,7 +101,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       
       const metadataRef = doc(userRef, "metadata", "accountInfo");
       const metadataSnap = await getDoc(metadataRef);
+      const firstCheckinDate = metadataSnap.data()?.firstCheckinDate;
 
+      if (
+        hasCommitment === true &&
+        !firstCheckinDate &&
+        pathname.startsWith("/dashboard")
+      ) {
+        redirect("/onboarding/activate/checkin");
+      }
       if (userSnap.exists() && metadataSnap.exists()) {
         const userData = userSnap.data();
         const metadata = metadataSnap.data();
