@@ -733,85 +733,97 @@ if (todayMomentumSnap.exists()) {
 }
 
 // ===== Calculate history stats for preview =====
-const todayKey = getLocalDate();
+const todayKey = getLocalDate(); // Single date source
 
-// Find most recent completed check-in
-const sorted = momentumSnaps.docs
-  .map(d => ({ id: d.id, data: d.data() }))
-  .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.id)) // Only date-formatted docs
-  .sort((a, b) => b.id.localeCompare(a.id));
+// Reuse today's momentum doc already fetched above
 
-  const mostRecentCompleted = sorted.find(
-    d => d.id <= todayKey && (d.data.checkinCompleted === true || (d.data.checkinCompleted === undefined && d.data.checkinType === "real"))
-  );
-  const missedDays =
-  mostRecentCompleted
-    ? daysBetween(mostRecentCompleted.id, todayKey) - 1
-    : 0;
-    const missedDaysSafe = Math.max(0, missedDays);
+// Has real check-in today?
+const hasCheckedInToday = todayMomentumSnap.exists() && 
+  todayMomentumSnap.data()?.checkinType === "real";
 
-const currentStreak = mostRecentCompleted?.data.currentStreak ?? 0;
-// If most recent check-in is more than 1 day old, streak is broken
-let finalStreak = currentStreak;
-if (mostRecentCompleted) {
-  const lastCheckInDate = mostRecentCompleted.id;
-  const daysSinceLastCheckIn = Math.floor(
-    (new Date(todayKey).getTime() - new Date(lastCheckInDate).getTime()) / (1000 * 60 * 60 * 24)
-  );
-  
-  if (daysSinceLastCheckIn > 1) {
-    finalStreak = 0; // Streak is broken
-  }
-}
-// Count ONLY date-formatted docs (exclude metadata)
-const totalCheckIns = momentumSnaps.docs.filter(d => {
-  const docId = d.id;
-  const data = d.data();
-  if (!docId.match(/^\d{4}-\d{2}-\d{2}$/)) return false;
-  return data.checkinType === "real" || !data.missed;
-}).length;
-
-// Calculate monthly consistency - last 30 days
-let accountAgeDays = 1;
-
+// If today exists, use it. Otherwise use most recent dated doc (any type)
+let sourceDoc = null;
 if (todayMomentumSnap.exists()) {
-  accountAgeDays = todayMomentumSnap.data().accountAgeDays || 1;
+  sourceDoc = todayMomentumSnap;
 } else {
-  // Get from most recent momentum doc
-  const datedDocs = momentumSnaps.docs
+  // Find most recent dated doc (gap-fill is authoritative too)
+  const sorted = momentumSnaps.docs
+    .map(d => ({ id: d.id, snap: d }))
     .filter(d => d.id.match(/^\d{4}-\d{2}-\d{2}$/))
-    .map(d => d.data())
-    .filter(d => d.accountAgeDays !== undefined);
-
-  if (datedDocs.length > 0) {
-    accountAgeDays = Math.max(...datedDocs.map(d => d.accountAgeDays));
+    .sort((a, b) => b.id.localeCompare(a.id));
+  
+  if (sorted.length > 0) {
+    sourceDoc = sorted[0].snap;
   }
 }
 
-// Window is CALENDAR DAYS, not doc count
-const windowSize = Math.min(accountAgeDays, 30);
+if (!sourceDoc) {
+  console.error("No momentum data found");
+  setHistoryStats({ currentStreak: 0, totalCheckIns: 0, monthlyConsistency: 0 });
+  return;
+}
 
-// Get the date 30 days ago (or accountAgeDays ago if less than 30)
+// 1. LIFETIME CHECK-INS: Read from authoritative field
+const lifetimeCheckIns = sourceDoc.data()?.totalRealCheckIns ?? 0;
 
+// 2. CURRENT STREAK: Read from momentum (no client adjustment)
+const currentStreak = sourceDoc.data()?.currentStreak ?? 0;
+
+// 3. MONTHLY CONSISTENCY: Calculate from firstCheckinDate
+const metadataRef = doc(db, "users", email, "metadata", "accountInfo");
+const metadataSnap = await getDoc(metadataRef);
+const firstCheckinDate = metadataSnap.data()?.firstCheckinDate;
+
+if (!firstCheckinDate) {
+  console.error("No firstCheckinDate found");
+  setHistoryStats({ currentStreak, totalCheckIns: lifetimeCheckIns, monthlyConsistency: 0 });
+  return;
+}
+
+// Calculate account age (Canon formula - Section 7)
+const start = new Date(firstCheckinDate);
+const end = new Date(todayKey);
+const diffTime = end.getTime() - start.getTime();
+const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+const accountAge = diffDays + 1; // Day 1 = first check-in day
+
+// Effective window excludes today if no check-in yet (with underflow protection)
+const effectiveDays = hasCheckedInToday 
+  ? accountAge 
+  : Math.max(accountAge - 1, 0);
+const windowSize = Math.min(effectiveDays, 30);
+
+// Window boundaries (inclusive, local timezone)
 const windowStartDate = new Date(todayKey);
-windowStartDate.setDate(windowStartDate.getDate() - windowSize);
-const windowStartStr = windowStartDate.toISOString().slice(0, 10);
+windowStartDate.setDate(windowStartDate.getDate() - (windowSize - 1));
+const windowStartKey = windowStartDate.toLocaleDateString("en-CA");
 
-// Count only real check-ins within the window
-const realCheckIns = momentumSnaps.docs.filter(d => {
+const windowEndKey = hasCheckedInToday ? todayKey : (() => {
+  const yesterday = new Date(todayKey);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return yesterday.toLocaleDateString("en-CA");
+})();
+
+// Count real check-ins in window (inclusive boundaries)
+const realCheckInsInWindow = momentumSnaps.docs.filter(d => {
   const id = d.id;
   const data = d.data();
   if (!id.match(/^\d{4}-\d{2}-\d{2}$/)) return false;
   if (data.checkinType !== "real") return false;
-  // Only count if within the window (EXCLUSIVE of start date)
-  return id > windowStartStr;  // Changed from >= to >
+  return id >= windowStartKey && id <= windowEndKey;
 }).length;
 
-const monthlyConsistency = Math.round((realCheckIns / windowSize) * 100);
+const monthlyConsistency = windowSize > 0 
+  ? Math.round((realCheckInsInWindow / windowSize) * 100)
+  : 0;
 
-setHistoryStats({ currentStreak: finalStreak, totalCheckIns: realCheckIns, monthlyConsistency });
-setCheckinStreak(currentStreak);
-console.log(`[Dashboard] History stats: Streak ${currentStreak}, Total ${realCheckIns}, Month ${monthlyConsistency}%`);
+setHistoryStats({ 
+  currentStreak,
+  totalCheckIns: lifetimeCheckIns,
+  monthlyConsistency 
+});
+
+console.log(`[Dashboard] History stats: Streak ${currentStreak}, Total ${lifetimeCheckIns}, Month ${monthlyConsistency}%`);
 // =========================================================
       // ---- Today's check-in ----
       const rawToday = await getCheckin(email, today);
@@ -955,10 +967,6 @@ if (promptSnap.exists()) {
     setLevelUpEligible(true);
   }
 }
-
-// Get streak from most recent completed check-in
-const streakValue = mostRecentCompleted?.data.currentStreak ?? 0;
-setCheckinStreak(streakValue);
 
 } catch (err) {
   console.error("Dashboard load error:", err);
