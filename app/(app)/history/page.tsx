@@ -322,72 +322,83 @@ export default function HistoryPage() {
                       days.push(
                         <div key={dateStr} className="h-16 relative overflow-visible">
                           <AnimatePresence mode="wait">
-                            {isExpanded && dayDoc && dayDoc.checkinType === "real" && dayDoc.behaviorRatings && Object.keys(dayDoc.behaviorRatings).length > 0 && (
-                              <motion.div
-                                key={dateStr}
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                transition={{ duration: 0.15, ease: "easeOut" }}
-                                className={`absolute bottom-full mb-2 z-50 w-[90vw] max-w-sm ${popupPositionClass}`}
-                                data-calendar-popup
-                              >
-                                <div
-                                  className="bg-slate-900 border border-blue-500 rounded-lg shadow-xl p-4"
-                                  onPointerDown={(e) => e.stopPropagation()}
-                                >
-                                  {/* Exercise commitment status */}
-                                  <div className="mb-3 pb-3 border-b border-slate-700">
-                                    <div className="flex justify-between text-sm">
-                                      <span className="text-white/60">Exercise commitment:</span>
-                                      <span className="text-white font-medium">
-                                        {dayDoc.exerciseCompleted ? "Met" : "Not met"}
-                                      </span>
-                                    </div>
-                                  </div>
+                          {isExpanded && dayDoc && dayDoc.checkinType === "real" && dayDoc.behaviorRatings && Object.keys(dayDoc.behaviorRatings).length > 0 && (
+  <motion.div
+    key={dateStr}
+    initial={{ opacity: 0, scale: 0.95 }}
+    animate={{ opacity: 1, scale: 1 }}
+    exit={{ opacity: 0, scale: 0.95 }}
+    transition={{ duration: 0.15, ease: "easeOut" }}
+    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    data-calendar-popup
+  >
+    <div
+      className="absolute inset-0 bg-black/20"
+      onClick={() => {
+        setExpandedDate(null);
+        setExpandedNote(null);
+      }}
+    />
+    <div
+      className="relative w-full max-w-sm max-h-[80vh] overflow-y-auto bg-slate-900 border border-blue-500 rounded-lg shadow-xl p-4"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      {/* Date header */}
+      <div className="text-center mb-3 pb-3 border-b border-slate-700">
+        <p className="text-white font-bold">{new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+        <p className="text-sm text-white/60 mt-1">{dayDoc.momentumScore}% momentum</p>
+      </div>
 
-                                  <div className="text-white font-bold text-center mb-3" style={{ fontSize: '0.9375rem' }}>
-                                    Behaviors
-                                  </div>
+      {/* Exercise commitment status */}
+      <div className="mb-3 pb-3 border-b border-slate-700">
+        <div className="flex justify-between text-sm">
+          <span className="text-white/60">Exercise commitment:</span>
+          <span className="text-white font-medium">
+            {dayDoc.exerciseCompleted ? "Met" : "Not met"}
+          </span>
+        </div>
+      </div>
 
-                                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                                    {behaviorOrder.map(({ key, label }) => {
-                                      const rating = dayDoc.behaviorRatings?.[key];
-                                      if (!rating) return null;
-                                      return (
-                                        <div key={key} className="flex justify-between text-sm">
-                                          <span className="text-white/60">{label}:</span>
-                                          <span className="text-white font-medium">{capitalize(String(rating))}</span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-{/* Note display */}
-{dayDoc.note && (
-                                    <div className="mt-4 pt-3 border-t border-slate-700">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setExpandedNote(expandedNote === dateStr ? null : dateStr);
-                                        }}
-                                        className="text-xs text-blue-400 hover:text-blue-300 mb-2"
-                                      >
-                                        {expandedNote === dateStr ? "Hide note" : "View note"}
-                                      </button>
-                                      
-                                      {expandedNote === dateStr && (
-                                        <div className="p-3 bg-slate-800/50 rounded border border-slate-700 text-sm text-white/80">
-                                          {dayDoc.note}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  <div className={`absolute bottom-0 translate-y-full ${arrowPositionClass}`}>
-                                    <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-blue-500"></div>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            )}
+      <div className="text-white font-bold text-center mb-3" style={{ fontSize: '0.9375rem' }}>
+        Behaviors
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        {behaviorOrder.map(({ key, label }) => {
+          const rating = dayDoc.behaviorRatings?.[key];
+          if (!rating) return null;
+          return (
+            <div key={key} className="flex justify-between text-sm">
+              <span className="text-white/60">{label}:</span>
+              <span className="text-white font-medium">{capitalize(String(rating))}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Note display */}
+      {dayDoc.note && (
+        <div className="mt-4 pt-3 border-t border-slate-700">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedNote(expandedNote === dateStr ? null : dateStr);
+            }}
+            className="text-xs text-blue-400 hover:text-blue-300 mb-2"
+          >
+            {expandedNote === dateStr ? "Hide note" : "View note"}
+          </button>
+          
+          {expandedNote === dateStr && (
+            <div className="p-3 bg-slate-800/50 rounded border border-slate-700 text-sm text-white/80">
+              {dayDoc.note}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  </motion.div>
+)}
                           </AnimatePresence>
 
                           <button
