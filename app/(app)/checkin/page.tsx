@@ -237,24 +237,29 @@ export default function CheckinPage() {
         total={totalSteps} 
       />
 
-      <AnimatePresence mode="wait">
-      <motion.div
-  key={currentStep}
-  custom={direction}
-  variants={slideVariants}
-  initial="enter"
-  animate="center"
-  exit="exit"
-  transition={{
-    x: { type: "spring", stiffness: 300, damping: 30 },
-    opacity: { duration: 0.2 },
-  }}
-  drag={currentStep > 0 ? "x" : false}
-  dragConstraints={{ left: 0, right: 0 }}
-  dragElastic={{ left: 0, right: 0.5 }}
-  dragMomentum={false}
-  onDragEnd={handleDragEnd}
->
+<AnimatePresence mode="wait" custom={direction}>
+  <motion.div
+    key={currentStep}
+    custom={direction}
+    variants={slideVariants}
+    initial="enter"
+    animate="center"
+    exit="exit"
+    transition={{
+      x: { type: "spring", stiffness: 300, damping: 30 },
+      opacity: { duration: 0.2 },
+    }}
+    drag={currentStep > 0 ? "x" : false}
+    dragConstraints={{ left: 0, right: 0 }}
+    dragElastic={{ left: 0, right: 0.8 }}
+    dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
+    onDragEnd={(event, info) => {
+      if (info.offset.x > 100 || info.velocity.x > 500) {
+        setDirection(-1);
+        handleBack();
+      }
+    }}
+  >
           {isOnNoteScreen ? (
             <div className="flex flex-col items-center px-6 py-8">
               <h2 className="text-xl font-semibold text-white mb-2">
