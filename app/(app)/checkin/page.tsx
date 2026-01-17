@@ -235,21 +235,22 @@ export default function CheckinPage() {
       />
 
       <AnimatePresence mode="wait">
-        <motion.div
-          key={currentStep}
-          variants={slideVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{
-            x: { type: "spring", stiffness: 200, damping: 25 },
-            opacity: { duration: 0.3 },
-          }}
-          drag={currentStep > 0 ? "x" : false}
-          dragConstraints={{ left: 0, right: 300 }}
-          dragElastic={0.2}
-          onDragEnd={handleDragEnd}
-        >
+      <motion.div
+  key={currentStep}
+  variants={slideVariants}
+  initial="enter"
+  animate="center"
+  exit="exit"
+  transition={{
+    x: { type: "spring", stiffness: 300, damping: 30 },
+    opacity: { duration: 0.2 },
+  }}
+  drag={currentStep > 0 ? "x" : false}
+  dragConstraints={{ left: 0, right: 0 }}
+  dragElastic={{ left: 0, right: 0.5 }}
+  dragMomentum={false}
+  onDragEnd={handleDragEnd}
+>
           {isOnNoteScreen ? (
             <div className="flex flex-col items-center px-6 py-8">
               <h2 className="text-xl font-semibold text-white mb-2">
