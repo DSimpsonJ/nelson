@@ -34,6 +34,7 @@ export default function CheckinPage() {
   const [habitName, setHabitName] = useState("Move 10 minutes");
   const [targetMinutes, setTargetMinutes] = useState(10);
   const [note, setNote] = useState("");
+  const [direction, setDirection] = useState(1); // 1 = forward, -1 = back
 
   // Load user data and generate dynamic behaviors
   useEffect(() => {
@@ -78,24 +79,25 @@ export default function CheckinPage() {
 
   // Swipe animation variants
   const slideVariants = {
-    enter: {
-      x: 400,
+    enter: (direction: number) => ({
+      x: direction > 0 ? 400 : -400,
       opacity: 0,
-    },
+    }),
     center: {
       x: 0,
       opacity: 1,
     },
-    exit: {
-      x: -400,
+    exit: (direction: number) => ({
+      x: direction > 0 ? -400 : 400,
       opacity: 0,
-    },
+    }),
   };
 
   const handleSelect = (rating: string) => {
     if (isAdvancing) return;
     
     setIsAdvancing(true);
+    setDirection(1); // Add this
   
     const newAnswers = {
       ...answers,
@@ -114,8 +116,9 @@ export default function CheckinPage() {
     if (isAdvancing) return;
     
     setIsAdvancing(true);
+    setDirection(1); // Add this
     setExerciseCompleted(completed);
-
+  
     setTimeout(() => {
       setCurrentStep(1);
       setIsAdvancing(false);
@@ -124,14 +127,14 @@ export default function CheckinPage() {
 
   const handleBack = () => {
     if (currentStep > 0 && !isAdvancing) {
+      setDirection(-1);
       setCurrentStep(currentStep - 1);
     }
   };
 
   // Swipe handler - swipe right to go back
   const handleDragEnd = (event: any, info: any) => {
-    // If swiped right with enough velocity or distance, go back
-    if (info.offset.x > 100 || info.velocity.x > 500) {
+    if (info.offset.x > 50 || info.velocity.x > 300) {
       handleBack();
     }
   };
@@ -237,6 +240,7 @@ export default function CheckinPage() {
       <AnimatePresence mode="wait">
       <motion.div
   key={currentStep}
+  custom={direction}
   variants={slideVariants}
   initial="enter"
   animate="center"
