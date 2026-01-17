@@ -13,6 +13,7 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 type Rating = "elite" | "solid" | "not-great" | "off";
 
 interface CheckInData {
+  exercise: boolean | null;
   nutritionPattern: Rating | null;
   energyBalance: Rating | null;
   protein: Rating | null;
@@ -41,6 +42,7 @@ export default function CheckInPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [checkInData, setCheckInData] = useState<CheckInData>({
+    exercise: null,
     nutritionPattern: null,
     energyBalance: null,
     protein: null,
@@ -51,6 +53,7 @@ export default function CheckInPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [proteinRange, setProteinRange] = useState("140-220g");
+  const [exerciseCompleted, setExerciseCompleted] = useState<boolean | null>(null);
   
   useEffect(() => {
     const loadProteinRange = async () => {
@@ -77,6 +80,19 @@ export default function CheckInPage() {
 
   // Categories array moved inside component to access proteinRange
   const categories = [
+    // Exercise question (Yes/No only)
+    {
+      id: "exercise" as keyof CheckInData,
+      title: "Exercise Commitment",
+      description: `Did you do any intentional exercise yesterday?`,
+      isExercise: true,
+      examples: {
+        elite: "", // Not used for exercise
+        solid: "",
+        notGreat: "",
+        off: "",
+      },
+    },
     {
       id: "nutritionPattern" as keyof CheckInData,
       title: "Nutrition Pattern (Quality)",
@@ -246,6 +262,7 @@ const behaviorGrades = [
     habitStack: [],
     goal,
     accountAgeDays: 1,
+    exerciseDeclared: exerciseCompleted!,
   });
   
   // Mark user as activated AND set firstCheckInAt
@@ -342,63 +359,92 @@ await setDoc(
             </p>
 
             {/* Rating options */}
-            <div className="space-y-3 mb-8">
-              <button
-                onClick={() => handleRating("elite")}
-                disabled={submitting}
-                className={`w-full bg-gradient-to-r ${ratingColors.elite} border rounded-xl p-5 text-left transition-all disabled:opacity-50`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white font-semibold text-lg">Elite</span>
-                  <span className="text-lg">✓✓</span>
-                </div>
-                <p className="text-white/60 text-sm">
-                  {currentCategory.examples.elite}
-                </p>
-              </button>
+            {currentCategory.isExercise ? (
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => {
+                    setExerciseCompleted(true);
+                    const updatedData = { ...checkInData, exercise: true };
+                    setCheckInData(updatedData);
+                    setCurrentStep(currentStep + 1);
+                  }}
+                  disabled={submitting}
+                  className="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => {
+                    setExerciseCompleted(false);
+                    const updatedData = { ...checkInData, exercise: false };
+                    setCheckInData(updatedData);
+                    setCurrentStep(currentStep + 1);
+                  }}
+                  disabled={submitting}
+                  className="px-8 py-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+                >
+                  No
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 mb-8">
+                <button
+                  onClick={() => handleRating("elite")}
+                  disabled={submitting}
+                  className={`w-full bg-gradient-to-r ${ratingColors.elite} border rounded-xl p-5 text-left transition-all disabled:opacity-50`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white font-semibold text-lg">Elite</span>
+                    <span className="text-lg">✓✓</span>
+                  </div>
+                  <p className="text-white/60 text-sm">
+                    {currentCategory.examples.elite}
+                  </p>
+                </button>
 
-              <button
-                onClick={() => handleRating("solid")}
-                disabled={submitting}
-                className={`w-full bg-gradient-to-r ${ratingColors.solid} border rounded-xl p-5 text-left transition-all disabled:opacity-50`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white font-semibold text-lg">Solid</span>
-                  <span className="text-2xl">🎯</span>
-                </div>
-                <p className="text-white/60 text-sm">
-                  {currentCategory.examples.solid}
-                </p>
-              </button>
+                <button
+                  onClick={() => handleRating("solid")}
+                  disabled={submitting}
+                  className={`w-full bg-gradient-to-r ${ratingColors.solid} border rounded-xl p-5 text-left transition-all disabled:opacity-50`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white font-semibold text-lg">Solid</span>
+                    <span className="text-2xl">🎯</span>
+                  </div>
+                  <p className="text-white/60 text-sm">
+                    {currentCategory.examples.solid}
+                  </p>
+                </button>
 
-              <button
-                onClick={() => handleRating("not-great")}
-                disabled={submitting}
-                className={`w-full bg-gradient-to-r ${ratingColors["not-great"]} border rounded-xl p-5 text-left transition-all disabled:opacity-50`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white font-semibold text-lg">Not Great</span>
-                  <span className="text-2xl">😐</span>
-                </div>
-                <p className="text-white/60 text-sm">
-                  {currentCategory.examples.notGreat}
-                </p>
-              </button>
+                <button
+                  onClick={() => handleRating("not-great")}
+                  disabled={submitting}
+                  className={`w-full bg-gradient-to-r ${ratingColors["not-great"]} border rounded-xl p-5 text-left transition-all disabled:opacity-50`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white font-semibold text-lg">Not Great</span>
+                    <span className="text-2xl">😐</span>
+                  </div>
+                  <p className="text-white/60 text-sm">
+                    {currentCategory.examples.notGreat}
+                  </p>
+                </button>
 
-              <button
-                onClick={() => handleRating("off")}
-                disabled={submitting}
-                className={`w-full bg-gradient-to-r ${ratingColors.off} border rounded-xl p-5 text-left transition-all disabled:opacity-50`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white font-semibold text-lg">Off</span>
-                  <span className="text-2xl">🔍</span>
-                </div>
-                <p className="text-white/60 text-sm">
-                  {currentCategory.examples.off}
-                </p>
-              </button>
-            </div>
+                <button
+                  onClick={() => handleRating("off")}
+                  disabled={submitting}
+                  className={`w-full bg-gradient-to-r ${ratingColors.off} border rounded-xl p-5 text-left transition-all disabled:opacity-50`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white font-semibold text-lg">Off</span>
+                    <span className="text-2xl">🔍</span>
+                  </div>
+                  <p className="text-white/60 text-sm">
+                    {currentCategory.examples.off}
+                  </p>
+                </button>
+              </div>
+            )}
 
             {submitting && (
               <p className="text-white/60 text-center text-sm">

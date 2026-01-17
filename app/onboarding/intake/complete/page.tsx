@@ -27,7 +27,6 @@ export default function IntakeCompletePage() {
           transition={{ delay: 0.2, duration: 0.5 }}
           className="text-6xl mb-8"
         >
-          ✓
         </motion.div>
 
         <motion.h1

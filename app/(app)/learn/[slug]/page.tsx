@@ -89,8 +89,8 @@ export default function LearnItemPage({ params }: { params: Promise<{ slug: stri
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-white/60">Loading...</p>
       </div>
     );
   }
@@ -100,33 +100,33 @@ export default function LearnItemPage({ params }: { params: Promise<{ slug: stri
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen pb-20">
       <div className="max-w-2xl mx-auto px-4 py-8">
         {/* Back link */}
         <Link
           href="/learn"
-          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6"
+          className="inline-flex items-center text-sm text-white/60 hover:text-white mb-6"
         >
           ← Back to Learn
         </Link>
 
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+          <div className="flex items-center gap-2 text-sm text-white/60 mb-2">
             <span className="capitalize">{article.format}</span>
             <span>·</span>
             <span>{article.duration}</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">{article.title}</h1>
+          <h1 className="text-2xl font-bold text-white">{article.title}</h1>
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
+        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           {article.format === "watch" ? (
             <div className="space-y-4">
               {/* Video placeholder container */}
-              <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-                <div className="text-center text-gray-400">
+              <div className="aspect-video bg-slate-900 rounded-lg flex items-center justify-center">
+                <div className="text-center text-white/40">
                   <svg
                     className="w-16 h-16 mx-auto mb-2"
                     fill="none"
@@ -149,15 +149,15 @@ export default function LearnItemPage({ params }: { params: Promise<{ slug: stri
                 </div>
               </div>
               {/* Video text content */}
-              <div className="prose prose-gray max-w-none">
-                <p className="whitespace-pre-line text-gray-700 leading-relaxed">
+              <div className="prose prose-invert max-w-none">
+                <p className="whitespace-pre-line text-white/80 leading-relaxed">
                   {article.content}
                 </p>
               </div>
             </div>
           ) : (
-            <div className="prose prose-gray max-w-none">
-              <p className="whitespace-pre-line text-gray-700 leading-relaxed">
+            <div className="prose prose-invert max-w-none">
+              <p className="whitespace-pre-line text-white/80 leading-relaxed">
                 {article.content}
               </p>
             </div>

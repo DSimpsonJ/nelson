@@ -188,13 +188,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-slate-900 text-white">
       {/* Primary Navigation */}
-      <nav className="bg-white border-b border-gray-200">
+      <nav className="bg-slate-900 border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
-              <div className="text-xl font-bold text-gray-900">Nelson</div>
+              <div className="text-xl font-bold text-white">Nelson</div>
               <div className="flex gap-6">
                 {navItems.map((item) => {
                   const isActive = pathname?.startsWith(item.href);
@@ -214,8 +214,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         href={item.href}
                         className={`text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
                           isActive
-                            ? "text-gray-900"
-                            : "text-gray-600 hover:text-gray-900"
+                            ? "text-white"
+                            : "text-white/60 hover:text-white"
                         }`}
                       >
                         {item.label}
@@ -225,7 +225,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       </Link>
                       
                       {item.showDot && showTooltip && !hasSeenTooltip && (
-                        <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                        <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded whitespace-nowrap border border-slate-700">
                           New article available
                         </div>
                       )}

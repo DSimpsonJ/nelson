@@ -98,23 +98,23 @@ export default function LearnPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-white/60">Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen pb-20">
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Learn</h1>
-        <p className="text-gray-600 mb-8">
+        <h1 className="text-2xl font-bold text-white mb-2">Learn</h1>
+        <p className="text-white/60 mb-8">
           Reference material for calibration and momentum
         </p>
 
         {eligibleArticles.length === 0 ? (
-          <div className="bg-white rounded-lg p-8 border border-gray-200 text-center">
-            <p className="text-gray-600">
+          <div className="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center">
+            <p className="text-white/60">
               No articles available yet. Keep checking in daily.
             </p>
           </div>
@@ -127,7 +127,7 @@ export default function LearnPage() {
                 <Link
                   key={item.slug}
                   href={`/learn/${item.slug}`}
-                  className="block bg-white rounded-lg p-4 border border-gray-200 hover:border-gray-300 transition-colors"
+                  className="block bg-slate-800 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-2">
@@ -135,13 +135,13 @@ export default function LearnPage() {
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
                       )}
                       <div>
-                        <h3 className="text-lg font-medium text-gray-900 mb-1">
+                        <h3 className="text-lg font-medium text-white mb-1">
                           {item.title}
                         </h3>
-                        <p className="text-sm text-gray-500">{item.category}</p>
+                        <p className="text-sm text-white/60">{item.category}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500 whitespace-nowrap">
+                    <div className="flex items-center gap-2 text-sm text-white/60 whitespace-nowrap">
                       <span className="capitalize">{item.format}</span>
                       <span>·</span>
                       <span>{item.duration}</span>
