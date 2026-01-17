@@ -738,7 +738,6 @@ console.log('[DATE DEBUG]', {
   actualToday: new Date().toLocaleDateString("en-CA"),
   rawDate: new Date().toString()
 });
-// Reuse today's momentum doc already fetched above
 
 // Has real check-in today?
 const hasCheckedInToday = todayMomentumSnap.exists() && 
@@ -795,16 +794,19 @@ const effectiveDays = hasCheckedInToday
   : Math.max(accountAge - 1, 0);
 const windowSize = Math.min(effectiveDays, 30);
 
-// Window boundaries based on firstCheckinDate (Canon-compliant)
-const windowStartKey = firstCheckinDate; // Always start from Day 1
-
+// Window end is yesterday (since no check-in today)
 const windowEndKey = hasCheckedInToday ? todayKey : (() => {
-  const yesterday = new Date(todayKey);
+  const yesterday = new Date(todayKey + "T00:00:00");
   yesterday.setDate(yesterday.getDate() - 1);
   return yesterday.toLocaleDateString("en-CA");
 })();
 
-// Count real check-ins in window (from Day 1 to yesterday or today)
+// Window start is windowSize days before the end (inclusive)
+const windowStartDate = new Date(windowEndKey + "T00:00:00");
+windowStartDate.setDate(windowStartDate.getDate() - (windowSize - 1));
+const windowStartKey = windowStartDate.toLocaleDateString("en-CA");
+
+// Count real check-ins in window (inclusive boundaries)
 const realCheckInsInWindow = momentumSnaps.docs.filter(d => {
   const id = d.id;
   const data = d.data();
@@ -813,15 +815,10 @@ const realCheckInsInWindow = momentumSnaps.docs.filter(d => {
   return id >= windowStartKey && id <= windowEndKey;
 }).length;
 
-// Window size is the span (for display/calculation)
-const actualWindowSize = Math.floor(
-  (new Date(windowEndKey).getTime() - new Date(windowStartKey).getTime()) 
-  / (1000 * 60 * 60 * 24)
-) + 1;
-
-const monthlyConsistency = actualWindowSize > 0 
-  ? Math.round((realCheckInsInWindow / actualWindowSize) * 100)
+const monthlyConsistency = windowSize > 0 
+  ? Math.round((realCheckInsInWindow / windowSize) * 100)
   : 0;
+
 setHistoryStats({ 
   currentStreak,
   totalCheckIns: lifetimeCheckIns,

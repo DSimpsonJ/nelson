@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "../context/ToastContext";
 import { getEmail } from "@/app/utils/getEmail";
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from "@/app/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -76,6 +76,30 @@ export default function LoginPage() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      showToast({
+        message: "Please enter your email first.",
+        type: "error"
+      });
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showToast({
+        message: "If an account exists for this email, a reset link has been sent.",
+        type: "success"
+      });
+    } catch (err) {
+      console.error("Password reset error:", err);
+      showToast({
+        message: "If an account exists for this email, a reset link has been sent.",
+        type: "success"
+      });
+    }
+  };
+
   return (
     <main className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
@@ -111,6 +135,12 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               />
+              <button
+                onClick={handleForgotPassword}
+                className="text-blue-400 hover:text-blue-300 text-sm mt-2 transition"
+              >
+                Forgot password?
+              </button>
             </div>
 
             <button
