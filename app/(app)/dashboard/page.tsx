@@ -1400,7 +1400,6 @@ if (isFirstCheckin && currentHabitData) {
   // 🆕 Mark user as activated (ADD THIS BLOCK)
   const userRef = doc(db, "users", email);
   await setDoc(userRef, {
-    isActivated: true,
     activatedAt: new Date().toISOString(),
   }, { merge: true });
   

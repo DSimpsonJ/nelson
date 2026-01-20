@@ -41,7 +41,6 @@ export default function LandingPage() {
       await setDoc(doc(db, "users", email), {
         email: email,
         createdAt: new Date().toISOString(),
-        isActivated: false,
         onboardingStep: "name",
       });
 

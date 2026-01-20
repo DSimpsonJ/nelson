@@ -55,9 +55,7 @@ await setDoc(doc(db, "users", form.email), {
   email: form.email,
   birthday: form.birthday,
   accountCreatedAt: serverTimestamp(),
-  firstCheckInAt: null,
   readLearnSlugs: [],
-  isActivated: false, // 🆕 New users start inactive
 });
     
       // ✅ Persist user info locally so getEmail() can find it later

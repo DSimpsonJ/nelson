@@ -266,19 +266,14 @@ const behaviorGrades = [
   });
   
   // Mark user as activated AND set firstCheckInAt
-await setDoc(
-  doc(db, "users", email),
-  {
-    isActivated: true,
-    hasCommitment: true,
-    lastCheckInDate: today,
-    // Only set firstCheckInAt if it doesn't exist
-    ...(userData && !userData.firstCheckInAt && {
-      firstCheckInAt: new Date().toISOString()
-    })
-  },
-  { merge: true }
-);
+  await setDoc(
+    doc(db, "users", email),
+    {
+      hasCommitment: true,
+      lastCheckInDate: today,
+    },
+    { merge: true }
+  );
   
 // ===== NEW: Create metadata doc with firstCheckInDate =====
 await setDoc(
