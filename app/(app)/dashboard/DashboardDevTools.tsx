@@ -267,11 +267,7 @@ export default function DashboardDevTools({
                     isActive: true,
                     levelUpPrompts: {},
                   });
-                  
-                  await setDoc(doc(db, "users", email, "momentum", "habitStack"), {
-                    habits: [],
-                  });
-                  
+
                   showToast({ message: "Fresh start ready!", type: "success" });
                   setTimeout(() => window.location.reload(), 1000);
                   

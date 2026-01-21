@@ -42,18 +42,12 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { calculateDailyMomentumScore, determinePrimaryHabitHit, applyMomentumCap } from "../../utils/momentumCalculation";
 import { getDayVisualState } from "../../utils/history/getDayVisualState";
-import { isGrowthHabit, getNextLevel, getLevelDescription, extractMinutes } from "@/app/utils/habitConfig";
 import { logHabitEvent, getRecentHabitEvents } from "@/app/utils/habitEvents";
 import { checkLevelUpEligibility as checkEligibilityPure } from "@/app/utils/checkLevelUpEligibility";
 import type { DailyDoc } from "@/app/utils/checkLevelUpEligibility";
 import { runBackfill } from "@/app/utils/backfillMomentumStructure";
 import { writeDailyMomentum } from "@/app/services/writeDailyMomentum";
-import { 
-  getCurrentFocus, 
-  setCurrentFocus as setCurrentFocusService,  // RENAME THIS
-  updateLevel, 
-  type CurrentFocus 
-} from "@/app/services/currentFocus";
+
 import { getLocalDate, getLocalDateOffset, daysBetween } from "@/app/utils/date";
 import RewardRenderer from "@/app/components/rewards/RewardRenderer";
 import CheckinSuccessAnimation from "@/app/components/rewards/CheckinSuccessAnimation";
@@ -319,12 +313,8 @@ export default function DashboardPage() {
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [showAdjustOptions, setShowAdjustOptions] = useState(false);
   const [adjustOptions, setAdjustOptions] = useState<'increase' | 'decrease'>('increase');
-  const [levelUpStage, setLevelUpStage] = useState<"prompt" | "reflection" | "alternative" | "adjust">("prompt");
   const [levelUpReason, setLevelUpReason] = useState<string>("");
   const [levelUpNextStep, setLevelUpNextStep] = useState<string>("");
-  const [habitStack, setHabitStack] = useState<any[]>([]);
-  // Rewards are now handled in check-in flow, not dashboard
-// This state can be removed entirely or kept as unused for now
 const [pendingReward, setPendingReward] = useState<any | null>(null);
   const [checkinSuccess, setCheckinSuccess] = useState(false);
   const [showMomentumTooltip, setShowMomentumTooltip] = useState(false);
@@ -356,11 +346,6 @@ const [pendingReward, setPendingReward] = useState<any | null>(null);
     
     // Just use the message from the momentum doc
     return todayMomentum.momentumMessage || "Building momentum";
-  };
-  
-  const getTargetMinutes = (habitKey: string): number => {
-    const match = habitKey.match(/(\d+)min/);
-    return match ? parseInt(match[1], 10) : 10;
   };
   const calculateConsistency = (
     momentumDocs: any[], 
@@ -561,18 +546,9 @@ if (loadedFocus) {
   });
 
   setCompletedLast7Days(completed);
-  setLevelUpEligible(completed >= 5 && daysSinceLastDecision >= 7);
+setLevelUpEligible(completed >= 5 && daysSinceLastDecision >= 7);
 }
-      // Load habit stack
-const stackRef = doc(db, "users", email, "momentum", "habitStack");
-const stackSnap = await getDoc(stackRef);
-if (stackSnap.exists()) {
-  console.log("[Dashboard] Loaded habitStack:", stackSnap.data().habits);
-  setHabitStack(stackSnap.data().habits || []);
-} else {
-  console.log("[Dashboard] No habitStack found");
-  setHabitStack([]);
-}
+
 const commitRef = doc(db, "users", email, "momentum", "commitment");
 const commitSnap = await getDoc(commitRef);
 const commitmentData = commitSnap.exists() ? commitSnap.data() : null;
@@ -965,11 +941,6 @@ if (!focusSnap.exists()) {
 const currentFocusData = focusSnap.data();
 const currentHabit = currentFocusData.habitKey || "walk_10min";
 
-// Only check growth habits
-if (!isGrowthHabit(currentHabit)) {
-  return { canCheck: false, reason: "not_growth_habit" };
-}
-
 // Check cooldown from dedicated document
 const promptRef = doc(db, "users", email, "momentum", "levelUpPrompt");
 const promptSnap = await getDoc(promptRef);
@@ -1059,13 +1030,14 @@ const handleAdjustLevel = async (minutes: number) => {
   const email = getEmail();
   if (!email || !currentFocus) return;
   
-  await setCurrentFocusService(email, {
+  // Direct write instead of service
+  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
     ...currentFocus,
     target: minutes,
     habit: `Walk ${minutes} minutes daily`,
     habitKey: `walk_${minutes}min`,
     lastLevelUpAt: getLocalDate(),
-  });
+  }, { merge: true });
   
   setShowAdjustOptions(false);
   setLevelUpEligible(false);
@@ -1076,10 +1048,11 @@ const handleKeepCurrent = async () => {
   const email = getEmail();
   if (!email || !currentFocus) return;
   
-  await setCurrentFocusService(email, {
+  // Direct write instead of service
+  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
     ...currentFocus,
     lastLevelUpAt: getLocalDate(),
-  });
+  }, { merge: true });
   
   setLevelUpEligible(false);
   showToast({ message: "Got it. Keep building at your current pace.", type: "success" });
@@ -1405,7 +1378,7 @@ useEffect(() => {
 ) : hasCompletedCheckin() ? (
   // CHECKED IN TODAY
   <p className="text-white/60 mt-1">
-    Check-in complete. Let's keep building.
+    Check-in complete. Keep building.
   </p>
 ) : (
   // HAVEN'T CHECKED IN YET
@@ -1605,7 +1578,7 @@ useEffect(() => {
         </p>
 
         <p className="text-sm text-white/60 text-center mt-2">
-  This is your long game: showing up daily, building momentum, and stacking habits.
+  This is your long game: showing up daily and building momentum.
 </p>
       </>
     ) : (
@@ -1695,53 +1668,7 @@ useEffect(() => {
   </div>
 </motion.div>
 )}
-{/* 2. Active Habits Stack */}
-{habitStack.length > 0 && (
-  <motion.div
-    variants={itemVariants}
-    className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
-  >
-    <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Active Habits</h2>
-    
-    <div className="space-y-3">
-      {/* Primary Habit */}
-      {currentFocus && (
-        <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-semibold">PRIMARY</span>
-              <span className="font-semibold text-gray-900">{currentFocus.habit}</span>
-              <span className="text-lg">🎯</span>
-            </div>
-            <span className="text-xs text-gray-600">
-              {currentFocus.daysOnThisHabit || 0} days
-            </span>
-          </div>
-        </div>
-      )}
 
-      {/* Stacked Habits */}
-      {habitStack.map((habit, idx) => (
-        <div key={idx} className="border border-gray-200 rounded-lg p-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-semibold">STACK</span>
-              <span className="font-semibold text-gray-900">{habit.habit}</span>
-              <span className="text-lg">🧱</span>
-            </div>
-            <span className="text-xs text-gray-600">
-              {habit.daysOnThisHabit || 0} days
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-
-    <p className="text-xs text-gray-500 mt-4 text-center">
-      Stacking habits increases your momentum score.  Aim for 80%+
-    </p>
-  </motion.div>
-)}
 {/* ===== HISTORY ACCESS - LAST ITEM ===== */}
 <motion.div variants={itemVariants}>
   <HistoryAccess

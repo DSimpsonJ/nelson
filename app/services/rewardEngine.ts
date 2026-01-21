@@ -80,7 +80,7 @@ const RESPONSE_CONFIG: Record<RewardEventType, {
     class: "completion",
     animation: "none",
     intensity: "small",
-    text: "Check-in complete.",
+    text: "Momentum has been updated.",
     shareable: false,
   },
   

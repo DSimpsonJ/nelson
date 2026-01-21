@@ -181,8 +181,6 @@ export default function CheckinPage() {
         ? { habitKey: focusSnap.data().habitKey, habit: focusSnap.data().habit }
         : { habitKey: 'movement_10min', habit: 'Move 10 minutes daily' };
       
-      const habitStack: Array<{ habitKey: string; habit: string }> = [];
-  
       console.log('[CheckIn] Submitting with note:', noteText);
 
       const { doc: momentumDoc, reward } = await writeDailyMomentum({
@@ -191,7 +189,6 @@ export default function CheckinPage() {
         behaviorGrades,
         behaviorRatings: finalAnswers,
         currentFocus,
-        habitStack,
         accountAgeDays,
         exerciseDeclared,
         note: noteText?.trim() || undefined,

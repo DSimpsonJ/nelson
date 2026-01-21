@@ -62,13 +62,7 @@ export interface DailyMomentumDoc {
   momentumMessage: string;
   visualState: "solid" | "outline" | "empty";
   
-  primaryHabitHit: boolean;
-  stackedHabitsCompleted: number;
-  totalStackedHabits: number;
-  moved: boolean;
-  hydrated: boolean;
-  slept: boolean;
-  nutritionScore: number;
+  
   
   currentStreak: number;
   lifetimeStreak: number;
@@ -136,13 +130,7 @@ function buildDefaults(input: WriteDailyMomentumInput): Partial<DailyMomentumDoc
     momentumMessage: "",
     visualState: "empty",
     
-    primaryHabitHit: false,
-    stackedHabitsCompleted: 0,
-    totalStackedHabits: 0,
-    moved: false,
-    hydrated: false,
-    slept: false,
-    nutritionScore: 0,
+   
     
     currentStreak: 0,
     lifetimeStreak: 0,
@@ -412,13 +400,6 @@ if (actualDelta < -2) actualTrend = 'down';
     
     stack: {},
     
-    foundations: {
-      protein: false,
-      hydration: false,
-      sleep: false,
-      nutrition: false,
-      movement: false,
-    },
     
     dailyScore,
     rawMomentumScore: momentumResult.rawScore,
