@@ -1,0 +1,292 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import {
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  collection,
+  deleteDoc,
+} from "firebase/firestore";
+import { db } from "../../firebase/config";
+import { getEmail } from "../../utils/getEmail";
+import { getLocalDate } from "@/app/utils/date";
+import { useToast } from "../../context/ToastContext";
+
+interface DashboardDevToolsProps {
+  setTodayCheckin: (val: any) => void;
+  setTodayMomentum: (val: any) => void;
+  setCheckinSubmitted: (val: boolean) => void;
+ 
+}
+
+export default function DashboardDevTools({
+  setTodayCheckin,
+  setTodayMomentum,
+  setCheckinSubmitted,
+}: DashboardDevToolsProps) {
+  const router = useRouter();
+  const { showToast } = useToast(); 
+
+  const handleResetCheckin = async () => {
+    try {
+      const email = getEmail();
+      if (!email) return;
+  
+      const today = new Date().toLocaleDateString("en-CA");
+  
+      // Delete today's check-in doc
+      await deleteDoc(doc(db, "users", email, "checkins", today));
+  
+      // Delete today's momentum doc (IMPORTANT - otherwise momentum shows as complete)
+      await deleteDoc(doc(db, "users", email, "momentum", today));
+  
+      // Clear only today's state
+      setTodayCheckin(null);
+      setTodayMomentum(null);
+      setCheckinSubmitted(false);
+  
+      showToast({
+        message: "Today's check-in reset",
+        type: "success",
+      });
+  
+    } catch (err) {
+      console.error("Reset failed:", err);
+      showToast({ message: "Failed to reset check-in", type: "error" });
+    }
+  };
+
+  return (
+    <>
+      {/* Dev Reset Button */}
+      <div className="mt-8 text-center">
+        <button
+          onClick={handleResetCheckin}
+          className="text-sm text-gray-500 underline hover:text-gray-700"
+        >
+          🧪 Reset Today's Check-In (Dev Only)
+        </button>
+      </div>
+
+      {/* Dev Tools Panel */}
+      <div className="absolute bottom-2 right-2 z-50 opacity-70 hover:opacity-100">
+        <details className="bg-gray-800 text-white rounded-lg shadow-lg p-3 w-48">
+          <summary className="cursor-pointer text-sm font-semibold text-center hover:text-blue-400">
+            🧪 Dev Tools
+          </summary>
+
+          <div className="flex flex-col gap-2 mt-3">
+            
+            {/* Sign Out */}
+            <button
+              onClick={async () => {
+                try {
+                  localStorage.removeItem("nelsonUser");
+                  const { auth } = await import("@/app/firebase/config");
+                  const { signOut } = await import("firebase/auth");
+                  await signOut(auth);
+                  showToast({ message: "Signed out", type: "info" });
+                  router.push("/login");
+                } catch (err) {
+                  console.error("Sign out failed:", err);
+                  router.push("/login");
+                }
+              }}
+              className="bg-gray-700 hover:bg-gray-800 text-white rounded-md py-1 text-sm font-bold"
+            >
+              🚪 Sign Out
+            </button>
+
+           {/* Trigger Level-Up (24 days) */}
+            <button
+              onClick={async () => {
+                const email = getEmail();
+                if (!email) return;
+                
+                try {
+                  const twentyFiveDaysAgo = new Date(Date.now() - 25 * 24 * 60 * 60 * 1000);
+                  const twentyFiveDaysAgoISO = twentyFiveDaysAgo.toISOString();
+                  const twentyFiveDaysAgoDate = twentyFiveDaysAgo.toLocaleDateString("en-CA");
+                  
+                  // Write first check-in date to metadata (25 days ago)
+                  await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
+                    firstCheckinDate: twentyFiveDaysAgoDate,
+                    createdAt: twentyFiveDaysAgoISO,
+                  });
+                  
+                  // Write lastCheckInDate to user doc (25 days ago, to trigger gap detection)
+                  await setDoc(doc(db, "users", email), {
+                    lastCheckInDate: twentyFiveDaysAgoDate,
+                  }, { merge: true });
+                  
+                  // Write currentFocus with startedAt 25 days ago
+                  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
+                    habitKey: "walk_10min",
+                    habit: "Walk 10 minutes",
+                    level: 1,
+                    target: 10,
+                    startedAt: twentyFiveDaysAgoDate,
+                    consecutiveDays: 24,
+                    createdAt: twentyFiveDaysAgoISO,
+                    eligibleForLevelUp: true,
+                  });
+                  
+                  showToast({ message: "24-day level-up scenario created!", type: "success" });
+                  setTimeout(() => window.location.reload(), 1000);
+                  
+                } catch (err) {
+                  console.error("Setup failed:", err);
+                  showToast({ message: "Setup failed", type: "error" });
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+            >
+              🎯 Trigger Level-Up (24d)
+            </button>
+
+            {/* Trigger Week 1 Recap */}
+            <button
+              onClick={async () => {
+                const email = getEmail();
+                if (!email) return;
+                
+                try {
+                  const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+                  const eightDaysAgoISO = eightDaysAgo.toISOString();
+                  const eightDaysAgoDate = eightDaysAgo.toLocaleDateString("en-CA");
+                  
+                  // Write first check-in date to metadata (8 days ago)
+                  await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
+                    firstCheckinDate: eightDaysAgoDate,
+                    createdAt: eightDaysAgoISO,
+                  });
+                  
+                  // Write lastCheckInDate to user doc (8 days ago, to trigger gap detection)
+                  await setDoc(doc(db, "users", email), {
+                    lastCheckInDate: eightDaysAgoDate,
+                  }, { merge: true });
+                  
+                  // Write currentFocus with startedAt 8 days ago
+                  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
+                    habitKey: "walk_10min",
+                    habit: "Walk 10 minutes",
+                    level: 1,
+                    target: 10,
+                    startedAt: eightDaysAgoDate,
+                    consecutiveDays: 7,
+                    createdAt: eightDaysAgoISO,
+                  });
+                  
+                  showToast({ message: "Week 1 recap scenario created!", type: "success" });
+                  setTimeout(() => window.location.reload(), 1000);
+                  
+                } catch (err) {
+                  console.error("Setup failed:", err);
+                  showToast({ message: "Setup failed", type: "error" });
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-md py-1 text-sm"
+            >
+              📊 Trigger Week 1 Recap
+            </button>
+
+            {/* Clear Today's Check-In */}
+            <button
+              onClick={async () => {
+                const email = getEmail();
+                if (!email) return;
+                const today = getLocalDate();
+                
+                try {
+                  // Delete today's check-in doc
+                  await deleteDoc(doc(db, "users", email, "checkins", today));
+                  
+                  // Delete today's momentum doc
+                  await deleteDoc(doc(db, "users", email, "momentum", today));
+                  
+                  // Clear local state immediately
+                  setTodayMomentum(null);
+                  setCheckinSubmitted(false);
+                  
+                  showToast({ message: "Cleared today's check-in", type: "success" });
+                } catch (err) {
+                  console.error("Clear failed:", err);
+                  showToast({ message: "Clear failed", type: "error" });
+                }
+              }}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-md py-1 text-sm"
+            >
+              Clear Today's Check-In
+            </button>
+
+            {/* Fresh Start */}
+            <button
+              onClick={async () => {
+                const email = getEmail();
+                if (!email) return;
+                
+                try {
+                  const momentumSnap = await getDocs(collection(db, "users", email, "momentum"));
+                  for (const d of momentumSnap.docs) {
+                    if (d.id.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                      await deleteDoc(d.ref);
+                    }
+                  }
+                  
+                  const sessionsSnap = await getDocs(collection(db, "users", email, "sessions"));
+                  for (const d of sessionsSnap.docs) {
+                    await deleteDoc(d.ref);
+                  }
+                  
+                  const eventsSnap = await getDocs(collection(db, "users", email, "habitEvents"));
+                  for (const d of eventsSnap.docs) {
+                    await deleteDoc(d.ref);
+                  }
+                  
+                  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
+                    habitKey: "walk_10min",
+                    habit: "Walk 10 minutes",
+                    level: 1,
+                    target: 10,
+                    startedAt: getLocalDate(),
+                    lastLevelUpAt: null,
+                    consecutiveDays: 0,
+                    eligibleForLevelUp: false,
+                  });
+                  
+                  const sevenDaysFromNow = new Date();
+                  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+                  
+                  await setDoc(doc(db, "users", email, "momentum", "commitment"), {
+                    habit: "Walk 10 minutes",
+                    habitKey: "walk_10min",
+                    acceptedAt: getLocalDate(),
+                    endsAt: sevenDaysFromNow.toLocaleDateString("en-CA"),
+                    isActive: true,
+                    levelUpPrompts: {},
+                  });
+                  
+                  await setDoc(doc(db, "users", email, "momentum", "habitStack"), {
+                    habits: [],
+                  });
+                  
+                  showToast({ message: "Fresh start ready!", type: "success" });
+                  setTimeout(() => window.location.reload(), 1000);
+                  
+                } catch (err) {
+                  console.error("Reset failed:", err);
+                  showToast({ message: "Reset failed", type: "error" });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
+            >
+              🔄 Fresh Start
+            </button>
+          </div>
+        </details>
+      </div>
+    </>
+  );
+}
