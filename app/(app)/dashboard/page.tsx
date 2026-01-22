@@ -59,6 +59,7 @@ import { NelsonLogo, NelsonLogoAnimated  } from '@/app/components/logos';
 import { resolveReward, type RewardPayload } 
 from "@/app/services/rewardEngine";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
+import LevelUpSlider from "@/app/components/LevelUpSlider";
 
 
 
@@ -1026,36 +1027,83 @@ const evaluateLevelUpEligibilityPure = (inputs: {
   });
 };
 const handleAdjustLevel = async (minutes: number) => {
-  setSaving(true);
   const email = getEmail();
-  if (!email || !currentFocus) return;
-  
-  // Direct write instead of service
-  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
-    ...currentFocus,
-    target: minutes,
-    habit: `Walk ${minutes} minutes daily`,
-    habitKey: `walk_${minutes}min`,
-    lastLevelUpAt: getLocalDate(),
-  }, { merge: true });
-  
-  setShowAdjustOptions(false);
-  setLevelUpEligible(false);
-  setSaving(false);
-  showToast({ message: "Commitment updated.", type: "success" });
+  if (!email) return;
+
+  try {
+    const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+    const focusSnap = await getDoc(focusRef);
+    
+    if (!focusSnap.exists()) {
+      showToast({ message: "Focus not found", type: "error" });
+      return;
+    }
+
+    const currentFocus = focusSnap.data();
+    const oldTarget = currentFocus.target || 10;
+    
+    // Determine if this level gets proven status
+    // If user hit 5+/7 at old level, old level becomes lastProven
+    const shouldUpdateProven = completedLast7Days >= 5;
+    
+    await setDoc(focusRef, {
+      ...currentFocus,
+      target: minutes,
+      habit: `Walk ${minutes} minutes daily`,
+      habitKey: `walk_${minutes}min`,
+      lastLevelUpAt: getLocalDate(),
+      // Only update lastProvenTarget if they proved the old level
+      lastProvenTarget: shouldUpdateProven ? oldTarget : (currentFocus.lastProvenTarget || oldTarget),
+    }, { merge: true });
+
+    showToast({ 
+      message: `Commitment updated to ${minutes} minutes`, 
+      type: "success" 
+    });
+    
+    setLevelUpEligible(false);
+    setTimeout(() => window.location.reload(), 1000);
+    
+  } catch (err) {
+    console.error("Level adjustment failed:", err);
+    showToast({ message: "Update failed", type: "error" });
+  }
 };
 const handleKeepCurrent = async () => {
   const email = getEmail();
-  if (!email || !currentFocus) return;
+  if (!email) return; // ← Add 'return' here
   
-  // Direct write instead of service
-  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
-    ...currentFocus,
-    lastLevelUpAt: getLocalDate(),
-  }, { merge: true });
-  
-  setLevelUpEligible(false);
-  showToast({ message: "Got it. Keep building at your current pace.", type: "success" });
+  try {
+    const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+    const focusSnap = await getDoc(focusRef);
+    
+    if (!focusSnap.exists()) return;
+    
+    const currentFocus = focusSnap.data();
+    const currentTarget = currentFocus.target || 10;
+    
+    // If keeping current AND hit 5+/7, this level is now proven
+    const shouldUpdateProven = completedLast7Days >= 5;
+    
+    await setDoc(focusRef, {
+      ...currentFocus,
+      lastLevelUpAt: getLocalDate(),
+      // Mark current as proven if they hit 5+/7
+      lastProvenTarget: shouldUpdateProven ? currentTarget : (currentFocus.lastProvenTarget || currentTarget),
+    }, { merge: true });
+
+    showToast({ 
+      message: "Commitment maintained", 
+      type: "success" 
+    });
+    
+    setLevelUpEligible(false);
+    setTimeout(() => window.location.reload(), 1000);
+    
+  } catch (err) {
+    console.error("Keep current failed:", err);
+    showToast({ message: "Update failed", type: "error" });
+  }
 };
 const recordLevelUpPrompt = async (email: string, today: string) => {
 const promptRef = doc(db, "users", email, "momentum", "levelUpPrompt");
@@ -1349,126 +1397,104 @@ useEffect(() => {
   variants={itemVariants}
   className="bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 mb-6"
 >
-  <div className="flex items-start justify-between mb-4">
+<div className="flex flex-col mb-4">
+  {/* Left side: Greeting + Message */}
+  <div className="flex justify-between items-start">
     <div className="flex flex-col">
       <h1 className="text-2xl font-bold text-white">
         Hey {profile?.firstName || "there"}.
       </h1>
       
       {/* Context-Based Message */}
-{showWelcomeMessage ? (
- // FIRST-TIME WELCOME
-<div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
-  <p className="font-semibold">Welcome to your Dashboard.</p>
-  <p>This is where you check in once per day and reflect on yesterday's actions.</p>
-  <p>Momentum builds from patterns, not motivation.</p>
-  <p>When there's new learning available, you'll see a small indicator on Learn.</p>
-  <p>When you're done, put the phone down and go live your life.</p>
-</div>
-) : missedDays > 0 && !hasCompletedCheckin() ? (
-  // MISSED DAYS
-  <div className="mt-3">
-    <p className="text-white font-semibold">
-      {missedDays >= 7 
-        ? "It's been a while. Let's rebuild your momentum."
-        : `It's been ${missedDays} ${missedDays === 1 ? "day" : "days"}. Let's get back to it.`
-      }
-    </p>
-  </div>
-) : hasCompletedCheckin() ? (
-  // CHECKED IN TODAY
-  <p className="text-white/60 mt-1">
-    Check-in complete. Keep building.
-  </p>
-) : (
-  // HAVEN'T CHECKED IN YET
-  <p className="text-white/60 mt-1">
-    Welcome back. Time to check in.
-  </p>
-)}
-
-      {/* Streak Message */}
-      {historyStats.currentStreak > 0 && missedDays === 0 && (
-  <div className="text-sm text-amber-400 mt-2">
-    {historyStats.currentStreak} consecutive days
-  </div>
-)}
-
-      <p className="text-[11px] tracking-widest uppercase text-white/40 font-semibold mt-2">
-        Patience • Perseverance • Progress
-      </p>
+      {showWelcomeMessage ? (
+        <div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
+          <p className="font-semibold">Welcome to your Dashboard.</p>
+          <p>This is where you check in once per day and reflect on yesterday's actions.</p>
+          <p>Momentum builds from patterns, not motivation.</p>
+          <p>When there's new learning available, you'll see a small indicator on Learn.</p>
+          <p>When you're done, put the phone down and go live your life.</p>
+        </div>
+      ) : missedDays > 0 && !hasCompletedCheckin() ? (
+        <div className="mt-3">
+          <p className="text-white font-semibold">
+            {missedDays >= 7 
+              ? "It's been a while. Let's rebuild your momentum."
+              : `It's been ${missedDays} ${missedDays === 1 ? "day" : "days"}. Let's get back to it.`
+            }
+          </p>
+        </div>
+      ) : hasCompletedCheckin() ? (
+        <p className="text-white/60 mt-1 text-base">
+          Check-in complete. Keep building.
+        </p>
+      ) : (
+        <p className="text-white/60 mt-1 text-base">
+          Welcome back. Time to check in.
+        </p>
+      )}
     </div>
 
-    <div className="mt-1 mr-2">
-  <NelsonLogo />
-</div>
-  </div>
-
-  {/* Level-Up Prompt */}
-{levelUpEligible && completedLast7Days >= 5 && (
-  <div className="mt-4 pt-4 border-t border-slate-700 animate-fadeIn">
-    <p className="text-white mb-2 font-semibold">
-      You've completed your exercise {completedLast7Days} out of 7 days.
-    </p>
-    <p className="text-white/80 mb-4 text-sm">
-      What will you commit to for the upcoming week?
-    </p>
-    
-    {!showAdjustOptions ? (
-      <div className="flex flex-col gap-2">
-        <button
-          onClick={() => { setAdjustOptions('increase'); setShowAdjustOptions(true); }}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition"
-        >
-          Increase my commitment
-        </button>
-        
-        <button
-  onClick={handleKeepCurrent}
-  className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
->
-  Keep my current commitment
-</button>
-        
-        <button
-          onClick={() => { setAdjustOptions('decrease'); setShowAdjustOptions(true); }}
-          className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
-        >
-          Decrease my commitment
-        </button>
-      </div>
-    ) : (
-      <div>
-        <div className="space-y-2">
-          {[5, 10, 12, 15, 20, 25, 30]
-            .filter(min => {
-              const current = currentFocus?.target || 10;
-              return adjustOptions === 'increase' ? min > current : min < current;
-            })
-            .map(minutes => (
-              <button
-                key={minutes}
-                onClick={() => handleAdjustLevel(minutes)}
-                disabled={saving}
-                className="w-full text-left p-3 border-2 border-slate-700 rounded-lg hover:border-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
-              >
-                <p className="font-semibold text-white text-sm">
-                  {minutes} minutes daily
-                </p>
-              </button>
-            ))}
-        </div>
-        
-        <button
-          onClick={() => setShowAdjustOptions(false)}
-          className="w-full mt-3 text-sm text-white/60 hover:text-white"
-        >
-          ← Back
-        </button>
-      </div>
-    )}
+    {/* Right side: Consecutive Check-ins */}
+{historyStats.currentStreak > 0 && missedDays === 0 && (
+  <div className="text-base text-white text-right mt-8">
+    Consecutive Check-ins: <span className="font-semibold">{historyStats.currentStreak}</span>
   </div>
 )}
+  </div>
+
+  {/* Centered: Exercise Commitment */}
+  {currentFocus?.target && (
+    <div className="text-center mt-4">
+      <div className="text-base text-amber-400">Exercise Commitment</div>
+      <div className="text-base text-amber-400 font-semibold">{currentFocus.target} Minutes Daily</div>
+    </div>
+  )}
+</div>
+
+  {/* Level-Up Prompt */}
+  {levelUpEligible && completedLast7Days >= 5 && (
+    <div className="mt-4 pt-4 border-t border-slate-700 animate-fadeIn">
+      <p className="text-white mb-2 font-semibold">
+        You've completed your exercise {completedLast7Days} out of 7 days.
+      </p>
+      <p className="text-white/80 mb-4 text-sm">
+        What will you commit to for the upcoming week?
+      </p>
+      
+      {!showAdjustOptions ? (
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => { setAdjustOptions('increase'); setShowAdjustOptions(true); }}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition"
+          >
+            Increase my commitment
+          </button>
+          
+          <button
+            onClick={handleKeepCurrent}
+            className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
+          >
+            Keep my current commitment
+          </button>
+          
+          <button
+            onClick={() => { setAdjustOptions('decrease'); setShowAdjustOptions(true); }}
+            className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
+          >
+            Decrease my commitment
+          </button>
+        </div>
+      ) : (
+        <LevelUpSlider
+          currentTarget={currentFocus?.target || 10}
+          lastProvenTarget={currentFocus?.lastProvenTarget || currentFocus?.target || 10}
+          direction={adjustOptions}
+          onSelect={handleAdjustLevel}
+          onBack={() => setShowAdjustOptions(false)}
+        />
+      )}
+    </div>
+  )}
 
 </motion.div>
 
@@ -1678,6 +1704,12 @@ useEffect(() => {
     monthlyConsistency={historyStats.monthlyConsistency}
   />
 </motion.div>
+{/* Tagline */}
+<div className="text-center mt-4 mb-6">
+  <p className="text-sm tracking-widest uppercase text-white/40 font-semibold">
+    Patience • Perseverance • Progress
+  </p>
+</div>
 {/* ====================================== */}
         {/* FUTURE: AI Coach Card - See COACH_VISION.md 
 <motion.div

@@ -98,53 +98,80 @@ export default function DashboardDevTools({
             >
               🚪 Sign Out
             </button>
+            {/* Run Migration */}
+<button
+  onClick={async () => {
+    try {
+      const { backfillLastProvenTarget } = await import("@/app/utils/migrations/backfillLastProvenTarget");
+      const result = await backfillLastProvenTarget();
+      
+      if (result.success) {
+        showToast({ 
+          message: `Migration complete: ${result.updated} updated, ${result.skipped} skipped`, 
+          type: "success" 
+        });
+      } else {
+        showToast({ message: "Migration failed", type: "error" });
+      }
+    } catch (err) {
+      console.error("Migration error:", err);
+      showToast({ message: "Migration failed", type: "error" });
+    }
+  }}
+  className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
+>
+  🔄 Migrate lastProvenTarget
+</button>
 
-           {/* Trigger Level-Up (24 days) */}
-            <button
-              onClick={async () => {
-                const email = getEmail();
-                if (!email) return;
-                
-                try {
-                  const twentyFiveDaysAgo = new Date(Date.now() - 25 * 24 * 60 * 60 * 1000);
-                  const twentyFiveDaysAgoISO = twentyFiveDaysAgo.toISOString();
-                  const twentyFiveDaysAgoDate = twentyFiveDaysAgo.toLocaleDateString("en-CA");
-                  
-                  // Write first check-in date to metadata (25 days ago)
-                  await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
-                    firstCheckinDate: twentyFiveDaysAgoDate,
-                    createdAt: twentyFiveDaysAgoISO,
-                  });
-                  
-                  // Write lastCheckInDate to user doc (25 days ago, to trigger gap detection)
-                  await setDoc(doc(db, "users", email), {
-                    lastCheckInDate: twentyFiveDaysAgoDate,
-                  }, { merge: true });
-                  
-                  // Write currentFocus with startedAt 25 days ago
-                  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
-                    habitKey: "walk_10min",
-                    habit: "Walk 10 minutes",
-                    level: 1,
-                    target: 10,
-                    startedAt: twentyFiveDaysAgoDate,
-                    consecutiveDays: 24,
-                    createdAt: twentyFiveDaysAgoISO,
-                    eligibleForLevelUp: true,
-                  });
-                  
-                  showToast({ message: "24-day level-up scenario created!", type: "success" });
-                  setTimeout(() => window.location.reload(), 1000);
-                  
-                } catch (err) {
-                  console.error("Setup failed:", err);
-                  showToast({ message: "Setup failed", type: "error" });
-                }
-              }}
-              className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
-            >
-              🎯 Trigger Level-Up (24d)
-            </button>
+           {/* Trigger Level-Up (5 of last 7 days) */}
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    try {
+      // Get current focus to know the target
+      const focusRef = doc(db, "users", email, "momentum", "currentFocus");
+      const focusSnap = await getDoc(focusRef);
+      const target = focusSnap.exists() && focusSnap.data().target 
+        ? focusSnap.data().target 
+        : 10;
+      
+      // Create 5 qualifying sessions in last 7 days
+      for (let i = 1; i <= 5; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateKey = date.toLocaleDateString("en-CA");
+        
+        // Create session that meets target
+        await setDoc(doc(db, "users", email, "sessions", `session-${dateKey}`), {
+          date: dateKey,
+          durationMin: target, // Meets the target exactly
+          type: "cardio",
+          createdAt: new Date().toISOString(),
+        });
+      }
+      
+      // Set lastLevelUpAt to 8+ days ago (or null for first time)
+      const eightDaysAgo = new Date();
+      eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
+      
+      await setDoc(focusRef, {
+        lastLevelUpAt: eightDaysAgo.toLocaleDateString("en-CA"),
+      }, { merge: true });
+      
+      showToast({ message: "Level-up eligibility created! (5 sessions in last 7 days)", type: "success" });
+      setTimeout(() => window.location.reload(), 1000);
+      
+    } catch (err) {
+      console.error("Setup failed:", err);
+      showToast({ message: "Setup failed", type: "error" });
+    }
+  }}
+  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+>
+  🎯 Trigger Level-Up (5/7)
+</button>
 
             {/* Trigger Week 1 Recap */}
             <button

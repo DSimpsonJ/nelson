@@ -62,8 +62,6 @@ export interface DailyMomentumDoc {
   momentumMessage: string;
   visualState: "solid" | "outline" | "empty";
   
-  
-  
   currentStreak: number;
   lifetimeStreak: number;
   streakSavers: number;
@@ -86,10 +84,7 @@ export interface WriteDailyMomentumInput {
     habitKey: string;
     habit: string;
   };
-  habitStack: Array<{
-    habitKey: string;
-    habit: string;
-  }>;
+ 
   
   goal?: string;
   accountAgeDays: number;
@@ -408,14 +403,6 @@ if (actualDelta < -2) actualTrend = 'down';
     momentumDelta: actualDelta,
     momentumMessage: finalMessage,
     visualState: "solid" as const,
-    
-    primaryHabitHit: false,
-    stackedHabitsCompleted: 0,
-    totalStackedHabits: 0,
-    moved: false,
-    hydrated: false,
-    slept: false,
-    nutritionScore: 0,
     
     currentStreak: streakData.currentStreak,
     lifetimeStreak: streakData.lifetimeStreak,
