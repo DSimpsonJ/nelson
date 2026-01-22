@@ -23,6 +23,7 @@ export default function LearnPage() {
   const [eligibleArticles, setEligibleArticles] = useState<Article[]>([]);
   const [readSlugs, setReadSlugs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasAccess, setHasAccess] = useState(true);
 
   useEffect(() => {
     loadEligibleArticles();
@@ -31,15 +32,25 @@ export default function LearnPage() {
   const loadEligibleArticles = async () => {
     try {
       const userEmail = getUserEmail();
-      if (!userEmail) {
-        setLoading(false);
-        return;
-      }
+if (!userEmail) {
+  setLoading(false);
+  return;
+}
+
+// Check commitment gate
+const userRef = doc(db, "users", userEmail);
+const userSnap = await getDoc(userRef);
+
+if (!userSnap.exists() || !userSnap.data().hasCommitment) {
+  console.log("[Learn] Access denied - no commitment");
+  setHasAccess(false);
+  setLoading(false);
+  return;
+}
+
+// Get user metadata and read articles
 
       // Get user metadata and read articles
-      const userRef = doc(db, "users", userEmail);
-      const userSnap = await getDoc(userRef);
-      
       const metadataRef = doc(userRef, "metadata", "accountInfo");
       const metadataSnap = await getDoc(metadataRef);
 
@@ -96,6 +107,27 @@ export default function LearnPage() {
     }
   };
 
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="max-w-md text-center">
+          <h2 className="text-xl font-bold text-white mb-4">
+            Complete Your Commitment First
+          </h2>
+          <p className="text-white/60 mb-6">
+            Learn articles unlock after you set your exercise commitment.
+          </p>
+          <Link
+            href="/dashboard"
+            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition"
+          >
+            Go to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
