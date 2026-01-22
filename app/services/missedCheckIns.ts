@@ -120,17 +120,21 @@ async function fillMissedDays(input: {
   shouldReset: boolean;
 }): Promise<void> {
   
-  const { email, lastCheckInDate, todayDate } = input;
+  const { email, lastCheckInDate, todayDate, startingMomentum, shouldReset } = input;
+
   
   const startDate = new Date(lastCheckInDate + "T00:00:00");
   const endDate = new Date(todayDate + "T00:00:00");
   
   const currentDate = new Date(startDate);
   currentDate.setDate(currentDate.getDate() + 1);
+  let decayedMomentum = startingMomentum || 0;
+
   
   while (currentDate < endDate) {
     const dateKey = currentDate.toLocaleDateString("en-CA");
-    
+    decayedMomentum = Math.round(decayedMomentum * 0.92);
+
     const existingRef = doc(db, "users", email, "momentum", dateKey);
     const existingSnap = await getDoc(existingRef);
     
@@ -139,40 +143,41 @@ async function fillMissedDays(input: {
         date: dateKey,
         missed: true,
         
-        // Momentum fields - set to 0, will be recalculated on next real check-in
-        rawMomentumScore: 0,
-        momentumScore: 0,
-        momentumDelta: 0,
-        momentumTrend: 'down',
-        momentumMessage: "Missed check-in",
-        
-        // Behavior data (all zeros)
-        dailyScore: 0,
-        visualState: "empty",
-        
-        // Habit tracking
-        primary: {
-          habitKey: "",
-          done: false
-        },
-        stack: {},
-        foundations: {
-          protein: false,
-          hydration: false,
-          sleep: false,
-          nutrition: false,
-          movement: false
-        },
-        
-        // Status
-        checkinType: "gap_fill",
-        checkinCompleted: false,
-        // Streaks (broken)
-        currentStreak: 0,
-        lifetimeStreak: 0,
-        streakSavers: 0,
-        
-        createdAt: new Date().toISOString(),
+        // Momentum fields - mild decay, not recalculated
+rawMomentumScore: 0,
+momentumScore: decayedMomentum,
+momentumDelta: 0,
+momentumTrend: 'down',
+momentumMessage: "Missed check-in",
+
+// Behavior data
+dailyScore: 0, // Gap day - excluded from averages
+visualState: "empty",
+
+// Habit tracking
+primary: {
+  habitKey: "",
+  done: false
+},
+stack: {},
+foundations: {
+  protein: false,
+  hydration: false,
+  sleep: false,
+  nutrition: false,
+  movement: false
+},
+
+// Status
+checkinType: "gap_fill",
+checkinCompleted: false,
+
+// Streaks (broken)
+currentStreak: 0,
+lifetimeStreak: 0,
+streakSavers: 0,
+
+createdAt: new Date().toISOString(),
       };
       
       await setDoc(existingRef, missedDoc);

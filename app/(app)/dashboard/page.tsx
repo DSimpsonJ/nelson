@@ -1423,7 +1423,7 @@ useEffect(() => {
     </p>
   ) : hasCompletedCheckin() ? (
     <p className="text-base text-white/60">
-      You completed today's check-in.
+      Today's check-in has been recorded.
     </p>
   ) : (
     <p className="text-base text-white/60">
@@ -1434,14 +1434,15 @@ useEffect(() => {
   {/* Consecutive Check-ins */}
   {historyStats.currentStreak > 0 && missedDays === 0 && (
     <p className="text-base text-white/60">
-      You've completed {historyStats.currentStreak} consecutive check-ins.
+      That's {historyStats.currentStreak} consecutive check-ins.
     </p>
   )}
+  
   
   {/* Exercise Commitment */}
   {currentFocus?.target && (
     <p className="text-base text-amber-400 font-semibold">
-      Exercise Commitment: {currentFocus.target} Minutes Minimum Daily
+      Exercise Commitment: {currentFocus.target} Minutes+ Daily
     </p>
   )}
 </div>

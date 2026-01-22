@@ -234,29 +234,24 @@ export function calculateNewtonianMomentum(input: MomentumCalculationInput): Mom
   }
   
   // Step 5: Calculate trend and delta
-  let delta = 0;
-  let trend: 'up' | 'down' | 'stable' = 'stable';
-  
-  if (previousMomentum !== undefined) {
-    delta = finalScore - prevMomentum;
-    if (delta > 2) trend = 'up';
-    if (delta < -2) trend = 'down';
-  }
-  
- // Step 6: Apply exercise gate
-if (exerciseCompleted === false && finalScore > prevMomentum) {
-  finalScore = prevMomentum;
+let delta = 0;
+let trend: 'up' | 'down' | 'stable' = 'stable';
+
+if (previousMomentum !== undefined) {
+  delta = finalScore - prevMomentum;
+  if (delta > 2) trend = 'up';
+  if (delta < -2) trend = 'down';
 }
-  
-  // Step 7: Generate message
-  const message = generateMessage(finalScore, trend, currentStreak, dampeningApplied);
-  
-  return {
-    proposedScore: Math.max(0, Math.min(100, finalScore)),
-    rawScore,
-    dampeningApplied,
-    message
-  };
+
+// Step 6: Generate message
+const message = generateMessage(finalScore, trend, currentStreak, dampeningApplied);
+
+return {
+  proposedScore: Math.max(0, Math.min(100, finalScore)),
+  rawScore,
+  dampeningApplied,
+  message
+};
 }
 
 /**

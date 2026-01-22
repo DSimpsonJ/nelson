@@ -349,7 +349,16 @@ async function calculateDerivedFields(
       finalMessage = rampMessage;
     }
   }
+  // Apply exercise gate - momentum can't increase without exercise
+if (input.exerciseDeclared === false) {
+  const yesterdayMomentum = yesterdaySnap.exists() 
+    ? (yesterdaySnap.data().momentumScore || 0) 
+    : 0;
   
+  if (finalMomentumScore > yesterdayMomentum) {
+    finalMomentumScore = yesterdayMomentum;
+  }
+}
 // Calculate delta - use last REAL momentum, not gap day
 let previousRealMomentum = 0;
 if (yesterdaySnap.exists()) {
@@ -449,7 +458,8 @@ export async function writeDailyMomentum(
       const dayRef = doc(db, "users", input.email, "momentum", dateKey);
       const daySnap = await getDoc(dayRef);
       
-      if (daySnap.exists() && daySnap.data().dailyScore !== undefined) {
+      // Skip gap-fill days - they don't participate in velocity calculation
+      if (daySnap.exists() && daySnap.data().checkinType !== "gap_fill" && daySnap.data().dailyScore !== undefined) {
         last4Days.unshift(daySnap.data().dailyScore);
       }
     }
