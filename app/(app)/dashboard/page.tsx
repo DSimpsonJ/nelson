@@ -1401,54 +1401,51 @@ useEffect(() => {
   {/* Left side: Greeting + Message */}
   <div className="flex justify-between items-start">
     <div className="flex flex-col">
-      <h1 className="text-2xl font-bold text-white">
-        Hey {profile?.firstName || "there"}.
-      </h1>
-      
-      {/* Context-Based Message */}
-      {showWelcomeMessage ? (
-        <div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
-          <p className="font-semibold">Welcome to your Dashboard.</p>
-          <p>This is where you check in once per day and reflect on yesterday's actions.</p>
-          <p>Momentum builds from patterns, not motivation.</p>
-          <p>When there's new learning available, you'll see a small indicator on Learn.</p>
-          <p>When you're done, put the phone down and go live your life.</p>
-        </div>
-      ) : missedDays > 0 && !hasCompletedCheckin() ? (
-        <div className="mt-3">
-          <p className="text-white font-semibold">
-            {missedDays >= 7 
-              ? "It's been a while. Let's rebuild your momentum."
-              : `It's been ${missedDays} ${missedDays === 1 ? "day" : "days"}. Let's get back to it.`
-            }
-          </p>
-        </div>
-      ) : hasCompletedCheckin() ? (
-        <p className="text-white/60 mt-1 text-base">
-          Check-in complete. Keep building.
-        </p>
-      ) : (
-        <p className="text-white/60 mt-1 text-base">
-          Welcome back. Time to check in.
-        </p>
-      )}
+    <h1 className="text-2xl font-bold text-white">
+    Hey {profile?.firstName || "there"}.
+  </h1>
+  
+  {/* Context-Based Message */}
+  {showWelcomeMessage ? (
+    <div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
+      <p className="font-semibold">Welcome to your Dashboard.</p>
+      <p>This is where you check in once per day and reflect on yesterday's actions.</p>
+      <p>Momentum builds from patterns, not motivation.</p>
+      <p>When there's new learning available, you'll see a small indicator on Learn.</p>
+      <p>When you're done, put the phone down and go live your life.</p>
     </div>
-
-    {/* Right side: Consecutive Check-ins */}
-{historyStats.currentStreak > 0 && missedDays === 0 && (
-  <div className="text-base text-white text-right mt-8">
-    Consecutive Check-ins: <span className="font-semibold">{historyStats.currentStreak}</span>
-  </div>
-)}
-  </div>
-
-  {/* Centered: Exercise Commitment */}
-  {currentFocus?.target && (
-    <div className="text-center mt-4">
-      <div className="text-base text-amber-400">Exercise Commitment</div>
-      <div className="text-base text-amber-400 font-semibold">{currentFocus.target} Minutes Daily</div>
-    </div>
+  ) : missedDays > 0 && !hasCompletedCheckin() ? (
+    <p className="text-base text-white/60">
+      {missedDays >= 7 
+        ? "It's been a while. Let's rebuild your momentum."
+        : `It's been ${missedDays} ${missedDays === 1 ? "day" : "days"}. Let's get back to it.`
+      }
+    </p>
+  ) : hasCompletedCheckin() ? (
+    <p className="text-base text-white/60">
+      You completed today's check-in.
+    </p>
+  ) : (
+    <p className="text-base text-white/60">
+      Welcome back. Time to check in.
+    </p>
   )}
+
+  {/* Consecutive Check-ins */}
+  {historyStats.currentStreak > 0 && missedDays === 0 && (
+    <p className="text-base text-white/60">
+      You've completed {historyStats.currentStreak} consecutive check-ins.
+    </p>
+  )}
+  
+  {/* Exercise Commitment */}
+  {currentFocus?.target && (
+    <p className="text-base text-amber-400 font-semibold">
+      Exercise Commitment: {currentFocus.target} Minutes Minimum Daily
+    </p>
+  )}
+</div>
+</div>
 </div>
 
   {/* Level-Up Prompt */}
