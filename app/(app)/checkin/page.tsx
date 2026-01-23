@@ -271,10 +271,10 @@ export default function CheckinPage() {
         <div className="flex flex-col items-center justify-center min-h-screen px-6">
           <div className="text-center max-w-md">
             <h2 className="text-2xl font-bold text-white mb-3">
-              You missed {formattedDate}'s check-in
+              You missed {formattedDate}'s check-in.
             </h2>
             <p className="text-white/60 text-sm mb-8">
-              Did you complete your {targetMinutes}-minute exercise commitment on {formattedDate}?
+              Did you complete your {targetMinutes} minute exercise commitment that day?
             </p>
             <div className="flex gap-4 justify-center">
               <button

@@ -521,19 +521,23 @@ if (!hasSeenWelcome) {
 const loadedFocus = focusSnap.exists() ? focusSnap.data() : null;
 
 if (loadedFocus) {
+  // Query last 7 days of momentum docs
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-  const sessionsSnap = await getDocs(
+  
+  const momentumSnap = await getDocs(
     query(
-      collection(db, "users", email, "sessions"),
-      where("date", ">=", sevenDaysAgo.toLocaleDateString("en-CA"))
+      collection(db, "users", email, "momentum"),  // Remove "daily"
+      where("date", ">=", sevenDaysAgo.toLocaleDateString("en-CA")),
+      orderBy("date", "desc")
     )
   );
 
-  const completed = sessionsSnap.docs.filter(
-    doc => doc.data().durationMin >= (loadedFocus.target || 10)
-  ).length;
+  // Count real check-ins where exercise was completed
+  const completed = momentumSnap.docs.filter(doc => {
+    const data = doc.data();
+    return data.checkinType === "real" && data.exerciseCompleted === true;
+  }).length;
 
   const daysSinceLastDecision = loadedFocus.lastLevelUpAt
     ? daysBetween(loadedFocus.lastLevelUpAt, today)
@@ -547,7 +551,7 @@ if (loadedFocus) {
   });
 
   setCompletedLast7Days(completed);
-setLevelUpEligible(completed >= 5 && daysSinceLastDecision >= 7);
+  setLevelUpEligible(completed >= 5 && daysSinceLastDecision >= 7);
 }
 
 const commitRef = doc(db, "users", email, "momentum", "commitment");
