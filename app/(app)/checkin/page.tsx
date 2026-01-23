@@ -14,6 +14,7 @@ import { getBehaviors, answersToGrades } from './checkinModel';
 import { CheckinAnswers, BehaviorMetadata } from './types';
 import { writeDailyMomentum } from '../../services/writeDailyMomentum';
 import { detectAndHandleMissedCheckIns } from '../../services/missedCheckIns';
+import { checkForUnresolvedGap, resolveGap } from "@/app/services/gapReconciliation";
 
 // Helper to get current user email
 function getEmail(): string | null {
@@ -35,6 +36,12 @@ export default function CheckinPage() {
   const [targetMinutes, setTargetMinutes] = useState(10);
   const [note, setNote] = useState("");
   const [direction, setDirection] = useState(1); // 1 = forward, -1 = back
+  const [gapReconciliation, setGapReconciliation] = useState<{
+    needsReconciliation: boolean;
+    gapDate?: string;
+    gapMomentum?: number;
+  } | null>(null);
+  const [showGapQuestion, setShowGapQuestion] = useState(false);
 
   // Load user data and generate dynamic behaviors
   useEffect(() => {
@@ -44,7 +51,7 @@ export default function CheckinPage() {
         router.replace('/login');
         return;
       }
-
+  
       try {
         const userDoc = await getDoc(doc(db, 'users', email));
         const userWeight = userDoc.exists() ? userDoc.data().weight : undefined;
@@ -60,6 +67,16 @@ export default function CheckinPage() {
         // Generate behaviors with user's weight
         const dynamicBehaviors = getBehaviors(userWeight);
         setBehaviors(dynamicBehaviors);
+        
+        // NEW: Check for unresolved gap
+        const today = new Date().toLocaleDateString("en-CA");
+        const gapCheck = await checkForUnresolvedGap(email, today);
+        setGapReconciliation(gapCheck);
+        
+        if (gapCheck.needsReconciliation) {
+          setShowGapQuestion(true);
+        }
+        
       } catch (error) {
         console.error('Failed to load user data:', error);
         // Fallback to defaults
@@ -68,7 +85,7 @@ export default function CheckinPage() {
         setLoading(false);
       }
     };
-
+  
     loadUserData();
   }, [router]);
 
@@ -208,7 +225,28 @@ export default function CheckinPage() {
   const handleSuccessComplete = () => {
     router.push('/dashboard?checkin=done');
   };
-
+  
+  const handleGapAnswer = async (exerciseCompleted: boolean) => {
+    if (!gapReconciliation?.gapDate) return;
+    
+    setSubmitting(true);
+    
+    try {
+      const email = getEmail();
+      if (!email) throw new Error('No email found');
+      
+      await resolveGap(email, gapReconciliation.gapDate, exerciseCompleted);
+      
+      // Close gap question and proceed to normal check-in
+      setShowGapQuestion(false);
+      setSubmitting(false);
+      
+    } catch (error) {
+      console.error('Gap resolution failed:', error);
+      setSubmitting(false);
+    }
+  };
+  
   if (loading) {
     return (
       <CheckinShell>
@@ -218,7 +256,51 @@ export default function CheckinPage() {
       </CheckinShell>
     );
   }
-
+  
+  // NEW: Gap reconciliation screen
+  if (showGapQuestion && gapReconciliation?.needsReconciliation) {
+    const gapDate = gapReconciliation.gapDate;
+    const formattedDate = gapDate ? new Date(gapDate + "T00:00:00").toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      month: 'short', 
+      day: 'numeric' 
+    }) : '';
+    
+    return (
+      <CheckinShell>
+        <div className="flex flex-col items-center justify-center min-h-screen px-6">
+          <div className="text-center max-w-md">
+            <h2 className="text-2xl font-bold text-white mb-3">
+              You missed {formattedDate}'s check-in
+            </h2>
+            <p className="text-white/60 text-sm mb-8">
+              Did you complete your {targetMinutes}-minute exercise commitment on {formattedDate}?
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => handleGapAnswer(true)}
+                disabled={submitting}
+                className="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+              >
+                Yes, I exercised
+              </button>
+              <button
+                onClick={() => handleGapAnswer(false)}
+                disabled={submitting}
+                className="px-8 py-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+              >
+                No, I didn't
+              </button>
+            </div>
+            <p className="text-white/40 text-xs mt-6">
+              This only affects whether momentum decays. Your consecutive run of check-ins restarts today.
+            </p>
+          </div>
+        </div>
+      </CheckinShell>
+    );
+  }
+  
   if (showSuccess) {
     return (
       <CheckinShell>

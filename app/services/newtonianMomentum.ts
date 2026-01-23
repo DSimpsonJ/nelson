@@ -152,21 +152,6 @@ function generateMessage(
   return "Today starts a new pattern. One solid check-in at a time.";
 }
 
-/**
- * Calculate how many consecutive days user was absent
- * Used for soft reset detection
- */
-function calculateGapDays(last4Days: number[]): number {
-  let gapCount = 0;
-  for (let i = last4Days.length - 1; i >= 0; i--) {
-    if (last4Days[i] === 0) {
-      gapCount++;
-    } else {
-      break; // Stop at first non-zero day
-    }
-  }
-  return gapCount;
-}
 
 /**
  * Main momentum calculation function
@@ -217,23 +202,7 @@ export function calculateNewtonianMomentum(input: MomentumCalculationInput): Mom
     dampeningApplied = effectiveDampening;
   }
   
-  // Step 4: Apply ramp cap based on totalRealCheckIns with soft reset
-  const gapDays = calculateGapDays(last4Days);
-  const hasLongGap = gapDays >= 4; // If 4+ consecutive gap days detected
-  
-  let effectiveCheckIns = totalRealCheckIns;
-  if (hasLongGap && totalRealCheckIns > 3) {
-    effectiveCheckIns = 3; // Soft reset after long gap
-    console.log(`[Momentum] Soft reset applied: ${totalRealCheckIns} check-ins → ${effectiveCheckIns} effective`);
-  }
-  
-  // Apply ramp cap if under 11 check-ins (or 3 if soft reset)
-  if (effectiveCheckIns <= 10) {
-    const { score: cappedScore } = applyRampCap(finalScore, effectiveCheckIns);
-    finalScore = cappedScore;
-  }
-  
-  // Step 5: Calculate trend and delta
+  // Step 4: Calculate trend and delta
 let delta = 0;
 let trend: 'up' | 'down' | 'stable' = 'stable';
 
@@ -243,7 +212,7 @@ if (previousMomentum !== undefined) {
   if (delta < -2) trend = 'down';
 }
 
-// Step 6: Generate message
+// Step 5: Generate message
 const message = generateMessage(finalScore, trend, currentStreak, dampeningApplied);
 
 return {
@@ -252,45 +221,6 @@ return {
   dampeningApplied,
   message
 };
-}
-
-/**
- * Apply ramp cap based on check-in count
- */
-function applyRampCap(score: number, checkInCount: number): { score: number; message: string } {
-  if (checkInCount === 1) {
-    return {
-      score: 0,
-      message: "Initializing"
-    };
-  }
-  if (checkInCount === 2) {
-    return {
-      score: Math.round(score * 0.20),
-      message: "Building a foundation"
-    };
-  }
-  if (checkInCount === 3) {
-    return {
-      score: Math.round(score * 0.30),
-      message: "Finding your rhythm"
-    };
-  }
-  if (checkInCount <= 6) {
-    return {
-      score: Math.round(score * 0.60),
-      message: "Momentum is forming"
-    };
-  }
-  if (checkInCount <= 10) {
-    return {
-      score: Math.round(score * 0.80),
-      message: "Momentum is forming"
-    };
-  }
-  
-  // Check-in 11+: No cap
-  return { score, message: "" };
 }
 
 /**

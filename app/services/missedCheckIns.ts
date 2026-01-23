@@ -142,17 +142,18 @@ async function fillMissedDays(input: {
       const missedDoc: Partial<DailyMomentumDoc> = {
         date: dateKey,
         missed: true,
+        gapResolved: false,  // Pending reconciliation
         
-        // Momentum fields - mild decay, not recalculated
-rawMomentumScore: 0,
-momentumScore: decayedMomentum,
-momentumDelta: 0,
-momentumTrend: 'down',
-momentumMessage: "Missed check-in",
-
-// Behavior data
-dailyScore: 0, // Gap day - excluded from averages
-visualState: "empty",
+        // Momentum fields - NO decay yet, pending user answer
+        rawMomentumScore: 0,
+        momentumScore: startingMomentum || 0, // Hold at last known, no decay
+        momentumDelta: 0,
+        momentumTrend: 'stable',
+        momentumMessage: "Missed check-in - pending reconciliation",
+        
+        // Behavior data
+        dailyScore: 0, // Gap day - excluded from averages
+        visualState: "empty",
 
 // Habit tracking
 primary: {

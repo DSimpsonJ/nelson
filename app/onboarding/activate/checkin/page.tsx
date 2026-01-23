@@ -259,7 +259,6 @@ const behaviorGrades = [
     date: today,
     behaviorGrades, // ← New parameter
     currentFocus,
-    habitStack: [],
     goal,
     accountAgeDays: 1,
     exerciseDeclared: exerciseCompleted!,

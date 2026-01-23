@@ -34,6 +34,8 @@ export interface DailyMomentumDoc {
   totalRealCheckIns: number;
   checkinCompleted: boolean;
   missed?: boolean;
+  gapResolved?: boolean;              // Gap reconciliation status
+  gapExerciseCompleted?: boolean;     // User's answer for gap day exercise
   behaviorRatings?: Record<string, string>;
   behaviorGrades?: { name: string; grade: number }[];
   note?: string;
