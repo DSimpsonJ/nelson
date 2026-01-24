@@ -624,34 +624,20 @@ console.log('[DATE DEBUG]', {
 const hasCheckedInToday = todayMomentumSnap.exists() && 
   todayMomentumSnap.data()?.checkinType === "real";
 
-// Find most recent REAL check-in doc (skip gap-fills for accurate counters)
-let sourceDoc = null;
-if (todayMomentumSnap.exists() && todayMomentumSnap.data()?.checkinType === "real") {
-  sourceDoc = todayMomentumSnap;
-} else {
-  // Find most recent real check-in (gap-fills don't have accurate counters)
-  const sorted = momentumSnaps.docs
-    .map(d => ({ id: d.id, snap: d }))
-    .filter(d => d.id.match(/^\d{4}-\d{2}-\d{2}$/) && d.snap.data()?.checkinType === "real")
-    .sort((a, b) => b.id.localeCompare(a.id));
-  
-  if (sorted.length > 0) {
-    sourceDoc = sorted[0].snap;
-  }
-}
+// Calculate stats the same way Lab does - count all real check-ins
+const lifetimeCheckIns = momentumSnaps.docs.filter(d => 
+  d.data()?.checkinType === "real"
+).length;
 
-if (!sourceDoc) {
-  router.replace("/onboarding/activate/checkin");
-  return;
-}
-
-// 1. LIFETIME CHECK-INS: Read from last real check-in (sourceDoc)
-const lifetimeCheckIns = sourceDoc.data()?.totalRealCheckIns ?? 0;
-
-// 2. CURRENT STREAK: Read from TODAY's doc (gap-fills have accurate streaks)
-const currentStreak = todayMomentumSnap.exists() 
+// Current streak from today's doc (or most recent if today doesn't exist)
+const currentStreak = todayMomentumSnap.exists()
   ? (todayMomentumSnap.data()?.currentStreak ?? 0)
-  : (sourceDoc.data()?.currentStreak ?? 0);
+  : (() => {
+      const sorted = momentumSnaps.docs
+        .filter(d => d.id.match(/^\d{4}-\d{2}-\d{2}$/))
+        .sort((a, b) => b.id.localeCompare(a.id));
+      return sorted.length > 0 ? (sorted[0].data()?.currentStreak ?? 0) : 0;
+    })();
 
 // 3. MONTHLY CONSISTENCY: Calculate from firstCheckinDate
 const metadataRef = doc(db, "users", email, "metadata", "accountInfo");
