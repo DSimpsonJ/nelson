@@ -624,15 +624,15 @@ console.log('[DATE DEBUG]', {
 const hasCheckedInToday = todayMomentumSnap.exists() && 
   todayMomentumSnap.data()?.checkinType === "real";
 
-// If today exists, use it. Otherwise use most recent dated doc (any type)
+// Find most recent REAL check-in doc (skip gap-fills for accurate counters)
 let sourceDoc = null;
-if (todayMomentumSnap.exists()) {
+if (todayMomentumSnap.exists() && todayMomentumSnap.data()?.checkinType === "real") {
   sourceDoc = todayMomentumSnap;
 } else {
-  // Find most recent dated doc (gap-fill is authoritative too)
+  // Find most recent real check-in (gap-fills don't have accurate counters)
   const sorted = momentumSnaps.docs
     .map(d => ({ id: d.id, snap: d }))
-    .filter(d => d.id.match(/^\d{4}-\d{2}-\d{2}$/))
+    .filter(d => d.id.match(/^\d{4}-\d{2}-\d{2}$/) && d.snap.data()?.checkinType === "real")
     .sort((a, b) => b.id.localeCompare(a.id));
   
   if (sorted.length > 0) {
