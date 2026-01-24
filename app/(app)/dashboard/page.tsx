@@ -645,11 +645,13 @@ if (!sourceDoc) {
   return;
 }
 
-// 1. LIFETIME CHECK-INS: Read from authoritative field
+// 1. LIFETIME CHECK-INS: Read from last real check-in (sourceDoc)
 const lifetimeCheckIns = sourceDoc.data()?.totalRealCheckIns ?? 0;
 
-// 2. CURRENT STREAK: Read from momentum (no client adjustment)
-const currentStreak = sourceDoc.data()?.currentStreak ?? 0;
+// 2. CURRENT STREAK: Read from TODAY's doc (gap-fills have accurate streaks)
+const currentStreak = todayMomentumSnap.exists() 
+  ? (todayMomentumSnap.data()?.currentStreak ?? 0)
+  : (sourceDoc.data()?.currentStreak ?? 0);
 
 // 3. MONTHLY CONSISTENCY: Calculate from firstCheckinDate
 const metadataRef = doc(db, "users", email, "metadata", "accountInfo");
