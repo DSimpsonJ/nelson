@@ -57,8 +57,6 @@ export default function MovementCommitmentPage() {
           target: selectedTime,
           startedAt: new Date().toLocaleDateString("en-CA"),
           lastLevelUpAt: null,
-          consecutiveDays: 0,
-          eligibleForLevelUp: false,
           createdAt: new Date().toISOString(),
         },
         { merge: true }

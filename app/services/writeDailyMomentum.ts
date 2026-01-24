@@ -23,6 +23,7 @@ import {
   updateMilestoneState, 
   getDaysSinceLastCheckin 
 } from './milestoneState';
+import { findLastRealCheckin, getLastRealValue } from "@/app/utils/findLastRealCheckin";
 
 // ============================================================================
 // CANONICAL SCHEMA
@@ -291,29 +292,16 @@ async function calculateDerivedFields(
       previousMomentum = yesterdayData.rawMomentumScore;
     }
     
-    // Get totalRealCheckIns from yesterday
     previousTotalCheckIns = yesterdayData.totalRealCheckIns || 0;
-    
+
     // If yesterday was a gap-fill, search backwards for last real check-in
     if (yesterdayData.checkinType === "gap_fill" && previousTotalCheckIns === 0) {
-      // Search backwards up to 30 days to find last real check-in
-      for (let i = 2; i <= 30; i++) {
-        const lookbackDate = new Date(baseDate);
-        lookbackDate.setDate(lookbackDate.getDate() - i);
-        const lookbackKey = lookbackDate.toLocaleDateString("en-CA");
-        
-        const lookbackRef = doc(db, "users", input.email, "momentum", lookbackKey);
-        const lookbackSnap = await getDoc(lookbackRef);
-        
-        if (lookbackSnap.exists()) {
-          const lookbackData = lookbackSnap.data();
-          if (lookbackData.checkinType === "real" && lookbackData.totalRealCheckIns) {
-            previousTotalCheckIns = lookbackData.totalRealCheckIns;
-            console.log(`[WriteDailyMomentum] Found last real check-in at ${lookbackKey}: totalRealCheckIns = ${previousTotalCheckIns}`);
-            break;
-          }
-        }
-      }
+      previousTotalCheckIns = await getLastRealValue(
+        input.email,
+        yesterdayKey,
+        "totalRealCheckIns",
+        0
+      );
     }
   }
   
@@ -365,19 +353,15 @@ if (input.exerciseDeclared === false) {
 let previousRealMomentum = 0;
 if (yesterdaySnap.exists()) {
   const yesterdayData = yesterdaySnap.data();
-  // If yesterday was a gap-fill, search backwards for last real check-in
+  
   if (yesterdayData.checkinType === "gap_fill") {
-    for (let i = 2; i <= 30; i++) {
-      const lookbackDate = new Date(baseDate);
-      lookbackDate.setDate(lookbackDate.getDate() - i);
-      const lookbackKey = lookbackDate.toLocaleDateString("en-CA");
-      const lookbackRef = doc(db, "users", input.email, "momentum", lookbackKey);
-      const lookbackSnap = await getDoc(lookbackRef);
-      if (lookbackSnap.exists() && lookbackSnap.data().checkinType === "real") {
-        previousRealMomentum = lookbackSnap.data().momentumScore ?? 0;
-        break;
-      }
-    }
+    // Search backwards for last real momentum value
+    previousRealMomentum = await getLastRealValue(
+      input.email,
+      yesterdayKey,
+      "momentumScore",
+      0
+    );
   } else {
     previousRealMomentum = yesterdayData.momentumScore ?? 0;
   }

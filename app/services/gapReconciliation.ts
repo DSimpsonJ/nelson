@@ -51,14 +51,14 @@ export async function checkForUnresolvedGap(
     yesterdayData.checkinType === "gap_fill" &&
     yesterdayData.gapResolved === false
   ) {
-    // Verify it's only one gap day by checking day before yesterday
+    // Check if day before yesterday was also a gap
     const dayBefore = new Date(yesterday);
     dayBefore.setDate(dayBefore.getDate() - 1);
     const dayBeforeKey = dayBefore.toLocaleDateString("en-CA");
     const dayBeforeRef = doc(db, "users", email, "momentum", dayBeforeKey);
     const dayBeforeSnap = await getDoc(dayBeforeRef);
     
-    // Only reconcile if day before yesterday either doesn't exist or wasn't a gap
+    // Only reconcile if it's exactly one gap day
     const isOnlyOneGap = !dayBeforeSnap.exists() || 
                          dayBeforeSnap.data().checkinType !== "gap_fill";
     
@@ -66,6 +66,7 @@ export async function checkForUnresolvedGap(
       return {
         needsReconciliation: true,
         gapDate: yesterdayKey,
+        // ...
         gapMomentum: yesterdayData.momentumScore || 0
       };
     }

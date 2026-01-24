@@ -279,8 +279,6 @@ export default function DashboardDevTools({
                     target: 10,
                     startedAt: getLocalDate(),
                     lastLevelUpAt: null,
-                    consecutiveDays: 0,
-                    eligibleForLevelUp: false,
                   });
                   
                   const sevenDaysFromNow = new Date();

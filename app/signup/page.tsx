@@ -65,7 +65,7 @@ await setDoc(doc(db, "users", form.email), {
       );
     
       // ✅ Redirect to welcome screen
-router.push("/welcome"); // 🆕 Changed from /intake
+      router.push("/onboarding");
     } catch (err: any) {
       setError(err.message || "Signup failed. Please try again.");
     } finally {

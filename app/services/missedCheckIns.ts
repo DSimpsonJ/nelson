@@ -72,6 +72,7 @@ export async function detectAndHandleMissedCheckIns(
     lastCheckInDate: lastCheckIn.date,
     todayDate: todayKey,
     startingMomentum: lastCheckIn.momentumScore,
+    totalRealCheckIns: lastCheckIn.totalRealCheckIns,
     shouldReset
   });
   
@@ -87,7 +88,7 @@ export async function detectAndHandleMissedCheckIns(
 async function findLastCheckIn(
   email: string,
   startDate: string
-): Promise<{ date: string; momentumScore: number } | null> {
+): Promise<{ date: string; momentumScore: number; totalRealCheckIns: number } | null> {
   
   const searchDate = new Date(startDate + "T00:00:00");
   
@@ -103,7 +104,8 @@ async function findLastCheckIn(
       if (!data.missed) {
         return {
           date: dateKey,
-          momentumScore: data.rawMomentumScore || data.momentumScore || 0
+          momentumScore: data.rawMomentumScore || data.momentumScore || 0,
+          totalRealCheckIns: data.totalRealCheckIns || 0
         };
       }
     }
@@ -117,10 +119,11 @@ async function fillMissedDays(input: {
   lastCheckInDate: string;
   todayDate: string;
   startingMomentum: number;
+  totalRealCheckIns: number;
   shouldReset: boolean;
 }): Promise<void> {
   
-  const { email, lastCheckInDate, todayDate, startingMomentum, shouldReset } = input;
+  const { email, lastCheckInDate, todayDate, startingMomentum, totalRealCheckIns, shouldReset } = input;
 
   
   const startDate = new Date(lastCheckInDate + "T00:00:00");
@@ -155,34 +158,37 @@ async function fillMissedDays(input: {
         dailyScore: 0, // Gap day - excluded from averages
         visualState: "empty",
 
-// Habit tracking
-primary: {
-  habitKey: "",
-  done: false
-},
-stack: {},
-foundations: {
-  protein: false,
-  hydration: false,
-  sleep: false,
-  nutrition: false,
-  movement: false
-},
+        // Habit tracking
+        primary: {
+          habitKey: "",
+          done: false
+        },
+        stack: {},
+        foundations: {
+          protein: false,
+          hydration: false,
+          sleep: false,
+          nutrition: false,
+          movement: false
+        },
 
-// Status
-checkinType: "gap_fill",
-checkinCompleted: false,
+        // Status
+        checkinType: "gap_fill",
+        checkinCompleted: false,
 
-// Streaks (broken)
-currentStreak: 0,
-lifetimeStreak: 0,
-streakSavers: 0,
+        // Streaks (broken)
+        currentStreak: 0,
+        lifetimeStreak: 0,
+        streakSavers: 0,
+        
+        // ✅ FIX: Carry forward totalRealCheckIns (don't increment, gaps aren't real check-ins)
+        totalRealCheckIns: totalRealCheckIns,
 
-createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       };
       
       await setDoc(existingRef, missedDoc);
-      console.log(`[MissedCheckIns] Filled missed day: ${dateKey} (dailyScore: 0)`);
+      console.log(`[MissedCheckIns] Filled missed day: ${dateKey} (totalRealCheckIns: ${totalRealCheckIns})`);
     }
     
     currentDate.setDate(currentDate.getDate() + 1);
