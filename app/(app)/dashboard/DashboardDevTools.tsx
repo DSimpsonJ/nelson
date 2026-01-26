@@ -13,6 +13,8 @@ import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
 import { getLocalDate } from "@/app/utils/date";
 import { useToast } from "../../context/ToastContext";
+import { testPatternDetection } from "@/app/services/testPatternDetection";
+import { WeeklyCoachingDevTool } from '@/app/components/WeeklyCoachingDevTool';
 
 interface DashboardDevToolsProps {
   setTodayCheckin: (val: any) => void;
@@ -60,6 +62,8 @@ export default function DashboardDevTools({
 
   return (
     <>
+    {/* Weekly Coaching Dev Tool */}
+    <WeeklyCoachingDevTool userEmail={getEmail() || ''} />
       {/* Dev Reset Button */}
       <div className="mt-8 text-center">
         <button
@@ -121,6 +125,23 @@ export default function DashboardDevTools({
   className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
 >
   🔄 Migrate lastProvenTarget
+</button>
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    try {
+      await testPatternDetection(email);
+      showToast({ message: "Check console for results", type: "success" });
+    } catch (err) {
+      console.error("Test failed:", err);
+      showToast({ message: "Test failed - check console", type: "error" });
+    }
+  }}
+  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+>
+  🧪 Test Pattern Detection
 </button>
 
            {/* Trigger Level-Up (5 of last 7 days) */}
