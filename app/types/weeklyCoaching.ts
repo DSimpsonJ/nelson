@@ -14,6 +14,12 @@ import { Timestamp } from 'firebase/firestore';
 // PATTERN TYPES
 // ============================================================================
 
+export type FocusType = 
+  | 'protect'
+  | 'hold'
+  | 'narrow'
+  | 'ignore';
+
 export type PatternType = 
   | 'insufficient_data'
   | 'building_foundation'
@@ -53,7 +59,19 @@ export interface ExperimentSuggestion {
   /** When to stop the test (max 1 sentence) */
   stopCondition: string;
 }
-
+/**
+ * WeeklyFocus
+ * 
+ * One sentence directive for next 7 days.
+ * Required for all coached weeks.
+ */
+export interface WeeklyFocus {
+  /** The directive (max 280 chars, 2 sentences) */
+  text: string;
+  
+  /** Focus type */
+  type: FocusType;
+}
 /**
  * WeeklyCoachingOutput
  * 
@@ -77,6 +95,7 @@ export interface WeeklyCoachingOutput {
   
   /** Optional test to try (zero or one) */
   experiment?: ExperimentSuggestion;
+  focus: WeeklyFocus;  
 }
 
 // ============================================================================

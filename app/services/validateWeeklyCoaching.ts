@@ -23,7 +23,8 @@ import {
     LENGTH_LIMITS,
     BANNED_ADJECTIVES,
     BANNED_IMPERATIVES,
-    PATTERN_BANS
+    PATTERN_BANS,
+    FocusType,
   } from '../types/weeklyCoaching';
   
   // ============================================================================
@@ -63,6 +64,12 @@ import {
   
     // Length validation
     errors.push(...validateLengths(coaching));
+
+    // Observation validation
+  errors.push(...validateObservation(coaching));
+
+  // Orientation validation
+  errors.push(...validateOrientation(coaching));
   
     // Evidence validation
     errors.push(...validateEvidenceVerbatim(coaching, pattern));
@@ -79,12 +86,16 @@ import {
     // Notes usage validation (no aggregation or emotional mirroring)
     errors.push(...validateNotesUsage(coaching));
   
-    // Experiment validation
-    if (coaching.experiment) {
-      errors.push(...validateExperiment(coaching.experiment));
-    }
-  
-    return {
+  // Experiment validation
+  if (coaching.experiment) {
+    errors.push(...validateExperiment(coaching.experiment));
+  }
+
+  // Focus validation
+  errors.push(...validateFocus(coaching));
+  errors.push(...validateFocusTone(coaching));
+
+  return {
       valid: errors.length === 0,
       errors,
       coaching: errors.length === 0 ? coaching : null
@@ -179,6 +190,29 @@ import {
   
     return errors;
   }
+
+  // ============================================================================
+// OBSERVATION VALIDATION
+// ============================================================================
+
+/**
+ * Validate observation section
+ */
+function validateObservation(coaching: WeeklyCoachingOutput): ValidationError[] {
+    const errors: ValidationError[] = [];
+    const lower = coaching.observation.toLowerCase();
+  
+    // Pattern name should not appear verbatim
+    if (lower.includes('pattern detected') || lower.includes('pattern:')) {
+      errors.push({
+        rule: 'pattern_name_in_observation',
+        message: 'Observation contains pattern label - state the reality, not the classification',
+        field: 'observation'
+      });
+    }
+  
+    return errors;
+  }
   
   // ============================================================================
   // LENGTH VALIDATION
@@ -244,7 +278,31 @@ import {
   
     return errors;
   }
-  
+  // ============================================================================
+// ORIENTATION VALIDATION
+// ============================================================================
+
+/**
+ * Validate orientation section
+ */
+function validateOrientation(coaching: WeeklyCoachingOutput): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const lower = coaching.orientation.toLowerCase();
+
+  // Check for system-referential language
+  const forbiddenRefs = ['the system', 'this system', 'the model', 'the algorithm', 'the framework'];
+  const foundRefs = forbiddenRefs.filter(ref => lower.includes(ref));
+
+  if (foundRefs.length > 0) {
+    errors.push({
+      rule: 'system_referential_language',
+      message: `Orientation contains forbidden system references: ${foundRefs.join(', ')}. Use "what you're seeing", "this signal", "your momentum" instead.`,
+      field: 'orientation'
+    });
+  }
+
+  return errors;
+}
   // ============================================================================
   // EVIDENCE VALIDATION
   // ============================================================================
@@ -340,7 +398,18 @@ import {
         field: 'explanation'
       });
     }
-  
+
+  // Check for system-referential language
+  const forbiddenRefs = ['the system', 'this system', 'the model', 'the algorithm'];
+  const foundRefs = forbiddenRefs.filter(ref => lower.includes(ref));
+
+  if (foundRefs.length > 0) {
+    errors.push({
+      rule: 'system_referential_language',
+      message: `Explanation contains forbidden system references: ${foundRefs.join(', ')}`,
+      field: 'explanation'
+    });
+  }
     return errors;
   }
   
@@ -460,7 +529,91 @@ import {
   
     return errors;
   }
-  
+  // ============================================================================
+// FOCUS VALIDATION
+// ============================================================================
+
+/**
+ * Validate focus is present and follows rules
+ */
+function validateFocus(coaching: WeeklyCoachingOutput): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  // Focus is required
+  if (!coaching.focus) {
+    errors.push({
+      rule: 'missing_focus',
+      message: 'Focus is required for all coached weeks'
+    });
+    return errors;
+  }
+
+  // Text is required
+  if (!coaching.focus.text || coaching.focus.text.trim().length === 0) {
+    errors.push({
+      rule: 'empty_focus',
+      message: 'Focus text cannot be empty',
+      field: 'focus'
+    });
+  }
+
+  // Length limit
+  if (coaching.focus.text.length > 280) {
+    errors.push({
+      rule: 'focus_length',
+      message: 'Focus exceeds 280 character limit',
+      field: 'focus'
+    });
+  }
+
+  // Valid type
+  const validTypes: FocusType[] = ['protect', 'hold', 'narrow', 'ignore'];
+  if (!validTypes.includes(coaching.focus.type)) {
+    errors.push({
+      rule: 'invalid_focus_type',
+      message: `Focus type must be one of: ${validTypes.join(', ')}`,
+      field: 'focus'
+    });
+  }
+
+  return errors;
+}
+
+/**
+ * Validate focus doesn't contain meta-language
+ */
+function validateFocusTone(coaching: WeeklyCoachingOutput): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  if (!coaching.focus) return errors;
+
+  const lower = coaching.focus.text.toLowerCase();
+  const metaLanguage = [
+    'system',
+    'the system',
+    'pattern',
+    'this pattern',
+    'momentum score',
+    'data',
+    'metrics',
+    'this week shows',
+    'this indicates',
+    'the data',
+    'the metrics'
+  ];
+
+  const foundMeta = metaLanguage.filter(term => lower.includes(term));
+
+  if (foundMeta.length > 0) {
+    errors.push({
+      rule: 'focus_meta_language',
+      message: `Focus contains meta-language: ${foundMeta.join(', ')}. Must sound like direct coaching.`,
+      field: 'focus'
+    });
+  }
+
+  return errors;
+}
   // ============================================================================
   // HELPER: Get Human-Readable Error Summary
   // ============================================================================

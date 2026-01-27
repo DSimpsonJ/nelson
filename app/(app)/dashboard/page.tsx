@@ -55,6 +55,7 @@ import { detectAndHandleMissedCheckIns } from '@/app/services/missedCheckIns';
 import { selectMomentumMessage } from '@/app/services/messagingGuide';
 import MomentumTooltip from '@/app/components/MomentumTooltip';
 import HistoryAccess from "@/app/components/HistoryAccess";
+import CoachAccess from "@/app/components/CoachAccess";
 import { NelsonLogo, NelsonLogoAnimated  } from '@/app/components/logos';
 import { resolveReward, type RewardPayload } 
 from "@/app/services/rewardEngine";
@@ -1684,6 +1685,14 @@ useEffect(() => {
   </div>
 </motion.div>
 )}
+
+{/* ===== COACH ACCESS ===== */}
+<motion.div variants={itemVariants} className="mb-6">
+  <CoachAccess
+    userEmail={getEmail() || ''}
+    onNavigate={() => router.push("/coach")}
+  />
+</motion.div>
 
 {/* ===== HISTORY ACCESS - LAST ITEM ===== */}
 <motion.div variants={itemVariants}>

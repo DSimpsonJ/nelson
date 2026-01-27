@@ -171,21 +171,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Redirect logic happens in render, not in effects
   if (authReady && commitmentChecked) {
-    // Not logged in -> login page
+    // Auth required everywhere except learn + onboarding
     if (!user) {
       redirect("/login");
     }
-
-    // Logged in but no commitment -> not-started page
-    if (user && !hasCommitment && pathname !== "/not-started") {
+  
+    // Commitment gate applies only to dashboard flows
+    if (
+      user &&
+      !hasCommitment &&
+      pathname.startsWith("/dashboard")
+    ) {
       redirect("/not-started");
     }
   }
 
-  // Don't render until checks complete
-  if (!authReady || !commitmentChecked) {
-    return null;
-  }
+ // Don't block render; show loading state instead
+if (!authReady || !commitmentChecked) {
+  return (
+    <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
+      Loading…
+    </div>
+  );
+}
+
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">

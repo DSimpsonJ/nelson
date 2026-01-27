@@ -199,9 +199,9 @@ function SummaryDisplay({ summary }: { summary: WeeklySummaryRecord }) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-sm font-medium text-slate-300">
-            {summary.weekId}
-          </div>
+        <div className="text-sm font-medium text-slate-300">
+  {formatWeekId(summary.weekId)}
+</div>
           <div className="text-xs text-slate-400">
             Pattern: {summary.patternType}
           </div>
@@ -325,10 +325,37 @@ function SummaryDisplay({ summary }: { summary: WeeklySummaryRecord }) {
           )}
         </div>
       )}
+       {/* Weekly Focus - Always at top */}
+    {summary.coaching && summary.coaching.focus && (
+      <div className="bg-blue-900/30 border-2 border-blue-600 rounded-lg p-3 mb-3">
+        <div className="text-xs font-semibold text-blue-300 mb-1 uppercase tracking-wide">
+          🎯 Weekly Focus • {summary.coaching.focus.type}
+        </div>
+        <div className="text-base font-semibold text-white leading-snug">
+          {summary.coaching.focus.text}
+        </div>
+      </div>
+    )}
     </div>
   );
 }
-
+function formatWeekId(weekId: string): string {
+  // Parse "2026-W04" to "Week of Jan 19-25"
+  const [year, week] = weekId.split('-W').map(Number);
+  const jan1 = new Date(year, 0, 1);
+  const weekStart = new Date(jan1.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
+  const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
+  
+  const monthStart = weekStart.toLocaleDateString('en-US', { month: 'short' });
+  const monthEnd = weekEnd.toLocaleDateString('en-US', { month: 'short' });
+  const dayStart = weekStart.getDate();
+  const dayEnd = weekEnd.getDate();
+  
+  if (monthStart === monthEnd) {
+    return `Week of ${monthStart} ${dayStart}-${dayEnd}`;
+  }
+  return `Week of ${monthStart} ${dayStart} - ${monthEnd} ${dayEnd}`;
+}
 function CoachingSection({ 
   title, 
   content, 
