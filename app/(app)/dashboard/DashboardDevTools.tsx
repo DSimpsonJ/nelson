@@ -102,6 +102,7 @@ export default function DashboardDevTools({
             >
               🚪 Sign Out
             </button>
+           
             {/* Run Migration */}
 <button
   onClick={async () => {
@@ -193,7 +194,18 @@ export default function DashboardDevTools({
 >
   🎯 Trigger Level-Up (5/7)
 </button>
-
+<button
+  onClick={async () => {
+    const { getOrCreateVulnerabilityMap, formatVulnerabilityForPrompt } = await import("@/app/services/vulnerabilityMap");
+    const map = await getOrCreateVulnerabilityMap(getEmail() || "");
+    const formatted = formatVulnerabilityForPrompt(map);
+    console.log("Vulnerability Map:", formatted);
+    showToast({ message: "Check console for vulnerability map", type: "success" });
+  }}
+  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+>
+  🧪 Test Vulnerability Map
+</button>
             {/* Trigger Week 1 Recap */}
             <button
               onClick={async () => {

@@ -62,8 +62,6 @@ from "@/app/services/rewardEngine";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import LevelUpSlider from "@/app/components/LevelUpSlider";
 
-
-
 /** ---------- Types ---------- */
 
 type Plan = {
