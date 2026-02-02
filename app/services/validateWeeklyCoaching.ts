@@ -20,12 +20,38 @@ import {
     ValidationError,
     WeeklyPattern,
     PatternType,
-    LENGTH_LIMITS,
-    BANNED_ADJECTIVES,
-    BANNED_IMPERATIVES,
     PATTERN_BANS,
     FocusType,
   } from '../types/weeklyCoaching';
+
+  // ============================================================================
+// TONE ENFORCEMENT
+// ============================================================================
+/**
+ * Count sentences in text
+ */
+function countSentences(text: string): number {
+  return text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+}
+/**
+ * Banned hedge and system language
+ */
+const BANNED_TONE_PHRASES = [
+  'suggests',
+  'may indicate',
+  'might indicate',
+  'appears to',
+  'could be',
+  'seems to',
+  'the system',
+  'your system',
+  'system is',
+  'system was',
+  'the data',
+  'the pattern',
+  'this reflects',
+  'this signals'
+] as const;
   
   // ============================================================================
   // MAIN VALIDATION
@@ -62,38 +88,21 @@ import {
     // Structural validation
     errors.push(...validateStructure(coaching));
   
-    // Length validation
-    errors.push(...validateLengths(coaching));
+   // Length validation (now minimal)
+   errors.push(...validateLengths(coaching));
+  
+   // Evidence validation
+   errors.push(...validateEvidenceVerbatim(coaching, pattern));
+ 
+   // Pattern-specific validation
+   errors.push(...validatePatternBans(coaching, pattern));
 
-    // Observation validation
-  errors.push(...validateObservation(coaching));
+     // Redundancy check
+  errors.push(...validateRedundancy(coaching));
 
-  // Orientation validation
-  errors.push(...validateOrientation(coaching));
-  
-    // Evidence validation
-    errors.push(...validateEvidenceVerbatim(coaching, pattern));
-  
-    // Acknowledgment validation
-    errors.push(...validateAcknowledgment(coaching));
-  
-    // Explanation validation
-    errors.push(...validateExplanation(coaching));
-  
-    // Pattern-specific validation
-    errors.push(...validatePatternBans(coaching, pattern));
-  
-    // Notes usage validation (no aggregation or emotional mirroring)
-    errors.push(...validateNotesUsage(coaching));
-  
-  // Experiment validation
-  if (coaching.experiment) {
-    errors.push(...validateExperiment(coaching.experiment));
-  }
-
-  // Focus validation
-  errors.push(...validateFocus(coaching));
-  errors.push(...validateFocusTone(coaching));
+   // Focus validation
+   errors.push(...validateFocus(coaching));
+   errors.push(...validateFocusTone(coaching));
 
   return {
       valid: errors.length === 0,
@@ -122,28 +131,18 @@ import {
     const parsed = JSON.parse(cleaned);
   
     // Validate required fields exist
-    if (!parsed.acknowledgment || typeof parsed.acknowledgment !== 'string') {
-      throw new Error('Missing or invalid acknowledgment field');
+    if (!parsed.pattern || typeof parsed.pattern !== 'string') {
+      throw new Error('Missing or invalid pattern field');
     }
-    if (!parsed.observation || typeof parsed.observation !== 'string') {
-      throw new Error('Missing or invalid observation field');
+    if (!parsed.tension || typeof parsed.tension !== 'string') {
+      throw new Error('Missing or invalid tension field');
     }
-    if (!parsed.explanation || typeof parsed.explanation !== 'string') {
-      throw new Error('Missing or invalid explanation field');
-    }
-    if (!parsed.orientation || typeof parsed.orientation !== 'string') {
-      throw new Error('Missing or invalid orientation field');
+    if (!parsed.whyThisMatters || typeof parsed.whyThisMatters !== 'string') {
+      throw new Error('Missing or invalid whyThisMatters field');
     }
   
-    // Validate experiment structure if present
-    if (parsed.experiment) {
-      if (!parsed.experiment.action || typeof parsed.experiment.action !== 'string') {
-        throw new Error('Experiment missing or invalid action field');
-      }
-      if (!parsed.experiment.stopCondition || typeof parsed.experiment.stopCondition !== 'string') {
-        throw new Error('Experiment missing or invalid stopCondition field');
-      }
-    }
+    // Experiment validation removed - new structure doesn't use it
+    // Focus validation will happen elsewhere
   
     return parsed as WeeklyCoachingOutput;
   }
@@ -156,64 +155,40 @@ import {
     const errors: ValidationError[] = [];
   
     // Check all required fields
-    if (!coaching.acknowledgment) {
+    if (!coaching.pattern) {
       errors.push({
         rule: 'required_field',
-        message: 'Acknowledgment is required',
-        field: 'acknowledgment'
+        message: 'Pattern is required',
+        field: 'pattern'
       });
     }
   
-    if (!coaching.observation) {
+    if (!coaching.tension) {
       errors.push({
         rule: 'required_field',
-        message: 'Observation is required',
-        field: 'observation'
+        message: 'Tension is required',
+        field: 'tension'
       });
     }
   
-    if (!coaching.explanation) {
+    if (!coaching.whyThisMatters) {
       errors.push({
         rule: 'required_field',
-        message: 'Explanation is required',
-        field: 'explanation'
+        message: 'WhyThisMatters is required',
+        field: 'whyThisMatters'
       });
     }
   
-    if (!coaching.orientation) {
+    if (!coaching.focus) {
       errors.push({
         rule: 'required_field',
-        message: 'Orientation is required',
-        field: 'orientation'
+        message: 'Focus is required',
+        field: 'focus'
       });
     }
   
     return errors;
   }
-
-  // ============================================================================
-// OBSERVATION VALIDATION
-// ============================================================================
-
-/**
- * Validate observation section
- */
-function validateObservation(coaching: WeeklyCoachingOutput): ValidationError[] {
-    const errors: ValidationError[] = [];
-    const lower = coaching.observation.toLowerCase();
-  
-    // Pattern name should not appear verbatim
-    if (lower.includes('pattern detected') || lower.includes('pattern:')) {
-      errors.push({
-        rule: 'pattern_name_in_observation',
-        message: 'Observation contains pattern label - state the reality, not the classification',
-        field: 'observation'
-      });
-    }
-  
-    return errors;
-  }
-  
   // ============================================================================
   // LENGTH VALIDATION
   // ============================================================================
@@ -221,88 +196,39 @@ function validateObservation(coaching: WeeklyCoachingOutput): ValidationError[] 
   function validateLengths(coaching: WeeklyCoachingOutput): ValidationError[] {
     const errors: ValidationError[] = [];
   
-    // Acknowledgment length
-    if (coaching.acknowledgment.length > LENGTH_LIMITS.acknowledgment.maxChars) {
+    // Sentence budget enforcement
+    const tensionSentences = countSentences(coaching.tension);
+    if (tensionSentences > 5) {
       errors.push({
-        rule: 'length_limit',
-        message: `Acknowledgment exceeds ${LENGTH_LIMITS.acknowledgment.maxChars} characters`,
-        field: 'acknowledgment'
+        rule: 'tension_length',
+        message: `Tension over-explains (${tensionSentences} sentences). Max 5 sentences.`,
+        field: 'tension'
       });
     }
   
-    // Observation length
-    if (coaching.observation.length > LENGTH_LIMITS.observation.maxChars) {
+    const whyThisMattersSentences = countSentences(coaching.whyThisMatters);
+    if (whyThisMattersSentences > 6) {
       errors.push({
-        rule: 'length_limit',
-        message: `Observation exceeds ${LENGTH_LIMITS.observation.maxChars} characters`,
-        field: 'observation'
+        rule: 'why_this_matters_length',
+        message: `WhyThisMatters is too long (${whyThisMattersSentences} sentences). Max 6 sentences.`,
+        field: 'whyThisMatters'
       });
     }
   
-    // Explanation length
-    if (coaching.explanation.length > LENGTH_LIMITS.explanation.maxChars) {
+    const patternSentences = countSentences(coaching.pattern);
+    if (patternSentences > 4) {
       errors.push({
-        rule: 'length_limit',
-        message: `Explanation exceeds ${LENGTH_LIMITS.explanation.maxChars} characters`,
-        field: 'explanation'
+        rule: 'pattern_length',
+        message: `Pattern is too long (${patternSentences} sentences). Max 4 sentences.`,
+        field: 'pattern'
       });
     }
   
-    // Orientation length
-    if (coaching.orientation.length > LENGTH_LIMITS.orientation.maxChars) {
-      errors.push({
-        rule: 'length_limit',
-        message: `Orientation exceeds ${LENGTH_LIMITS.orientation.maxChars} characters`,
-        field: 'orientation'
-      });
-    }
-  
-    // Experiment lengths
-    if (coaching.experiment) {
-      if (coaching.experiment.action.length > LENGTH_LIMITS.experiment.action.maxChars) {
-        errors.push({
-          rule: 'length_limit',
-          message: `Experiment action exceeds ${LENGTH_LIMITS.experiment.action.maxChars} characters`,
-          field: 'experiment'
-        });
-      }
-  
-      if (coaching.experiment.stopCondition.length > LENGTH_LIMITS.experiment.stopCondition.maxChars) {
-        errors.push({
-          rule: 'length_limit',
-          message: `Experiment stopCondition exceeds ${LENGTH_LIMITS.experiment.stopCondition.maxChars} characters`,
-          field: 'experiment'
-        });
-      }
-    }
+    // Focus has 280 char limit (validated separately in validateFocus)
   
     return errors;
   }
-  // ============================================================================
-// ORIENTATION VALIDATION
-// ============================================================================
 
-/**
- * Validate orientation section
- */
-function validateOrientation(coaching: WeeklyCoachingOutput): ValidationError[] {
-  const errors: ValidationError[] = [];
-  const lower = coaching.orientation.toLowerCase();
-
-  // Check for system-referential language
-  const forbiddenRefs = ['the system', 'this system', 'the model', 'the algorithm', 'the framework'];
-  const foundRefs = forbiddenRefs.filter(ref => lower.includes(ref));
-
-  if (foundRefs.length > 0) {
-    errors.push({
-      rule: 'system_referential_language',
-      message: `Orientation contains forbidden system references: ${foundRefs.join(', ')}. Use "what you're seeing", "this signal", "your momentum" instead.`,
-      field: 'orientation'
-    });
-  }
-
-  return errors;
-}
   // ============================================================================
   // EVIDENCE VALIDATION
   // ============================================================================
@@ -316,102 +242,31 @@ function validateOrientation(coaching: WeeklyCoachingOutput): ValidationError[] 
   ): ValidationError[] {
     const errors: ValidationError[] = [];
   
-    const hasVerbatimEvidence = pattern.evidencePoints.some(evidence => 
-      coaching.observation.includes(evidence)
-    );
-  
-    if (!hasVerbatimEvidence) {
-      errors.push({
-        rule: 'evidence_verbatim',
-        message: 'Observation must include at least one evidence point verbatim',
-        field: 'observation'
-      });
-    }
-  
-    return errors;
-  }
-  
-  // ============================================================================
-  // ACKNOWLEDGMENT VALIDATION
-  // ============================================================================
-  
-  /**
-   * Validate acknowledgment contains no banned adjectives
-   */
-  function validateAcknowledgment(coaching: WeeklyCoachingOutput): ValidationError[] {
-    const errors: ValidationError[] = [];
-    const lower = coaching.acknowledgment.toLowerCase();
-  
-    const foundAdjectives = BANNED_ADJECTIVES.filter(adj => 
-      lower.includes(adj)
-    );
-  
-    if (foundAdjectives.length > 0) {
-      errors.push({
-        rule: 'banned_adjectives',
-        message: `Acknowledgment contains banned adjectives: ${foundAdjectives.join(', ')}`,
-        field: 'acknowledgment'
-      });
-    }
-  // Check for generic acknowledgments
-  const genericPhrases = [
-    'you checked in',
-    'you maintained consistent',
-    'this week produced',
-    'you showed up'
-  ];
-  
-  const isGeneric = genericPhrases.some(phrase => lower.includes(phrase)) && 
-                    !lower.includes('despite') && 
-                    !lower.includes('through') &&
-                    !lower.includes('while');
-  
-  if (isGeneric) {
+// Check if pattern section includes specific numbers from evidence
+const evidenceNumbers = pattern.evidencePoints
+  .join(' ')
+  .match(/\d+/g);
+
+const patternNumbers = coaching.pattern.match(/\d+/g);
+
+// Only validate if we have numbers to check
+if (evidenceNumbers && patternNumbers) {
+  const matchingNumbers = evidenceNumbers.filter((num: string) =>
+    patternNumbers.includes(num)
+  ).length;
+
+  if (matchingNumbers < 2) {
     errors.push({
-      rule: 'generic_acknowledgment',
-      message: 'Acknowledgment is too generic - must reference specific challenge/context from this week',
-      field: 'acknowledgment'
+      rule: 'evidence_anchoring',
+      message: `Pattern must include at least TWO specific numbers from evidence. Found: ${matchingNumbers}`,
+      field: 'pattern'
     });
   }
+}
+  
     return errors;
   }
   
-  // ============================================================================
-  // EXPLANATION VALIDATION
-  // ============================================================================
-  
-  /**
-   * Validate explanation contains no imperatives
-   */
-  function validateExplanation(coaching: WeeklyCoachingOutput): ValidationError[] {
-    const errors: ValidationError[] = [];
-    const lower = coaching.explanation.toLowerCase();
-  
-    const foundImperatives = BANNED_IMPERATIVES.filter(imperative => 
-      lower.includes(imperative)
-    );
-  
-    if (foundImperatives.length > 0) {
-      errors.push({
-        rule: 'banned_imperatives',
-        message: `Explanation contains imperatives: ${foundImperatives.join(', ')}`,
-        field: 'explanation'
-      });
-    }
-
-  // Check for system-referential language
-  const forbiddenRefs = ['the system', 'this system', 'the model', 'the algorithm'];
-  const foundRefs = forbiddenRefs.filter(ref => lower.includes(ref));
-
-  if (foundRefs.length > 0) {
-    errors.push({
-      rule: 'system_referential_language',
-      message: `Explanation contains forbidden system references: ${foundRefs.join(', ')}`,
-      field: 'explanation'
-    });
-  }
-    return errors;
-  }
   
   // ============================================================================
   // PATTERN-SPECIFIC VALIDATION
@@ -430,105 +285,61 @@ function validateOrientation(coaching: WeeklyCoachingOutput): ValidationError[] 
     if (bannedPhrases.length === 0) {
       return errors; // No bans for this pattern
     }
-  
     // Check all text sections
     const allText = [
-      coaching.acknowledgment,
-      coaching.observation,
-      coaching.explanation,
-      coaching.orientation,
-      coaching.experiment?.action || '',
-      coaching.experiment?.stopCondition || ''
+      coaching.pattern,
+      coaching.tension,
+      coaching.whyThisMatters,
+      coaching.focus.text
     ].join(' ').toLowerCase();
   
-    const foundBans = bannedPhrases.filter(phrase => 
+    const foundToneBans = BANNED_TONE_PHRASES.filter(phrase => 
       allText.includes(phrase.toLowerCase())
     );
-  
-    if (foundBans.length > 0) {
-      errors.push({
-        rule: 'pattern_banned_phrases',
-        message: `Contains banned phrases for ${pattern.primaryPattern}: ${foundBans.join(', ')}`
-      });
-    }
-  
-    return errors;
-  }
-  
-  /**
-   * Validate that notes are not being aggregated or summarized
-   */
-  function validateNotesUsage(coaching: WeeklyCoachingOutput): ValidationError[] {
-    const errors: ValidationError[] = [];
     
-    // Aggregation language that indicates trend inference from notes
-    const aggregationPhrases = [
-      'your notes show',
-      'notes show',
-      'you often',
-      'you typically',
-      'you usually',
-      'recurring',
-      'keeps happening',
-      'most days',
-      'several times',
-      'multiple times',
-      'pattern of',
-      'trend of',
-      'sounds frustrating',
-      'sounds difficult',
-      'sounds challenging',
-      'that must be'
-    ];
-  
-    const allText = [
-      coaching.acknowledgment,
-      coaching.observation,
-      coaching.explanation,
-      coaching.orientation,
-      coaching.experiment?.action || '',
-      coaching.experiment?.stopCondition || ''
-    ].join(' ').toLowerCase();
-  
-    const foundAggregation = aggregationPhrases.filter(phrase => 
-      allText.includes(phrase.toLowerCase())
-    );
-  
-    if (foundAggregation.length > 0) {
+    if (foundToneBans.length > 0) {
       errors.push({
-        rule: 'notes_aggregation',
-        message: `Contains aggregation/emotional language: ${foundAggregation.join(', ')}`
+        rule: 'banned_tone',
+        message: `Contains hedge/system language: ${foundToneBans.join(', ')}`
       });
     }
   
     return errors;
   }
-  
-  // ============================================================================
-  // EXPERIMENT VALIDATION
-  // ============================================================================
-  
   /**
-   * Validate experiment structure if present
-   */
-  function validateExperiment(experiment: WeeklyCoachingOutput['experiment']): ValidationError[] {
-    const errors: ValidationError[] = [];
+ * Detect redundant metaphors/concepts
+ */
+function validateRedundancy(coaching: WeeklyCoachingOutput): ValidationError[] {
+  const errors: ValidationError[] = [];
   
-    if (!experiment) {
-      return errors;
-    }
+  const REDUNDANT_TERMS = [
+    'recovery debt',
+    'capacity ceiling',
+    'diminishing returns',
+    'hidden constraint',
+    'accumulating',
+    'eroding'
+  ];
   
-    // Stop condition is required
-    if (!experiment.stopCondition || experiment.stopCondition.trim().length === 0) {
-      errors.push({
-        rule: 'experiment_stop_condition',
-        message: 'Experiment must include a stop condition',
-        field: 'experiment'
-      });
-    }
+  const allText = [
+    coaching.tension,
+    coaching.whyThisMatters
+  ].join(' ').toLowerCase();
   
-    return errors;
+  const usedTerms = REDUNDANT_TERMS.filter(term => 
+    allText.includes(term.toLowerCase())
+  );
+  
+  if (usedTerms.length > 2) {
+    errors.push({
+      rule: 'redundant_metaphors',
+      message: `Redundant concepts detected (${usedTerms.join(', ')}). Choose fewer, sharper metaphors.`
+    });
   }
+  
+  return errors;
+}
+ 
   // ============================================================================
 // FOCUS VALIDATION
 // ============================================================================

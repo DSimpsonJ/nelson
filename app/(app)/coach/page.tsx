@@ -6,6 +6,8 @@ import { collection, query, orderBy, limit, getDocs, Timestamp } from "firebase/
 import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
 import { motion } from "framer-motion";
+import { WeeklyCoachingOutput } from '@/app/types/weeklyCoaching';
+import { WeeklyCalibrationContainer } from '@/app/components/WeeklyCalibration';
 
 // Types defined inline to avoid import issues
 type FocusType = 'protect' | 'hold' | 'narrow' | 'ignore';
@@ -14,23 +16,9 @@ type PatternType = 'insufficient_data' | 'building_foundation' | 'gap_disruption
   'variance_high' | 'momentum_decline' | 'building_momentum' | 'momentum_plateau';
 type SummaryStatus = 'generated' | 'skipped' | 'rejected';
 
-interface ExperimentSuggestion {
-  action: string;
-  stopCondition: string;
-}
-
 interface WeeklyFocus {
   text: string;
   type: FocusType;
-}
-
-interface WeeklyCoachingOutput {
-  acknowledgment: string;
-  observation: string;
-  explanation: string;
-  orientation: string;
-  experiment?: ExperimentSuggestion;
-  focus: WeeklyFocus;
 }
 
 interface WeeklySummaryRecord {
@@ -66,7 +54,8 @@ export default function CoachPage() {
   const [loading, setLoading] = useState(true);
   const [currentWeek, setCurrentWeek] = useState<WeeklySummaryRecord | null>(null);
   const [historicalWeeks, setHistoricalWeeks] = useState<WeeklySummaryRecord[]>([]);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['acknowledgment']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [showCalibration, setShowCalibration] = useState(false);
 
   useEffect(() => {
     loadCoaching();
@@ -167,8 +156,32 @@ export default function CoachPage() {
     );
   }
 
-  const { coaching } = currentWeek;
+ const { coaching } = currentWeek;
   if (!coaching) return null;
+
+  // Check if user needs to answer calibration
+  const email = getEmail();
+  if (!email) return null;
+
+  // Show calibration flow instead of coaching if triggered
+  if (showCalibration) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+        <WeeklyCalibrationContainer
+          email={email}
+          weekId={currentWeek.weekId}
+          onComplete={() => {
+            setShowCalibration(false);
+            router.push('/dashboard');
+          }}
+          onSkip={() => {
+            setShowCalibration(false);
+            router.push('/dashboard');
+          }}
+        />
+      </main>
+    );
+  }
 
   return (
     <motion.main
@@ -219,40 +232,29 @@ export default function CoachPage() {
           </div>
 
           <ReviewSection
-            title="Acknowledgment"
+            title="Pattern"
             emoji="👋"
-            content={coaching.acknowledgment}
-            isExpanded={expandedSections.has('acknowledgment')}
-            onToggle={() => toggleSection('acknowledgment')}
+            content={coaching.pattern}
+            isExpanded={expandedSections.has('pattern')}
+            onToggle={() => toggleSection('pattern')}
           />
 
           <ReviewSection
-            title="Observation"
+            title="Tension"
             emoji="👁️"
-            content={coaching.observation}
-            isExpanded={expandedSections.has('observation')}
-            onToggle={() => toggleSection('observation')}
+            content={coaching.tension}
+            isExpanded={expandedSections.has('tension')}
+            onToggle={() => toggleSection('tension')}
           />
 
           <ReviewSection
-            title="Explanation"
+            title="Why This Matters"
             emoji="💡"
-            content={coaching.explanation}
-            isExpanded={expandedSections.has('explanation')}
-            onToggle={() => toggleSection('explanation')}
+            content={coaching.whyThisMatters}
+            isExpanded={expandedSections.has('whyThisMatters')}
+            onToggle={() => toggleSection('whyThisMatters')}
           />
 
-          <ReviewSection
-            title="Orientation"
-            emoji="🧭"
-            content={coaching.orientation}
-            isExpanded={expandedSections.has('orientation')}
-            onToggle={() => toggleSection('orientation')}
-          />
-
-          {coaching.experiment && (
-            <ExperimentSection experiment={coaching.experiment} />
-          )}
         </motion.div>
 
         {historicalWeeks.length > 0 && (
@@ -267,6 +269,16 @@ export default function CoachPage() {
             </div>
           </motion.div>
         )}
+
+        {/* CALIBRATION TRIGGER BUTTON */}
+        <motion.div variants={itemVariants} className="mt-8">
+          <button
+            onClick={() => setShowCalibration(true)}
+            className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+          >
+            Help Nelson understand this week →
+          </button>
+        </motion.div>
 
         <div className="h-8" />
       </div>
@@ -313,52 +325,6 @@ function ReviewSection({
   );
 }
 
-function ExperimentSection({ 
-  experiment 
-}: { 
-  experiment: { action: string; stopCondition: string } 
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  return (
-    <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/20 border border-purple-700/50 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-5 py-4 flex items-center justify-between hover:bg-purple-700/10 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-xl">🧪</span>
-          <span className="text-white font-medium">Optional Experiment</span>
-        </div>
-        <span className="text-white/60 text-lg">
-          {isExpanded ? '−' : '+'}
-        </span>
-      </button>
-      
-      {isExpanded && (
-        <div className="px-5 pb-5 pt-1 space-y-3">
-          <div>
-            <div className="text-xs font-semibold text-purple-300 uppercase tracking-wide mb-1">
-              Test
-            </div>
-            <p className="text-white/80 leading-relaxed">
-              {experiment.action}
-            </p>
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-purple-300 uppercase tracking-wide mb-1">
-              Stop If
-            </div>
-            <p className="text-white/80 leading-relaxed">
-              {experiment.stopCondition}
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function HistoricalWeekCard({ week }: { week: WeeklySummaryRecord }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -394,20 +360,16 @@ function HistoricalWeekCard({ week }: { week: WeeklySummaryRecord }) {
 
           <div className="space-y-2 text-xs">
             <HistoricalReviewLine 
-              title="Acknowledgment" 
-              content={week.coaching.acknowledgment} 
+              title="Pattern" 
+              content={week.coaching.pattern} 
             />
             <HistoricalReviewLine 
-              title="Observation" 
-              content={week.coaching.observation} 
+              title="Tension" 
+              content={week.coaching.tension} 
             />
             <HistoricalReviewLine 
-              title="Explanation" 
-              content={week.coaching.explanation} 
-            />
-            <HistoricalReviewLine 
-              title="Orientation" 
-              content={week.coaching.orientation} 
+              title="Why This Matters" 
+              content={week.coaching.whyThisMatters} 
             />
           </div>
         </div>

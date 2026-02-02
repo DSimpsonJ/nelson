@@ -255,38 +255,20 @@ function SummaryDisplay({ summary }: { summary: WeeklySummaryRecord }) {
       {summary.status === 'generated' && summary.coaching && (
         <div className="space-y-2 pt-2 border-t border-slate-700">
           <CoachingSection 
-            title="Acknowledgment" 
-            content={summary.coaching.acknowledgment}
-            emoji="👋"
-          />
-          <CoachingSection 
-            title="Observation" 
-            content={summary.coaching.observation}
-            emoji="👁️"
-          />
-          <CoachingSection 
-            title="Explanation" 
-            content={summary.coaching.explanation}
-            emoji="💡"
-          />
-          <CoachingSection 
-            title="Orientation" 
-            content={summary.coaching.orientation}
-            emoji="🧭"
-          />
-          {summary.coaching.experiment && (
-            <div className="bg-blue-900/20 border border-blue-800 rounded p-2">
-              <div className="text-xs font-medium text-blue-300 mb-1">
-                🧪 Optional Experiment
-              </div>
-              <div className="text-xs text-slate-300 mb-1">
-                <span className="font-medium">Action:</span> {summary.coaching.experiment.action}
-              </div>
-              <div className="text-xs text-slate-300">
-                <span className="font-medium">Stop if:</span> {summary.coaching.experiment.stopCondition}
-              </div>
-            </div>
-          )}
+  title="Pattern" 
+  content={summary.coaching.pattern}
+  emoji="👋"
+/>
+<CoachingSection 
+  title="Tension" 
+  content={summary.coaching.tension}
+  emoji="👁️"
+/>
+<CoachingSection 
+  title="Why This Matters" 
+  content={summary.coaching.whyThisMatters}
+  emoji="💡"
+/>
         </div>
       )}
 

@@ -45,20 +45,7 @@ export type SummaryStatus =
 // AI COACHING OUTPUT
 // ============================================================================
 
-/**
- * ExperimentSuggestion
- * 
- * Optional bounded test the user can try.
- * Must be framed as experiment, not prescription.
- * Must include stop condition.
- */
-export interface ExperimentSuggestion {
-  /** What to test (max 2 sentences) */
-  action: string;
-  
-  /** When to stop the test (max 1 sentence) */
-  stopCondition: string;
-}
+
 /**
  * WeeklyFocus
  * 
@@ -81,20 +68,16 @@ export interface WeeklyFocus {
  * This is what the AI generates and what gets validated.
  */
 export interface WeeklyCoachingOutput {
-  /** Factual presence statement (max 2 sentences, no adjectives) */
-  acknowledgment: string;
+  /** What happened this week (3-4 sentences, grounded in data) */
+  pattern: string;
   
-  /** Pattern type + evidence verbatim (max 3 sentences) */
-  observation: string;
+  /** The non-obvious constraint revealed (4-5 sentences, must synthesize context) */
+  tension: string;
   
-  /** Why this pattern matters (max 4 sentences, no imperatives) */
-  explanation: string;
+  /** Why this matters for this specific user (4-6 sentences) */
+  whyThisMatters: string;
   
-  /** What this means right now (max 3 sentences) */
-  orientation: string;
-  
-  /** Optional test to try (zero or one) */
-  experiment?: ExperimentSuggestion;
+  /** Weekly focus directive (PROTECT/HOLD/NARROW/IGNORE) */
   focus: WeeklyFocus;  
 }
 
@@ -250,6 +233,12 @@ export interface WeeklyPattern {
   /** Week identifier */
   weekId: string;
   
+  /** Date range analyzed (YYYY-MM-DD format) */
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  
   /** Whether eligible for coaching */
   canCoach: boolean;
   
@@ -305,7 +294,7 @@ export interface PromptContext {
 // ============================================================================
 // LENGTH LIMITS (for validation)
 // ============================================================================
-
+/*
 export const LENGTH_LIMITS = {
   acknowledgment: {
     maxSentences: 2,
@@ -334,43 +323,7 @@ export const LENGTH_LIMITS = {
     }
   }
 } as const;
-
-// ============================================================================
-// BANNED CONTENT (for validation)
-// ============================================================================
-
-/**
- * Global banned adjectives (never allowed in acknowledgment)
  */
-export const BANNED_ADJECTIVES = [
-  'great',
-  'good',
-  'excellent',
-  'amazing',
-  'strong',
-  'impressive',
-  'outstanding',
-  'fantastic',
-  'wonderful',
-  'awesome',
-  'stellar',
-  'terrific'
-] as const;
-
-/**
- * Banned imperatives (never allowed in explanation)
- */
-export const BANNED_IMPERATIVES = [
-  'do ',
-  'start ',
-  'try ',
-  'you need to',
-  'you should',
-  'you must',
-  'make sure',
-  'be sure to'
-] as const;
-
 /**
  * Pattern-specific banned phrases
  */

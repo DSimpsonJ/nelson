@@ -28,15 +28,19 @@ export type PatternType =
   | "momentum_plateau"       // Consistent check-ins but no movement
   | "building_momentum"      // Momentum trending upward, things working
 
-export interface WeeklyPattern {
-  primaryPattern: PatternType;
-  evidencePoints: string[];  // Facts only - no interpretation
-  weekId: string;
-  canCoach: boolean;         // False for insufficient_data or building_foundation
-  daysAnalyzed: number;
-  realCheckInsThisWeek: number;
-  totalLifetimeCheckIns: number;
-}
+  export interface WeeklyPattern {
+    primaryPattern: PatternType;
+    evidencePoints: string[];
+    weekId: string;
+    dateRange: {
+      start: string;  // YYYY-MM-DD
+      end: string;    // YYYY-MM-DD
+    };
+    canCoach: boolean;
+    daysAnalyzed: number;
+    realCheckInsThisWeek: number;
+    totalLifetimeCheckIns: number;
+  }
 
 interface DayData {
   date: string;
@@ -80,7 +84,11 @@ export async function detectWeeklyPattern(
   const windowStartKey = windowStart.toLocaleDateString("en-CA");
   
   console.log(`[Pattern Detection] Window: ${windowStartKey} to ${windowEndKey} (7 completed days)`);
-  
+  // Store date range for constraint derivation
+const dateRange = {
+  start: windowStartKey,
+  end: windowEndKey
+};
   // 2. Fetch momentum docs in window
   const momentumRef = collection(db, "users", email, "momentum");
   const q = query(
@@ -149,6 +157,7 @@ export async function detectWeeklyPattern(
       primaryPattern: "insufficient_data",
       evidencePoints: [`Only ${realCheckIns.length} check-ins in last 7 days`],
       weekId,
+      dateRange,
       canCoach: false,
       daysAnalyzed: 7,
       realCheckInsThisWeek: realCheckIns.length,
@@ -165,6 +174,7 @@ export async function detectWeeklyPattern(
         `Week check-ins: ${realCheckIns.length}/7`
       ],
       weekId,
+      dateRange,
       canCoach: false, // Silence is acceptable
       daysAnalyzed: 7,
       realCheckInsThisWeek: realCheckIns.length,
@@ -185,6 +195,7 @@ export async function detectWeeklyPattern(
         `Real check-ins: ${realCheckIns.length}/7`
       ],
       weekId,
+      dateRange,
       canCoach: true,
       daysAnalyzed: 7,
       realCheckInsThisWeek: realCheckIns.length,
@@ -219,6 +230,7 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
         `Energy balance average: ${Math.round(behaviorAverages.energy_balance || 0)}%`
       ],
       weekId,
+      dateRange,
       canCoach: true,
       daysAnalyzed: 7,
       realCheckInsThisWeek: realCheckIns.length,
@@ -242,6 +254,7 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
         `Low recovery days: ${lowRecoveryDays}/7`
       ],
       weekId,
+      dateRange,
       canCoach: true,
       daysAnalyzed: 7,
       realCheckInsThisWeek: realCheckIns.length,
@@ -265,6 +278,7 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
         `Sleep: ${Math.round(sleepAvg)}%`
       ],
       weekId,
+      dateRange,
       canCoach: true,
       daysAnalyzed: 7,
       realCheckInsThisWeek: realCheckIns.length,
@@ -282,6 +296,7 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
         `Daily score range: ${Math.round(Math.min(...realCheckIns.map(d => d.dailyScore)))}-${Math.round(Math.max(...realCheckIns.map(d => d.dailyScore)))}`
       ],
       weekId,
+      dateRange,
       canCoach: true,
       daysAnalyzed: 7,
       realCheckInsThisWeek: realCheckIns.length,
@@ -306,6 +321,7 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
        `Check-ins: ${realCheckIns.length}/7`
      ],
      weekId,
+     dateRange,
      canCoach: true,
      daysAnalyzed: 7,
      realCheckInsThisWeek: realCheckIns.length,
@@ -323,6 +339,7 @@ return {
     `Exercise: ${exerciseDays}/7 days`
   ],
   weekId,
+  dateRange,
   canCoach: true,
   daysAnalyzed: 7,
   realCheckInsThisWeek: realCheckIns.length,

@@ -10,6 +10,7 @@
  * - Representative check-in counts
  */
 
+
 export type PatternType = 
   | 'insufficient_data'
   | 'building_foundation'
@@ -22,15 +23,19 @@ export type PatternType =
   | 'building_momentum'
   | 'momentum_plateau';
 
-export interface WeeklyPattern {
-  primaryPattern: PatternType;
-  evidencePoints: string[];
-  weekId: string;
-  canCoach: boolean;
-  daysAnalyzed: number;
-  realCheckInsThisWeek: number;
-  totalLifetimeCheckIns: number;
-}
+  export interface WeeklyPattern {
+    primaryPattern: PatternType;
+    evidencePoints: string[];
+    weekId: string;
+    dateRange: {
+      start: string;
+      end: string;
+    };
+    canCoach: boolean;
+    daysAnalyzed: number;
+    realCheckInsThisWeek: number;
+    totalLifetimeCheckIns: number;
+  }
 
 /**
  * Pattern Fixtures
@@ -58,6 +63,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'Lifetime check-ins: 8'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: false,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 3,
@@ -74,6 +83,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'Early baseline period'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: false,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 5,
@@ -90,6 +103,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'Momentum: 58%'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: true,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 4,
@@ -107,6 +124,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'Foundation behaviors inconsistent'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: true,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 6,
@@ -124,6 +145,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'Momentum: 68%'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: true,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 7,
@@ -141,6 +166,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'Momentum: 61%'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: true,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 6,
@@ -158,6 +187,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'Momentum: 66%'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: true,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 7,
@@ -173,6 +206,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'Check-ins: 6/7'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: true,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 6,
@@ -188,6 +225,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'Lifetime check-ins: 11'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: true,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 6,
@@ -204,6 +245,10 @@ export const patternFixtures: Record<PatternType, WeeklyPattern> = {
       'All behaviors consistently Solid'
     ],
     weekId: '2026-W04',
+    dateRange: {
+      start: '2026-01-20',
+      end: '2026-01-26'
+    },
     canCoach: true,
     daysAnalyzed: 7,
     realCheckInsThisWeek: 7,
