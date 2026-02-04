@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, orderBy, limit, getDocs, Timestamp } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs, Timestamp, doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
 import { motion } from "framer-motion";
@@ -56,6 +56,9 @@ export default function CoachPage() {
   const [historicalWeeks, setHistoricalWeeks] = useState<WeeklySummaryRecord[]>([]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [showCalibration, setShowCalibration] = useState(false);
+  const [generating, setGenerating] = useState(false);
+const [generationError, setGenerationError] = useState<string | null>(null);
+const [hasAnsweredCalibration, setHasAnsweredCalibration] = useState(false); // Default to false, load will update
 
   useEffect(() => {
     loadCoaching();
@@ -67,32 +70,83 @@ export default function CoachPage() {
       router.push("/login");
       return;
     }
-
+  
     try {
       const summariesRef = collection(db, "users", email, "weeklySummaries");
       const q = query(summariesRef, orderBy("generatedAt", "desc"), limit(5));
       const snapshot = await getDocs(q);
-
+  
       const summaries = snapshot.docs.map(doc => ({
         ...doc.data(),
         generatedAt: doc.data().generatedAt
       })) as WeeklySummaryRecord[];
-
+  
       const current = summaries.find(s => s.status === "generated");
       setCurrentWeek(current || null);
-
+  
+      // Check if user already answered calibration for this week
+      if (current) {
+        const calibrationRef = doc(db, "users", email, "weeklyCalibrations", current.weekId);
+        const calibrationSnap = await getDoc(calibrationRef);
+        const hasAnswered = calibrationSnap.exists();
+        
+        if (hasAnswered) {
+          setHasAnsweredCalibration(true);
+        } else {
+          setHasAnsweredCalibration(false);
+        }
+      }
+  
       const historical = summaries
         .filter(s => s.status === "generated" && s.weekId !== current?.weekId)
         .slice(0, 4);
       setHistoricalWeeks(historical);
-
+  
     } catch (error) {
       console.error("Failed to load coaching:", error);
     } finally {
       setLoading(false);
     }
   };
-
+  
+  const generateCoaching = async () => {
+    const email = getEmail();
+    if (!email) return;
+  
+    // Calculate current week ID
+    const now = new Date();
+    const year = now.getFullYear();
+    const jan1 = new Date(year, 0, 1);
+    const daysSinceJan1 = Math.floor((now.getTime() - jan1.getTime()) / (24 * 60 * 60 * 1000));
+    const weekNumber = Math.ceil((daysSinceJan1 + jan1.getDay() + 1) / 7);
+    const weekId = `${year}-W${weekNumber.toString().padStart(2, '0')}`;
+  
+    setGenerating(true);
+    setGenerationError(null);
+  
+    try {
+      const response = await fetch('/api/generate-weekly-coaching', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, weekId })
+      });
+  
+      const data = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(data.error || 'Generation failed');
+      }
+  
+      // Reload coaching after generation
+      await loadCoaching();
+  
+    } catch (error: any) {
+      console.error('Generation failed:', error);
+      setGenerationError(error.message || 'Failed to generate coaching');
+    } finally {
+      setGenerating(false);
+    }
+  };
   const toggleSection = (section: string) => {
     setExpandedSections(prev => {
       const next = new Set(prev);
@@ -137,18 +191,33 @@ export default function CoachPage() {
               ← Dashboard
             </button>
           </div>
-
-          <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-8 text-center space-y-3">
+  
+          <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-8 text-center space-y-4">
             <div className="text-4xl mb-4">📊</div>
-            <p className="text-white font-semibold text-lg">No coaching available yet</p>
+            <p className="text-white font-semibold text-lg">Weekly Coaching Available</p>
             <p className="text-white/60 text-sm max-w-md mx-auto">
-              Complete at least 4 check-ins this week and reach 10 total check-ins to unlock your first weekly coaching.
+              You've completed enough check-ins this week. Generate your personalized coaching to see what's working and what needs attention.
             </p>
+  
+            {generationError && (
+              <div className="bg-red-900/20 border border-red-800/50 rounded-lg p-3 text-red-300 text-sm">
+                {generationError}
+              </div>
+            )}
+  
+            <button
+              onClick={generateCoaching}
+              disabled={generating}
+              className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            >
+              {generating ? 'Generating...' : 'Generate This Week\'s Coaching'}
+            </button>
+  
             <button
               onClick={() => router.push("/dashboard")}
-              className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+              className="block mx-auto mt-4 text-white/60 hover:text-white text-sm transition-colors"
             >
-              Back to Dashboard
+              ← Back to Dashboard
             </button>
           </div>
         </div>
@@ -270,15 +339,17 @@ export default function CoachPage() {
           </motion.div>
         )}
 
-        {/* CALIBRATION TRIGGER BUTTON */}
-        <motion.div variants={itemVariants} className="mt-8">
-          <button
-            onClick={() => setShowCalibration(true)}
-            className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-          >
-            Help Nelson understand this week →
-          </button>
-        </motion.div>
+       {/* CALIBRATION TRIGGER BUTTON - Only show if not answered yet */}
+{!hasAnsweredCalibration && (
+  <motion.div variants={itemVariants} className="mt-8">
+    <button
+      onClick={() => setShowCalibration(true)}
+      className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+    >
+      Before you go, help me understand this week →
+    </button>
+  </motion.div>
+)}
 
         <div className="h-8" />
       </div>

@@ -36,6 +36,11 @@ export interface WeeklyConstraintSnapshot {
   trainingFrequency: number; // days with exercise this week
   avgBehaviorScore: number; // average of all foundation behaviors
   sleepConsistency: number; // % of days sleep was Solid or Elite
+  sleepAverage: number; // average sleep score
+  nutritionAverage: number; // average nutrition score (pattern + energy balance)
+  proteinAverage: number; // average protein score
+  hydrationAverage: number; // average hydration score
+  mindsetAverage: number; // average mindset score
   
   // Metadata
   derivedFrom: string; // date range analyzed
@@ -116,6 +121,58 @@ export async function deriveWeeklyConstraints(
   
   const sleepConsistency = sleepScores.filter(s => s >= 80).length / sleepScores.length;
   
+  const sleepAverage = sleepScores.length > 0
+    ? sleepScores.reduce((sum, grade) => sum + grade, 0) / sleepScores.length
+    : 0;
+  
+  // Calculate nutrition scores (pattern + energy balance)
+  const nutritionScores = checkins
+    .filter(c => c.behaviorGrades)
+    .flatMap(c => c.behaviorGrades.filter(b => 
+      b.name === 'nutrition_pattern' || b.name === 'energy_balance'
+    ))
+    .map(b => b.grade);
+  
+  const nutritionAverage = nutritionScores.length > 0
+    ? nutritionScores.reduce((sum, grade) => sum + grade, 0) / nutritionScores.length
+    : 0;
+  
+  // Calculate protein average
+  const proteinScores = checkins
+    .filter(c => c.behaviorGrades)
+    .map(c => {
+      const proteinGrade = c.behaviorGrades.find(b => b.name === 'protein');
+      return proteinGrade ? proteinGrade.grade : 0;
+    });
+  
+  const proteinAverage = proteinScores.length > 0
+    ? proteinScores.reduce((sum, grade) => sum + grade, 0) / proteinScores.length
+    : 0;
+  
+  // Calculate hydration average
+  const hydrationScores = checkins
+    .filter(c => c.behaviorGrades)
+    .map(c => {
+      const hydrationGrade = c.behaviorGrades.find(b => b.name === 'hydration');
+      return hydrationGrade ? hydrationGrade.grade : 0;
+    });
+  
+  const hydrationAverage = hydrationScores.length > 0
+    ? hydrationScores.reduce((sum, grade) => sum + grade, 0) / hydrationScores.length
+    : 0;
+  
+  // Calculate mindset average
+  const mindsetScores = checkins
+    .filter(c => c.behaviorGrades)
+    .map(c => {
+      const mindsetGrade = c.behaviorGrades.find(b => b.name === 'mindset');
+      return mindsetGrade ? mindsetGrade.grade : 0;
+    });
+  
+  const mindsetAverage = mindsetScores.length > 0
+    ? mindsetScores.reduce((sum, grade) => sum + grade, 0) / mindsetScores.length
+    : 0;
+  
   // Average of foundation behaviors (excluding mindset and bonus movement)
   const avgBehaviorScore = checkins.reduce((sum, c) => {
     if (!c.behaviorGrades || c.behaviorGrades.length === 0) return sum;
@@ -147,6 +204,11 @@ export async function deriveWeeklyConstraints(
     trainingFrequency,
     avgBehaviorScore,
     sleepConsistency,
+    sleepAverage,
+    nutritionAverage,
+    proteinAverage,
+    hydrationAverage,
+    mindsetAverage,
     derivedFrom: `${cutoffStr} to ${new Date().toISOString().split('T')[0]}`,
     generatedAt: new Date().toISOString()
   };
@@ -197,6 +259,58 @@ export async function deriveWeeklyConstraintsFromPattern(
       ? sleepScores.filter(s => s >= 80).length / sleepScores.length
       : 0;
     
+    const sleepAverage = sleepScores.length > 0
+      ? sleepScores.reduce((sum, grade) => sum + grade, 0) / sleepScores.length
+      : 0;
+    
+    // Calculate nutrition scores (pattern + energy balance)
+    const nutritionScores = checkins
+      .filter(c => c.behaviorGrades)
+      .flatMap(c => c.behaviorGrades.filter(b => 
+        b.name === 'nutrition_pattern' || b.name === 'energy_balance'
+      ))
+      .map(b => b.grade);
+    
+    const nutritionAverage = nutritionScores.length > 0
+      ? nutritionScores.reduce((sum, grade) => sum + grade, 0) / nutritionScores.length
+      : 0;
+    
+    // Calculate protein average
+    const proteinScores = checkins
+      .filter(c => c.behaviorGrades)
+      .map(c => {
+        const proteinGrade = c.behaviorGrades.find(b => b.name === 'protein');
+        return proteinGrade ? proteinGrade.grade : 0;
+      });
+    
+    const proteinAverage = proteinScores.length > 0
+      ? proteinScores.reduce((sum, grade) => sum + grade, 0) / proteinScores.length
+      : 0;
+    
+    // Calculate hydration average
+    const hydrationScores = checkins
+      .filter(c => c.behaviorGrades)
+      .map(c => {
+        const hydrationGrade = c.behaviorGrades.find(b => b.name === 'hydration');
+        return hydrationGrade ? hydrationGrade.grade : 0;
+      });
+    
+    const hydrationAverage = hydrationScores.length > 0
+      ? hydrationScores.reduce((sum, grade) => sum + grade, 0) / hydrationScores.length
+      : 0;
+    
+    // Calculate mindset average
+    const mindsetScores = checkins
+      .filter(c => c.behaviorGrades)
+      .map(c => {
+        const mindsetGrade = c.behaviorGrades.find(b => b.name === 'mindset');
+        return mindsetGrade ? mindsetGrade.grade : 0;
+      });
+    
+    const mindsetAverage = mindsetScores.length > 0
+      ? mindsetScores.reduce((sum, grade) => sum + grade, 0) / mindsetScores.length
+      : 0;
+    
       const avgBehaviorScore = checkins.reduce((sum, c) => {
         if (!c.behaviorGrades || c.behaviorGrades.length === 0) return sum;
         const grades = c.behaviorGrades.map(b => b.grade);
@@ -226,6 +340,11 @@ export async function deriveWeeklyConstraintsFromPattern(
       trainingFrequency,
       avgBehaviorScore,
       sleepConsistency,
+      sleepAverage,
+      nutritionAverage,
+      proteinAverage,
+      hydrationAverage,
+      mindsetAverage,
       derivedFrom: `${weekStart} to ${weekEnd}`,
       generatedAt: new Date().toISOString()
     };
@@ -395,6 +514,11 @@ function getDefaultSnapshot(): WeeklyConstraintSnapshot {
     trainingFrequency: 0,
     avgBehaviorScore: 0,
     sleepConsistency: 0,
+    sleepAverage: 0,
+    nutritionAverage: 0,
+    proteinAverage: 0,
+    hydrationAverage: 0,
+    mindsetAverage: 0,
     derivedFrom: "insufficient data",
     generatedAt: new Date().toISOString()
   };
@@ -412,6 +536,11 @@ export function formatWeeklyConstraintsForPrompt(snapshot: WeeklyConstraintSnaps
   
   lines.push(`Time capacity: ${snapshot.timeCapacity} (training ${snapshot.trainingFrequency} days recently)`);
   lines.push(`Recovery margin: ${snapshot.recoveryMargin} (sleep ${Math.round(snapshot.sleepConsistency * 100)}% consistent)`);
+  lines.push(`Sleep average: ${Math.round(snapshot.sleepAverage)}%`);
+  lines.push(`Nutrition average: ${Math.round(snapshot.nutritionAverage)}% (pattern + energy balance combined)`);
+  lines.push(`Protein average: ${Math.round(snapshot.proteinAverage)}%`);
+  lines.push(`Hydration average: ${Math.round(snapshot.hydrationAverage)}%`);
+  lines.push(`Mindset average: ${Math.round(snapshot.mindsetAverage)}%`);
   lines.push(`Current phase: ${snapshot.phaseSignal}`);
   lines.push(`Primary constraint: ${snapshot.dominantLimiter}`);
   

@@ -142,7 +142,7 @@ export default function DashboardDevTools({
   }}
   className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
 >
-  🧪 Test Pattern Detection
+  Test Pattern Detection
 </button>
 
            {/* Trigger Level-Up (5 of last 7 days) */}
@@ -192,7 +192,7 @@ export default function DashboardDevTools({
   }}
   className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
 >
-  🎯 Trigger Level-Up (5/7)
+  Trigger Level-Up (5/7)
 </button>
 <button
   onClick={async () => {
@@ -204,7 +204,7 @@ export default function DashboardDevTools({
   }}
   className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
 >
-  🧪 Test Vulnerability Map
+  Test Vulnerability Map
 </button>
             {/* Trigger Week 1 Recap */}
             <button
@@ -249,7 +249,7 @@ export default function DashboardDevTools({
               }}
               className="bg-blue-600 hover:bg-blue-700 text-white rounded-md py-1 text-sm"
             >
-              📊 Trigger Week 1 Recap
+              Trigger Week 1 Recap
             </button>
 
             {/* Clear Today's Check-In */}
@@ -280,7 +280,104 @@ export default function DashboardDevTools({
             >
               Clear Today's Check-In
             </button>
-
+{/* Create 10 Test Check-Ins */}
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    try {
+      const dates = [
+        '2026-01-24', '2026-01-25', '2026-01-26', '2026-01-27', '2026-01-28',
+        '2026-01-29', '2026-01-30', '2026-01-31', '2026-02-01', '2026-02-02'
+      ];
+      
+      const notes = [
+        'Felt good today, early morning walk',
+        'Struggled with late night snacking',
+        'Great workout, feeling strong',
+        'Tired but showed up',
+        'Pizza and drinks with friends',
+        'Back on track after weekend',
+        'Solid day across the board',
+        'Vacation eating caught up with me',
+        'Morning routine felt rushed',
+        'Energy was low but stayed consistent'
+      ];
+      
+      for (let i = 0; i < dates.length; i++) {
+        const date = dates[i];
+        
+        // Create momentum document with behaviorGrades (correct structure)
+        const behaviorGrades = [
+          { name: 'nutrition_pattern', grade: i % 4 === 0 ? 0 : (i % 3 === 0 ? 50 : 80) },
+          { name: 'energy_balance', grade: i % 5 === 0 ? 50 : 80 },
+          { name: 'protein', grade: 80 },
+          { name: 'hydration', grade: i % 4 === 0 ? 50 : 80 },
+          { name: 'sleep', grade: i % 3 === 0 ? 50 : 80 },
+          { name: 'mindset', grade: 80 },
+          { name: 'movement', grade: 80 }
+        ];
+        
+        const avgGrade = behaviorGrades.reduce((sum, b) => sum + b.grade, 0) / behaviorGrades.length;
+        
+        await setDoc(doc(db, "users", email, "momentum", date), {
+          date,
+          behaviorGrades,
+          momentumScore: 65 + (i * 2),
+          dailyScore: avgGrade,
+          currentStreak: i + 1,
+          exerciseCompleted: true,
+          checkinType: 'real',
+          totalRealCheckIns: i + 1,
+          note: notes[i],
+          accountAgeDays: i + 1,
+          createdAt: new Date().toISOString()
+        });
+      }
+      
+      // Set metadata
+      await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
+        firstCheckinDate: dates[0],
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+      
+      showToast({ message: "Created 10 test check-ins with CORRECT structure!", type: "success" });
+      setTimeout(() => window.location.reload(), 1000);
+      
+    } catch (err) {
+      console.error("Setup failed:", err);
+      showToast({ message: "Setup failed", type: "error" });
+    }
+  }}
+  className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
+>
+  10 Test Check-Ins
+</button>
+{/* Clear All Coaching */}
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    try {
+      const summariesSnap = await getDocs(collection(db, "users", email, "weeklySummaries"));
+      for (const d of summariesSnap.docs) {
+        await deleteDoc(d.ref);
+      }
+      
+      showToast({ message: "Cleared all coaching!", type: "success" });
+      setTimeout(() => window.location.reload(), 1000);
+      
+    } catch (err) {
+      console.error("Clear failed:", err);
+      showToast({ message: "Clear failed", type: "error" });
+    }
+  }}
+  className="bg-orange-600 hover:bg-orange-700 text-white rounded-md py-1 text-sm"
+>
+  🗑️ Clear All Coaching
+</button>
             {/* Fresh Start */}
             <button
               onClick={async () => {
@@ -336,7 +433,7 @@ export default function DashboardDevTools({
               }}
               className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
             >
-              🔄 Fresh Start
+              Fresh Start
             </button>
           </div>
         </details>

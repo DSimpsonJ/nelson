@@ -51,7 +51,13 @@ const BANNED_CLINICAL_LANGUAGE = [
   'recovery is being',
   'trajectory indicates',
   'data suggests',
-  'metrics indicate'
+  'metrics indicate',
+  '7/7 days',
+  '7/7',
+  'x/x days',
+  'within 2-3 weeks',
+  'within two weeks',
+  'within 2 weeks'
 ] as const;
 
 /**

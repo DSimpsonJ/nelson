@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import { CALIBRATION_QUESTIONS, ForceLevel, DragSource, StructuralState, GoalAlignment } from '@/app/services/weeklyCalibration';
+import SafetyModal from './SafetyModal';
 
 interface WeeklyCalibrationProps {
   weekId: string;
@@ -40,11 +41,17 @@ export function WeeklyCalibrationFlow({ weekId, onComplete, onSkip }: WeeklyCali
   ];
 
   const currentQuestion = questions[currentStep];
+  const [showSafetyModal, setShowSafetyModal] = useState(false);
 
   const handleAnswer = (value: string) => {
     const newAnswers = { ...answers, [currentQuestion.key]: value };
     setAnswers(newAnswers);
-
+  
+    // Check if user flagged "something is wrong"
+    if (currentQuestion.key === 'structuralState' && value === 'something_wrong') {
+      setShowSafetyModal(true);
+    }
+  
     if (currentStep < questions.length - 1) {
       // Move to next question
       setCurrentStep(currentStep + 1);
@@ -66,7 +73,7 @@ export function WeeklyCalibrationFlow({ weekId, onComplete, onSkip }: WeeklyCali
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white">
-            Before you go, help Nelson understand this week better
+            Let's perform a quick alignment check:
           </h2>
           {onSkip && (
             <button
@@ -111,6 +118,7 @@ export function WeeklyCalibrationFlow({ weekId, onComplete, onSkip }: WeeklyCali
             </button>
           ))}
         </div>
+        
       </div>
 
       {/* Navigation */}
@@ -122,9 +130,16 @@ export function WeeklyCalibrationFlow({ weekId, onComplete, onSkip }: WeeklyCali
           ← Back
         </button>
       )}
+
+      {/* Safety Modal */}
+      <SafetyModal 
+        isOpen={showSafetyModal} 
+        onClose={() => setShowSafetyModal(false)} 
+      />
     </div>
   );
 }
+
 
 /**
  * Wrapper component that handles save logic

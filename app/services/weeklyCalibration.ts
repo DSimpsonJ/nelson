@@ -54,38 +54,38 @@ export interface WeeklyCalibration {
 
 export const CALIBRATION_QUESTIONS = {
   force: {
-    text: "This week, your exercise mostly felt like...",
+    text: "This week, exercise was mostly...",
     options: [
-      { value: 'just_enough', label: "Just enough to keep momentum alive" },
-      { value: 'steady_push', label: "A steady, repeatable push" },
-      { value: 'deliberate_shove', label: "An intentional push beyond baseline" }
+      { value: 'just_enough', label: "Just doing the minimum" },
+      { value: 'steady_push', label: "Steady and consistent" },
+      { value: 'deliberate_shove', label: "Pushing harder than usual" }
     ]
   },
   drag: {
-    text: "What created the most drag this week?",
+    text: "What (if anything) made this week more difficult?",
     options: [
-      { value: 'time_logistics', label: "Time and logistics" },
-      { value: 'recovery_energy', label: "Recovery and energy" },
-      { value: 'mental_stress', label: "Mental load and stress" },
-      { value: 'none', label: "Nothing significant" }
+      { value: 'time_logistics', label: "Time and scheduling" },
+      { value: 'recovery_energy', label: "Low energy or poor recovery" },
+      { value: 'mental_stress', label: "Stress or mental overload" },
+      { value: 'none', label: "It was a good week" }
     ]
   },
   structure: {
-    text: "How did your body handle the load?",
+    text: "Overall, how did your body feel?",
     options: [
-      { value: 'solid', label: "Solid" },
-      { value: 'stressed_holding', label: "Stressed but holding" },
-      { value: 'warning_signs', label: "Warning signs" },
-      { value: 'something_wrong', label: "Something's wrong" }
+      { value: 'solid', label: "Good to great" },
+      { value: 'stressed_holding', label: "A bit worn down, but good enough" },
+      { value: 'warning_signs', label: "I noticed some warning signs" },
+      { value: 'something_wrong', label: "Something is wrong" }
     ]
   },
   goal: {
-    text: "Right now, does your main goal still feel like the right downhill direction?",
+    text: "About your current goal...",
     options: [
-      { value: 'clear_steady', label: "Yes, clear and steady" },
-      { value: 'mostly_less_urgent', label: "Mostly, but less urgent" },
-      { value: 'not_really', label: "Not really" },
-      { value: 'not_sure', label: "I'm not sure" }
+      { value: 'clear_steady', label: "It still feels right" },
+      { value: 'mostly_less_urgent', label: "It still matters, but not as much" },
+      { value: 'not_really', label: "I'm not sure anymore" },
+      { value: 'not_sure', label: "I need a change" }
     ]
   }
 } as const;
