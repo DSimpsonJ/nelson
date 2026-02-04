@@ -255,10 +255,6 @@ Your previous output was rejected. Please correct these specific violations and 
 
 Your job is to identify the single dominant tension currently limiting this user's momentum.
 
-# PRIMARY OBJECTIVE
-
-Your job is to identify the single dominant tension currently limiting this user's momentum.
-
 NOT: "Explain what happened this week"
 YES: "Surface the non-obvious constraint this pattern reveals"
 
@@ -452,27 +448,46 @@ Respond with valid JSON in this exact structure:
 
 OUTPUT STRUCTURE:
 
+LEAD WITH DATA, NOT NARRATIVE (CRITICAL):
+Pattern MUST show actual behavioral averages, not just narrative from notes.
+
+REQUIRED DATA IN PATTERN:
+- Mention at least 2 behavioral category averages with percentages
+  Examples: "Nutrition averaged 73%", "Sleep held at 76%", "Hydration struggled at 67%"
+- Show the pattern in the numbers: "mid-week dip then Elite finish", "steady all week", "inconsistent 50-80 range"
+- ONLY AFTER stating data → reference notes to explain WHY
+- Format: Data (what happened) → Pattern (how it unfolded) → Notes (why)
+
+EXAMPLES OF CORRECT DATA USAGE:
+✅ "Nutrition averaged 73% with a mid-week dip (50s on 3 consecutive days) before rebounding to Elite. Your vacation note explains the pattern."
+✅ "Sleep held steady at 76% after a rocky start, while hydration struggled at 67% through the same mid-week stretch."
+❌ "Your notes reveal vacation eating created a disconnect" (no data, just narrative)
+❌ "Momentum is holding steady despite consistent effort" (vague, no specific averages)
+
 ## ACKNOWLEDGMENT + PATTERN (Combined: 2-3 sentences)
 
 First sentence: Call out the standout win.
 - If Elite performance exists (grade 100 all 7 days), name it specifically
 - If no Elite, acknowledge best consistency or improvement
 
-Then: Show the behavioral data.
+Second sentence: Show the behavioral data with specific averages.
 - Check-ins completed, exercise days, momentum score
-- Anchor to TWO specific numbers from evidence
+- At least 2 behavioral category averages (Nutrition X%, Sleep Y%, Hydration Z%)
+- Show the pattern: "mid-week dip", "steady all week", "improving trajectory"
 
-Then: Introduce the contrast or constraint.
-- Elite sleep but flat momentum â†’ nutrition is the gap
-- Perfect exercise but low energy â†’ sleep or nutrition issue
+Third sentence: Introduce the contrast or constraint.
+- Reference notes ONLY to explain the data pattern, not replace it
+- Elite sleep but flat momentum → nutrition is the gap
+- Perfect exercise but low energy → sleep or nutrition issue
 
 Example:
-"Elite sleep all 7 nights is directly supporting your long-term health goal. You checked in every day and exercised 6/7 days, maintaining 68% momentum. However, the ice cream pattern you mentioned is creating a disconnect between effort and results."
+"Mindset stayed solid at 80% all week, supporting consistency. Nutrition averaged 73% with mid-week struggle (50s for 3 days) before rebounding to Elite, while hydration dipped to 67% through the same stretch. Your notes about vacation eating explain the mid-week pattern."
 
 REQUIREMENTS:
 - FIRST SENTENCE must acknowledge what went well or stayed consistent
+- SECOND SENTENCE must include at least 2 behavioral averages with percentages
 - If Elite performance exists, name it specifically
-- Then show contrast (effort vs outcome, before vs after, stable vs drifting)
+- Show contrast using data (effort vs outcome, before vs after, stable vs drifting)
 - Use natural language: "every day" not "7/7 days", "all 7 days" not "7/7"
 - Anchor to at least TWO specific numbers from evidence (exact values required, phrasing can vary):
 ${pattern.evidencePoints.map((e, i) => `  ${i + 1}. "${e}"`).join('\n')}
@@ -480,14 +495,16 @@ ${pattern.evidencePoints.map((e, i) => `  ${i + 1}. "${e}"`).join('\n')}
 - NO interpretation yet, just orientation
 
 ALLOWED:
-âœ… "You exercised every day this week"
-âœ… "Exercise stayed consistent all 7 days"
-âœ… "Momentum held at 71% despite disruption"
+✅ "You exercised every day this week"
+✅ "Exercise stayed consistent all 7 days"
+✅ "Momentum held at 71% despite disruption"
+✅ "Nutrition averaged 73%", "Sleep held at 76%"
 
 FORBIDDEN:
-âŒ "7/7 days" or "x/x" notation
-âŒ "This means recovery is limiting you"
-âŒ "The drop shows you're overreaching"
+❌ "7/7 days" or "x/x" notation
+❌ "This means recovery is limiting you"
+❌ "The drop shows you're overreaching"
+❌ "Your notes reveal X created a disconnect" (without stating data first)
 
 ## 2. THE TENSION (2-3 sentences)
 
