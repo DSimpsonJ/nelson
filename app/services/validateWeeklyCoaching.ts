@@ -48,7 +48,6 @@ const BANNED_TONE_PHRASES = [
   'system is',
   'system was',
   'the data',
-  'the pattern',
   'this reflects',
   'this signals'
 ] as const;
@@ -249,8 +248,8 @@ const evidenceNumbers = pattern.evidencePoints
 
 const patternNumbers = coaching.pattern.match(/\d+/g);
 
-// Only validate if we have numbers to check
-if (evidenceNumbers && patternNumbers) {
+// Only validate if we have evidence numbers AND pattern numbers
+if (evidenceNumbers && evidenceNumbers.length > 0 && patternNumbers && patternNumbers.length > 0) {
   const matchingNumbers = evidenceNumbers.filter((num: string) =>
     patternNumbers.includes(num)
   ).length;
@@ -258,11 +257,18 @@ if (evidenceNumbers && patternNumbers) {
   if (matchingNumbers < 2) {
     errors.push({
       rule: 'evidence_anchoring',
-      message: `Pattern must include at least TWO specific numbers from evidence. Found: ${matchingNumbers}`,
+      message: `Pattern must include at least TWO specific numbers from evidence. Found: ${matchingNumbers}. Evidence available: ${evidenceNumbers.join(', ')}`,
       field: 'pattern'
     });
   }
+} else {
+  // Debug: log when evidence points are empty
+  console.log('[Validation] Evidence points empty or no numbers in pattern:', {
+    evidencePoints: pattern.evidencePoints,
+    patternHasNumbers: !!patternNumbers
+  });
 }
+
   
     return errors;
   }
@@ -402,8 +408,6 @@ function validateFocusTone(coaching: WeeklyCoachingOutput): ValidationError[] {
   const metaLanguage = [
     'system',
     'the system',
-    'pattern',
-    'this pattern',
     'momentum score',
     'data',
     'metrics',

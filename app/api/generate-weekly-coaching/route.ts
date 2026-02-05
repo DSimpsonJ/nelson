@@ -501,8 +501,8 @@ ALLOWED:
 ✅ "Nutrition averaged 73%", "Sleep held at 76%"
 
 FORBIDDEN:
-❌ "7/7 days" or "x/x" notation
-❌ "This means recovery is limiting you"
+❌ "7/7 days" or "x/x" notation - NEVER USE FRACTIONS OR RATIOS
+❌ Write "all 7 days" or "every day" or "almost every day" or "most days" or "some days" or "few days" or "on occassion"
 ❌ "The drop shows you're overreaching"
 ❌ "Your notes reveal X created a disconnect" (without stating data first)
 
