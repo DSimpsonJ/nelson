@@ -315,15 +315,15 @@ DECISION TREE:
 4. If no → ignore all notes and coach on the data
 
 WHEN TO IGNORE NOTES ENTIRELY:
-- Note mentions specific food (ice cream, pizza) BUT nutrition averaged 80+% → Ignore food mention completely
+- Note mentions specific food (dessert, takeout) BUT nutrition averaged 80+% → Ignore food mention completely
 - Note says "I need to exercise more" BUT movement is 6/7 days → Ignore, that's not the problem
 - Note says "sleep was bad" BUT sleep averaged 85%+ → Ignore, that's perception not reality
 - ANY time a note complains about something the data shows is actually solid
 
 WHEN TO USE NOTES:
-- Sleep 54%, note: "morning routine felt rushed" → YES, explains mechanism
+- Sleep 54%, note: "timing felt rushed" → YES, explains mechanism
 - Sleep 54%, note: "energy was low but stayed consistent" → YES, shows impact
-- Nutrition 45%, note: "ate ice cream every night" → YES, aligns with data
+- Nutrition 45%, note: "struggled with evening eating" → YES, aligns with data
 - ANY time a note explains or deepens what the data already shows
 
 WHERE TO USE NOTES:
@@ -336,14 +336,14 @@ Proceed as if no notes exist. Do not mention the notes. Coach on the actual cons
 
 SPECIFIC FOOD MENTION RULE:
 If user mentions a specific food AND that category is 80+%, you MUST acknowledge the disconnect:
-"Your notes mention ice cream, but nutrition averaged 81% this week - solid performance. The constraint isn't food choices."
+"Your notes mention [specific food], but nutrition averaged 81% this week - solid performance. The constraint isn't food choices."
 Then coach on the ACTUAL constraint (sleep, consistency, etc).
 ` : `
 No notes provided this week.
 
 This is normal and expected. Do NOT say "context is inferred from behavior alone."
 Instead, if the pattern suggests disruption, acknowledge the absence:
-"There's no note explaining the weekend dip, but the timing and sleep variance suggest schedule or social disruption rather than loss of intent."
+"There's no note explaining the mid-week dip, but the timing and behavior variance suggest schedule disruption rather than loss of intent."
 
 Make the absence of notes informative, not a limitation.
 `}
@@ -459,7 +459,7 @@ REQUIRED DATA IN PATTERN:
 - Format: Data (what happened) → Pattern (how it unfolded) → Notes (why)
 
 EXAMPLES OF CORRECT DATA USAGE:
-✅ "Nutrition averaged 73% with a mid-week dip (50s on 3 consecutive days) before rebounding to Elite. Your vacation note explains the pattern."
+✅ "Nutrition averaged 73% with a mid-week dip (50s on 3 consecutive days) before rebounding to Elite. Your notes explain the pattern."
 ✅ "Sleep held steady at 76% after a rocky start, while hydration struggled at 67% through the same mid-week stretch."
 ❌ "Your notes reveal vacation eating created a disconnect" (no data, just narrative)
 ❌ "Momentum is holding steady despite consistent effort" (vague, no specific averages)
@@ -481,7 +481,7 @@ Third sentence: Introduce the contrast or constraint.
 - Perfect exercise but low energy → sleep or nutrition issue
 
 Example:
-"Mindset stayed solid at 80% all week, supporting consistency. Nutrition averaged 73% with mid-week struggle (50s for 3 days) before rebounding to Elite, while hydration dipped to 67% through the same stretch. Your notes about vacation eating explain the mid-week pattern."
+"Mindset stayed solid at 80% all week, supporting consistency. Nutrition averaged 73% with mid-week struggle (50s for 3 days) before rebounding to Elite, while hydration dipped to 67% through the same stretch. Your notes explain the mid-week pattern."
 
 REQUIREMENTS:
 - FIRST SENTENCE must acknowledge what went well or stayed consistent
@@ -535,7 +535,7 @@ ANTI-REDUNDANCY:
 - Each section introduces NEW information
 
 EXAMPLES:
-✅ "Inconsistent sleep is creating a recovery debt that accumulates faster than your body clears it. Your notes about rushed mornings and low energy reveal the timing disruption."
+✅ "Inconsistent sleep is creating a recovery debt that accumulates faster than your body clears it. Your notes reveal the timing disruption."
 ✅ "This pattern breaks the connection between nutrition timing and energy availability. Evening choices create morning deficits that cascade through the day."
 
 ❌ "Sleep disruption is preventing your body from adapting to the training load" (outcome language)
@@ -567,7 +567,7 @@ POSITIVITY REQUIREMENTS (CRITICAL):
 - End on forward momentum, not warning.  Be encouraging.
 
 FORBIDDEN:
-❌ Re-explaining the ice cream pattern
+❌ Re-explaining the specific constraint already named
 ❌ "You're doing X consistently" (already stated in Pattern)
 ❌ "The constraint is Y" (already stated in Tension)
 ❌ Re-describing the mechanism
@@ -575,8 +575,7 @@ FORBIDDEN:
 ❌ Mentioning or referencing user notes (notes explain mechanism, this section is about stakes)
 
 ANTI-REDUNDANCY:
-- If you used specific phrases in Pattern or Tension (ice cream, evening nutrition, sleep timing),
-  do NOT repeat them verbatim here
+- If you used specific phrases in Pattern or Tension (specific foods, timing issues, behavioral patterns),
 - Reference indirectly: "If this stays unresolved", "Address it", "This one pattern"
 - Focus on consequence and unlock, not re-explaining the mechanism
 
