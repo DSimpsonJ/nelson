@@ -21,9 +21,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { doc, setDoc, getDoc, Timestamp, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import Anthropic from '@anthropic-ai/sdk';
-import { deriveUserConstraints, formatConstraintsForPrompt } from '@/app/services/deriveUserConstraints';
 import { deriveWeeklyConstraintsFromPattern, deriveWeeklyConstraints, formatWeeklyConstraintsForPrompt } from '@/app/services/deriveWeeklyConstraints';
 import { getOrCreateVulnerabilityMap, formatVulnerabilityForPrompt } from '@/app/services/vulnerabilityMap';
+import { deriveProgressionType, ProgressionResult } from '@/app/services/deriveProgressionType';
 // Types
 import {
   GenerateWeeklyCoachingRequest,
@@ -42,6 +42,7 @@ import { detectWeeklyPattern } from '@/app/services/detectWeeklyPattern';
 import { patternFixtures } from '@/app/services/fixtures/weeklyPatterns';
 import { getPreviousWeekCalibration, formatCalibrationForPrompt } from '@/app/services/weeklyCalibration';
 import { checkLanguageBeforeValidation } from '@/app/services/languageEnforcement';
+import { deriveUserConstraints, formatConstraintsForPrompt } from '@/app/services/deriveUserConstraints';
 
 // Import from your existing Firebase config
 import { db } from '@/app/firebase/config';
@@ -216,6 +217,8 @@ async function buildSystemPrompt(
   pattern: WeeklyPattern, 
   allowedFocusTypes: string[],
   performanceAcknowledgment: string,
+  progressionType: string,
+  progressionReason: string,
   userNotes?: string[], 
   previousErrors?: string[]
 ): Promise<string> {
@@ -453,16 +456,14 @@ Pattern MUST show actual behavioral averages, not just narrative from notes.
 
 REQUIRED DATA IN PATTERN:
 - Mention at least 2 behavioral category averages with percentages
-  Examples: "Nutrition averaged 73%", "Sleep held at 76%", "Hydration struggled at 67%"
-- Show the pattern in the numbers: "mid-week dip then Elite finish", "steady all week", "inconsistent 50-80 range"
+- Show the pattern in the numbers
 - ONLY AFTER stating data → reference notes to explain WHY
 - Format: Data (what happened) → Pattern (how it unfolded) → Notes (why)
 
-EXAMPLES OF CORRECT DATA USAGE:
-✅ "Nutrition averaged 73% with a mid-week dip (50s on 3 consecutive days) before rebounding to Elite. Your notes explain the pattern."
-✅ "Sleep held steady at 76% after a rocky start, while hydration struggled at 67% through the same mid-week stretch."
-❌ "Your notes reveal vacation eating created a disconnect" (no data, just narrative)
-❌ "Momentum is holding steady despite consistent effort" (vague, no specific averages)
+ANTI-PATTERNS - DO NOT DO THIS:
+❌ Do not summarize notes without first stating behavioral data
+❌ Do not explain causes that are not visible in the data
+❌ Do not use vague terms like "consistency" without specific percentages
 
 ## ACKNOWLEDGMENT + PATTERN (Combined: 2-3 sentences)
 
@@ -475,13 +476,10 @@ Second sentence: Show the behavioral data with specific averages.
 - At least 2 behavioral category averages (Nutrition X%, Sleep Y%, Hydration Z%)
 - Show the pattern: "mid-week dip", "steady all week", "improving trajectory"
 
-Third sentence: Introduce the contrast or constraint.
+Third sentence: Introduce the contrast or limiting factor.
 - Reference notes ONLY to explain the data pattern, not replace it
 - Elite sleep but flat momentum → nutrition is the gap
 - Perfect exercise but low energy → sleep or nutrition issue
-
-Example:
-"Mindset stayed solid at 80% all week, supporting consistency. Nutrition averaged 73% with mid-week struggle (50s for 3 days) before rebounding to Elite, while hydration dipped to 67% through the same stretch. Your notes explain the mid-week pattern."
 
 REQUIREMENTS:
 - FIRST SENTENCE must acknowledge what went well or stayed consistent
@@ -494,27 +492,25 @@ ${pattern.evidencePoints.map((e, i) => `  ${i + 1}. "${e}"`).join('\n')}
 - May include directional observation (momentum up/down, stable/changing) but NOT causality
 - NO interpretation yet, just orientation
 
-ALLOWED:
-✅ "You exercised every day this week"
-✅ "Exercise stayed consistent all 7 days"
-✅ "Momentum held at 71% despite disruption"
-✅ "Nutrition averaged 73%", "Sleep held at 76%"
-
 FORBIDDEN:
 ❌ "7/7 days" or "x/x" notation - NEVER USE FRACTIONS OR RATIOS
 ❌ Write "all 7 days" or "every day" or "almost every day" or "most days" or "some days" or "few days" or "on occassion"
 ❌ "The drop shows you're overreaching"
 ❌ "Your notes reveal X created a disconnect" (without stating data first)
 
+UNIQUENESS REQUIREMENT:
+Do not reuse sentence structure, metaphors, or framing from this user's prior weeks.
+Each coaching must feel fresh, not templated.
+
 ## 2. THE TENSION (2-3 sentences)
 
 What is actually happening right now.
 
-ROLE: Describe the mechanism creating this constraint in present tense.
+ROLE: Describe the mechanism creating this limitation in present tense.
 
 REQUIREMENTS:
 - Present tense only: "is creating", "is disrupting", "is breaking"
-- Use pronouns if Pattern already named specifics: "This constraint" not "Sleep timing"
+- Use pronouns if Pattern already named specifics: "This pattern" not "Sleep timing"
 - Integrate user notes as evidence of HOW the mechanism operates
 - Must be specific to THIS user (not generic wellness advice)
 
@@ -525,27 +521,18 @@ FORBIDDEN - OUTCOME LANGUAGE:
 ❌ Any phrase about what this stops or enables (that's Why This Matters)
 
 REQUIRED - MECHANISM LANGUAGE:
-✅ "is creating a recovery debt that accumulates with each session"
-✅ "is disrupting the adaptation cycle"
-✅ "breaks the connection between training and recovery"
-✅ "operates at inconsistent timing"
+- Use present tense action verbs: "is creating", "is disrupting", "breaks"
+- Describe HOW the constraint operates, not what it prevents
 
 ANTI-REDUNDANCY:
 - Don't repeat specific nouns from Pattern (use pronouns instead)
 - Each section introduces NEW information
 
-EXAMPLES:
-✅ "Inconsistent sleep is creating a recovery debt that accumulates faster than your body clears it. Your notes reveal the timing disruption."
-✅ "This pattern breaks the connection between nutrition timing and energy availability. Evening choices create morning deficits that cascade through the day."
-
-❌ "Sleep disruption is preventing your body from adapting to the training load" (outcome language)
-❌ "This creates a debt that exercise consistency can't overcome" (outcome language)
-
 TEST: Does this sentence describe WHAT'S HAPPENING or WHAT IT PREVENTS? If the latter, rewrite.
 
 ## 3. WHY THIS MATTERS (4-5 sentences)
 
-Why THIS constraint matters for YOU specifically.
+Why THIS limitation matters for YOU specifically.
 
 ROLE: Forward-looking personal consequence ONLY.
 - Answer: "What's at stake if this stays unresolved? What unlocks if addressed?"
@@ -567,12 +554,15 @@ POSITIVITY REQUIREMENTS (CRITICAL):
 - End on forward momentum, not warning.  Be encouraging.
 
 FORBIDDEN:
-❌ Re-explaining the specific constraint already named
+❌ Re-explaining the specific limitation already named
 ❌ "You're doing X consistently" (already stated in Pattern)
-❌ "The constraint is Y" (already stated in Tension)
+❌ "The limitation is Y" (already stated in Tension)
 ❌ Re-describing the mechanism
 ❌ "Moderate vulnerability zone" or technical backend language
 ❌ Mentioning or referencing user notes (notes explain mechanism, this section is about stakes)
+❌ "This single constraint" / "This one constraint" (overused connector phrase)
+❌ "Your body can handle [X]" (becoming templated reassurance - be more specific)
+❌ Using "constraint" in coaching output (use: gap, limitation, bottleneck, factor)
 
 ANTI-REDUNDANCY:
 - If you used specific phrases in Pattern or Tension (specific foods, timing issues, behavioral patterns),
@@ -580,53 +570,47 @@ ANTI-REDUNDANCY:
 - Focus on consequence and unlock, not re-explaining the mechanism
 
 STAKES-ONLY RULE (CRITICAL):
-Why This Matters describes CONSEQUENCES and UNLOCKS, NOT how the constraint operates.
+Why This Matters describes CONSEQUENCES and UNLOCKS, NOT how the limitation operates.
 FORBIDDEN MECHANISM WORDS:
 - "bottleneck", "leak", "debt", "acting as", "creating", "undermining", "disrupting"
-- Any description of HOW the constraint works (that's Tension's job)
+- Any description of HOW the limitation works (that's Tension's job)
+
 REQUIRED FOCUS:
 - What happens if unresolved (momentum stays flat, progress stalls)
 - What unlocks if addressed (acceleration, compounding, visible results)
 - Why THIS user specifically (not generic wellness advice)
 TEST: If the sentence could fit in Tension, it doesn't belong here.
 
-REQUIRED PHRASING:
-âœ… "If this stays unresolved, [specific consequence]"
-âœ… "If you address it, [specific unlock]"
-âœ… "This one pattern is holding back [specific thing]"
-âœ… Instead of "moderate vulnerability": just state why it matters for their goal
-
-EXAMPLES:
-âœ… "Address evening nutrition and your sleep and exercise finally compound into visible progress. Your recovery capacity isn't the constraint - nutrition is. That makes this simple: fix this one pattern and everything else you're doing pays off."
-âœ… "Your 6-day exercise rhythm is ready to produce results. The only thing holding it back is this nutrition pattern. Fix it, and momentum accelerates instead of maintaining. You're not stuck because of effort or capacity - just this one constraint."
-
 LITMUS TEST: Could I delete "Tension" and still feel the stakes? If NO, this section failed.
 
-## 4. WEEKLY FOCUS (1-2 sentences)
+## 4. WEEKLY PROGRESSION (1-2 sentences)
 
-The lever that addresses the tension.
+⚠️ PROGRESSION TYPE: ${progressionType.toUpperCase()}
+Reason: ${progressionReason}
+
+The directive for the next 7 days based on your current state.
+
+PROGRESSION TYPES:
+- ADVANCE: Move forward (increase intensity/frequency/commitment)
+  Examples: "Increase movement to 6 days/week", "Add protein focus at lunch", "Increase sleep target by 30 minutes"
+  
+- STABILIZE: Hold position (consolidate recent changes, time-boxed for 7 days)
+  Examples: "Hold at 5 days/week for one more week", "Maintain current sleep target while body adapts"
+  
+- SIMPLIFY: Back up (strategic retreat to rebuild foundation, not failure)
+  Examples: "Drop to 3 exercise days this week", "Focus only on sleep and hydration, let everything else coast"
 
 REQUIREMENTS:
-- Must be one of: PROTECT / HOLD / NARROW / IGNORE
-${allowedFocusTypes.length < 4 ? `- âš ï¸ CALIBRATION CONSTRAINT: Based on last week's answers, you MUST use one of: ${allowedFocusTypes.join(' OR ')}. Other options are FORBIDDEN and will cause validation failure.` : ''}
-- Directly addresses the tension identified above
-- States what NOT to change, add, or optimize
-- No action lists, no hedging
+- Use the progression type provided above (${progressionType.toUpperCase()})
+- Give ONE specific, actionable directive
+- No hedging ("consider", "try to", "maybe")
+- Frame as earned next step or strategic choice, not moral judgment
 
-Examples:
-âœ… "Protect your current exercise rhythm. Do not add behaviors or change your approach while sleep stabilizes."
-âœ… "Hold exercise steady at 6/7 days. The constraint is sleep timing, not effort volume."
-âœ… "Narrow focus to evening sleep prep only. Ignore momentum fluctuations as signals to change strategy."
-
-âŒ "Try to sleep more and keep exercising." (action list)
-âŒ "Consider focusing on recovery this week." (hedging)
-
-FORBIDDEN IN FOCUS (will cause validation rejection):
+FORBIDDEN IN PROGRESSION:
 - "system", "your system", "the system"
 - "pattern", "this pattern", "the pattern"
 - "data", "metrics", "score", "momentum score"
-- "reflects","indicates", "shows"
-- Any meta-language about measurement or analysis
+- Generic advice without specific behavior/target
 
 Write as if speaking directly to a person, not analyzing their data.
 
@@ -659,21 +643,9 @@ MANDATORY TONE RULES:
 - Consequences must be emotionally recognizable, not theoretically correct
 
 APPROVED ALTERNATIVES FOR BANNED PHRASES:
-Instead of "your system":
-  âœ… "your body"
-  âœ… "you"
-  âœ… "your recovery"
-  âœ… "what you're doing"
-
-Instead of "suggests" or "signals":
-  âœ… "means"
-  âœ… "shows"
-  âœ… "this is"
-
-Instead of "capacity ceiling":
-  âœ… "your limit"
-  âœ… "what you can handle"
-  âœ… "your recovery capacity"
+Instead of "your system" → use "your body", "you", "your recovery"
+Instead of "suggests" or "signals" → use "means", "shows", "this is"
+Instead of "capacity ceiling" → use "your limit", "what you can handle"
 
 ALLOWED AND ENCOURAGED:
 - Capacity, recovery, load, limits, tradeoffs
@@ -695,14 +667,14 @@ FORBIDDEN:
 
 Before submitting output, verify:
 
-âœ… Pattern section cites at least TWO specific data points
-âœ… Tension synthesizes at least TWO context layers (pattern + constraints/vulnerability/notes)
-âœ… Tension is specific to this user (would NOT apply to most users)
-âœ… If user notes exist, at least ONE is referenced
-âœ… If no notes exist, absence is used as signal (not stated as limitation)
-âœ… WhyThisMatters explains why this matters MORE for this user
-âœ… Focus is PROTECT/HOLD/NARROW/IGNORE (not action list)
-âœ… No banned phrases appear anywhere
+❌ Pattern section cites at least TWO specific data points
+❌ Tension synthesizes at least TWO context layers (pattern + constraints/vulnerability/notes)
+❌ Tension is specific to this user (would NOT apply to most users)
+❌ If user notes exist, at least ONE is referenced
+❌ If no notes exist, absence is used as signal (not stated as limitation)
+❌ WhyThisMatters explains why this matters MORE for this user
+❌ Focus is PROTECT/HOLD/NARROW/IGNORE (not action list)
+❌ No banned phrases appear anywhere
 
 FINAL CHECK:
 "Did this reframe how the user understands their situation?"
@@ -736,11 +708,11 @@ If Elite exists but is not mentioned, DO NOT SUBMIT. Regenerate with Elite ackno
 Before submitting output, verify:
 
 TENSION section:
-- âœ… Present tense only
-- âœ… Describes mechanism, NOT consequence
-- âœ… No "unlock" or "would" language
-- âŒ Does NOT repeat pattern description
-- âŒ Does NOT list what's working
+- Present tense only
+- Describes mechanism, NOT consequence
+- No "unlock" or "would" language
+- Does NOT repeat pattern description
+- Does NOT list what's working
 
 WHY THIS MATTERS section:
 - Forward-looking only
@@ -847,6 +819,12 @@ export async function POST(request: NextRequest) {
     console.log(`[Coaching] Pattern: ${pattern.primaryPattern}, canCoach: ${pattern.canCoach}`);
 // Fetch week data for performance detection
 let performance: { solidWeek: string[]; eliteWeek: string[] } = { solidWeek: [], eliteWeek: [] };
+let progressionResult: ProgressionResult = {
+  type: 'advance',
+  reason: 'Default progression - no data available',
+  triggers: []
+};
+
 if (!useFixture) {
   const { start, end } = pattern.dateRange;
   const momentumRef = collection(db, 'users', email, 'momentum');
@@ -862,6 +840,48 @@ if (!useFixture) {
   
   performance = detectSolidWeekPerformance(weekData);
   console.log(`[Coaching] Performance detected - Solid: ${performance.solidWeek.join(', ')}, Elite: ${performance.eliteWeek.join(', ')}`);
+// Derive progression type from week data
+  // Need previous week data for comparison
+  const prevWeekStart = new Date(pattern.dateRange.start);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const prevWeekEnd = new Date(pattern.dateRange.start);
+  prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
+  
+  const prevWeekQuery = query(
+    momentumRef,
+    where('date', '>=', prevWeekStart.toLocaleDateString('en-CA')),
+    where('date', '<=', prevWeekEnd.toLocaleDateString('en-CA')),
+    where('checkinType', '==', 'real'),
+    orderBy('date', 'asc')
+  );
+  const prevSnapshot = await getDocs(prevWeekQuery);
+  const previousWeekData = prevSnapshot.docs.map(doc => doc.data());
+  
+  try {
+    progressionResult = deriveProgressionType(
+      weekData as Array<{
+        date: string;
+        checkinType: 'real' | 'gap_fill';
+        exerciseCompleted: boolean;
+        behaviorGrades: Array<{ name: string; grade: number }>;
+        momentumScore: number;
+        dailyScore: number;
+      }>,
+      previousWeekData as Array<{
+        date: string;
+        checkinType: 'real' | 'gap_fill';
+        exerciseCompleted: boolean;
+        behaviorGrades: Array<{ name: string; grade: number }>;
+        momentumScore: number;
+        dailyScore: number;
+      }>
+    );
+    console.log(`[Coaching] Progression: ${progressionResult.type} - ${progressionResult.reason}`);
+    console.log(`[Coaching] Progression triggers:`, progressionResult.triggers);
+  } catch (error) {
+    console.error('[Coaching] Error deriving progression:', error);
+    // Keep default progression on error
+  }
 }
 
 // Build acknowledgment text
@@ -943,14 +963,18 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
         // Build prompt (include previous errors on retry)
 
 const allowedFocusTypes = deriveAllowedFocusTypes(prevCalibration);
+// Default progression for fixtures
+const progressionType = progressionResult.type;
+const progressionReason = progressionResult.reason;
 
 const systemPrompt = await buildSystemPrompt(
   email,
   pattern,
   allowedFocusTypes,
   performanceAcknowledgment,
+  progressionType,
+  progressionReason,
   userNotes.length > 0 ? userNotes : undefined,
-  previousErrors.length > 0 ? previousErrors : undefined
 );
 
         // Call Anthropic API

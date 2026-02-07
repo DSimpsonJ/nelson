@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, orderBy, limit, getDocs, Timestamp, doc, getDoc } from "firebase/firestore";
+import { collection, query, orderBy, limit, updateDoc, getDocs, Timestamp, doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
 import { motion } from "framer-motion";
 import { WeeklyCoachingOutput } from '@/app/types/weeklyCoaching';
 import { WeeklyCalibrationContainer } from '@/app/components/WeeklyCalibration';
+import { WeeklySummaryRecord } from "@/app/types/weeklyCoaching";
 
 // Types defined inline to avoid import issues
 type FocusType = 'protect' | 'hold' | 'narrow' | 'ignore';
@@ -21,16 +22,6 @@ interface WeeklyFocus {
   type: FocusType;
 }
 
-interface WeeklySummaryRecord {
-  weekId: string;
-  patternType: PatternType;
-  status: SummaryStatus;
-  coaching?: WeeklyCoachingOutput;
-  generatedAt: Timestamp | Date | any;
-  daysAnalyzed: number;
-  realCheckInsThisWeek: number;
-  totalLifetimeCheckIns: number;
-}
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -76,13 +67,24 @@ const [hasAnsweredCalibration, setHasAnsweredCalibration] = useState(false); // 
       const q = query(summariesRef, orderBy("generatedAt", "desc"), limit(5));
       const snapshot = await getDocs(q);
   
-      const summaries = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        generatedAt: doc.data().generatedAt
-      })) as WeeklySummaryRecord[];
+      const summaries: WeeklySummaryRecord[] = snapshot.docs.map(doc => doc.data() as WeeklySummaryRecord);
   
-      const current = summaries.find(s => s.status === "generated");
-      setCurrentWeek(current || null);
+      const current = summaries.find(s => s.status === "generated") as WeeklySummaryRecord | undefined;
+setCurrentWeek(current || null);
+
+// Mark coaching as viewed if it hasn't been viewed yet
+if (current && !current.viewedAt) {
+  try {
+    const coachingRef = doc(db, "users", email, "weeklySummaries", current.weekId);
+    await updateDoc(coachingRef, {
+      viewedAt: new Date().toISOString()
+    });
+    
+    console.log('[Coach] Marked coaching as viewed');
+  } catch (error) {
+    console.error('[Coach] Failed to mark as viewed:', error);
+  }
+}
   
       // Check if user already answered calibration for this week
       if (current) {

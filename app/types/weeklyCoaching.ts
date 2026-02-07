@@ -136,6 +136,9 @@ export interface WeeklySummaryRecord {
   
   /** Total lifetime check-ins at time of generation */
   totalLifetimeCheckIns: number;
+  
+  // ISO timestamp when user first viewed the coaching
+  viewedAt?: string; 
 }
 
 // ============================================================================

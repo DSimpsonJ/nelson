@@ -2,7 +2,9 @@
  * CoachAccess Component
  * 
  * Entry point to weekly coaching from dashboard.
- * Shows when coaching is available, stays subtle when not.
+ * Shows GREEN when new coaching available (Monday morning, unviewed)
+ * Shows BLUE when coaching has been viewed
+ * Shows GREY when insufficient check-ins
  */
 
 "use client";
@@ -27,8 +29,8 @@ function getCurrentWeekId(): string {
 }
 
 export default function CoachAccess({ userEmail, onNavigate }: CoachAccessProps) {
-  const [latestCoaching, setLatestCoaching] = useState<WeeklySummaryRecord | null>(null);
-  const [canGenerateNew, setCanGenerateNew] = useState(false);
+  const [currentWeekCoaching, setCurrentWeekCoaching] = useState<WeeklySummaryRecord | null>(null);
+  const [isNewCoaching, setIsNewCoaching] = useState(false); // Has coaching but not viewed
   const [totalCheckIns, setTotalCheckIns] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -40,38 +42,34 @@ export default function CoachAccess({ userEmail, onNavigate }: CoachAccessProps)
     if (!userEmail) return;
 
     try {
-      // Get user's total check-in count
-      const userDocRef = doc(db, "users", userEmail);
-      const userDoc = await getDoc(userDocRef);
-      const userData = userDoc.data();
-      
-   // Count check-ins from momentum collection (where they actually are)
-const momentumRef = collection(db, "users", userEmail, "momentum");
-const momentumSnapshot = await getDocs(momentumRef);
-// Only count documents with YYYY-MM-DD format (not currentFocus, etc.)
-const checkInCount = momentumSnapshot.docs.filter(
-  doc => doc.id.match(/^\d{4}-\d{2}-\d{2}$/)
-).length;
+      // Count check-ins from momentum collection
+      const momentumRef = collection(db, "users", userEmail, "momentum");
+      const momentumSnapshot = await getDocs(momentumRef);
+      // Only count documents with YYYY-MM-DD format (not currentFocus, etc.)
+      const checkInCount = momentumSnapshot.docs.filter(
+        doc => doc.id.match(/^\d{4}-\d{2}-\d{2}$/)
+      ).length;
       setTotalCheckIns(checkInCount);
 
-      // Get most recent coaching
-      const summariesRef = collection(db, "users", userEmail, "weeklySummaries");
-      const q = query(summariesRef, orderBy("generatedAt", "desc"), limit(1));
-      const snapshot = await getDocs(q);
-
+      // Get current week's coaching specifically
       const currentWeekId = getCurrentWeekId();
+      const currentWeekDocRef = doc(db, "users", userEmail, "weeklySummaries", currentWeekId);
+      const currentWeekDoc = await getDoc(currentWeekDocRef);
 
-      if (!snapshot.empty) {
-        const latest = snapshot.docs[0].data() as WeeklySummaryRecord;
-        if (latest.status === "generated") {
-          setLatestCoaching(latest);
+      if (currentWeekDoc.exists()) {
+        const coaching = currentWeekDoc.data() as WeeklySummaryRecord;
+        
+        if (coaching.status === "generated") {
+          setCurrentWeekCoaching(coaching);
           
-          // Can generate new if current week doesn't have coaching yet
-          setCanGenerateNew(latest.weekId !== currentWeekId && checkInCount >= 10);
+          // Check if user has viewed it yet
+          // If viewedAt doesn't exist or is null, it's new coaching
+          setIsNewCoaching(!coaching.viewedAt);
         }
       } else {
-        // No coaching exists at all
-        setCanGenerateNew(checkInCount >= 10);
+        // No coaching for current week
+        setCurrentWeekCoaching(null);
+        setIsNewCoaching(false);
       }
     } catch (error) {
       console.error("Failed to check coaching:", error);
@@ -82,19 +80,34 @@ const checkInCount = momentumSnapshot.docs.filter(
 
   if (loading) return null;
 
-  // No coaching ever generated, not enough check-ins
-  if (!latestCoaching && totalCheckIns < 10) {
+  // No coaching for current week + insufficient check-ins = grey locked state
+  if (!currentWeekCoaching && totalCheckIns < 6) {
     return (
       <div className="bg-slate-800/20 border border-slate-700/30 rounded-xl p-5 text-center">
-        <div className="text-2xl mb-2">🎯</div>
-        <p className="text-white/60 text-sm mb-1">Weekly coaching unlocks at 10 check-ins</p>
-        <p className="text-white/40 text-xs">Keep showing up to unlock your first coaching</p>
+        <div className="text-2xl mb-2">🔒</div>
+        <p className="text-white/60 text-sm mb-1">Weekly Coaching Locked</p>
+        <p className="text-white/40 text-xs">
+          Complete {6 - totalCheckIns} more check-ins this week to unlock coaching
+        </p>
       </div>
     );
   }
 
-  // Can generate new coaching this week
-  if (canGenerateNew) {
+  // No coaching for current week but has enough check-ins = show coming soon
+  if (!currentWeekCoaching && totalCheckIns >= 6) {
+    return (
+      <div className="bg-slate-800/20 border border-slate-700/30 rounded-xl p-5 text-center">
+        <div className="text-2xl mb-2">⏳</div>
+        <p className="text-white/60 text-sm mb-1">Coaching Generates Monday</p>
+        <p className="text-white/40 text-xs">
+          You've completed {totalCheckIns} check-ins - coaching will be ready Monday morning
+        </p>
+      </div>
+    );
+  }
+
+  // New coaching available (GREEN CARD)
+  if (isNewCoaching) {
     return (
       <button
         onClick={onNavigate}
@@ -106,7 +119,7 @@ const checkInCount = momentumSnapshot.docs.filter(
             <div>
               <div className="text-white font-semibold text-lg">New Coaching Available</div>
               <div className="text-white/60 text-xs">
-                Ready to generate this week's coaching
+                Tap to view this week's personalized assessment
               </div>
             </div>
           </div>
@@ -117,14 +130,14 @@ const checkInCount = momentumSnapshot.docs.filter(
 
         <div className="bg-green-900/30 rounded-lg p-3 border border-green-800/50">
           <p className="text-white/90 text-sm">
-            Tap to generate your personalized coaching based on this week's check-ins
+            Your weekly coaching is ready. Tap to see what's working and what needs attention.
           </p>
         </div>
       </button>
     );
   }
 
-  // Show most recent coaching (can still click to view)
+  // Coaching already viewed (BLUE CARD)
   return (
     <button
       onClick={onNavigate}
@@ -136,7 +149,7 @@ const checkInCount = momentumSnapshot.docs.filter(
           <div>
             <div className="text-white font-semibold text-lg">Weekly Coaching</div>
             <div className="text-white/60 text-xs">
-              {formatWeekId(latestCoaching?.weekId || "")}
+              {formatWeekId(currentWeekCoaching?.weekId || "")}
             </div>
           </div>
         </div>
@@ -145,13 +158,13 @@ const checkInCount = momentumSnapshot.docs.filter(
         </div>
       </div>
 
-      {latestCoaching?.coaching?.focus && (
+      {currentWeekCoaching?.coaching?.focus && (
         <div className="bg-blue-900/30 rounded-lg p-3 border border-blue-800/50">
           <div className="text-xs font-semibold text-blue-300 uppercase tracking-wide mb-1">
             This Week's Focus
           </div>
           <p className="text-white/90 text-sm leading-relaxed line-clamp-2">
-            {latestCoaching.coaching.focus.text}
+            {currentWeekCoaching.coaching.focus.text}
           </p>
         </div>
       )}
