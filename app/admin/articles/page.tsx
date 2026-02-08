@@ -11,8 +11,10 @@ export default function ArticleAdminPage() {
   const [content, setContent] = useState("");
   const [dayNumber, setDayNumber] = useState(1);
   const [format, setFormat] = useState<"read" | "watch">("read");
+  const [videoUrl, setVideoUrl] = useState("");
   const [status, setStatus] = useState("");
   const [deleteSlug, setDeleteSlug] = useState("");
+  
 
   const generateSlug = (title: string) => {
     return title
@@ -40,6 +42,7 @@ export default function ArticleAdminPage() {
         duration: "~60 sec",
         category,
         content: content.trim(),
+        videoUrl: videoUrl.trim() || null,
         releaseType: "drip",
         dayNumber,
         isPublished: true,
@@ -56,6 +59,7 @@ export default function ArticleAdminPage() {
         setSlug("");
         setTitle("");
         setContent("");
+        setVideoUrl("");
         setDayNumber(dayNumber + 1); // Auto-increment for next article
         setStatus("");
       }, 2000);
@@ -155,8 +159,8 @@ export default function ArticleAdminPage() {
               </select>
             </div>
 
-            {/* Format */}
-            <div>
+           {/* Format */}
+           <div>
               <label className="block text-sm font-medium mb-1">Format</label>
               <div className="flex gap-4">
                 <label className="flex items-center">
@@ -182,19 +186,39 @@ export default function ArticleAdminPage() {
               </div>
             </div>
 
-            {/* Content */}
-            <div>
-              <label className="block text-sm font-medium mb-1">Content</label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg h-64 font-mono text-sm"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Paste article content here. Line breaks will be preserved.
-              </p>
-            </div>
+            {/* Video URL - Only show if format is "watch" */}
+            {format === "watch" && (
+              <div>
+                <label className="block text-sm font-medium mb-1">YouTube Embed URL</label>
+                <input
+                  type="text"
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/embed/VIDEO_ID"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  required={format === "watch"}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Use the embed URL format. Get it from YouTube share → Embed.
+                </p>
+              </div>
+            )}
+
+            {/* Content - Only show if format is "read" */}
+            {format === "read" && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Content</label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg h-64 font-mono text-sm"
+                  required={format === "read"}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Paste article content here. Line breaks will be preserved.
+                </p>
+              </div>
+            )}
 
             {/* Submit */}
             <button
