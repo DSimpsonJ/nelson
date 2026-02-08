@@ -443,9 +443,9 @@ Respond with valid JSON in this exact structure:
   "pattern": "string",
   "tension": "string",
   "whyThisMatters": "string",
-  "focus": {
+  "progression": {
     "text": "string",
-    "type": "protect" | "hold" | "narrow" | "ignore"
+    "type": "advance" | "stabilize" | "simplify"
   }
 }
 
@@ -673,7 +673,7 @@ Before submitting output, verify:
 ❌ If user notes exist, at least ONE is referenced
 ❌ If no notes exist, absence is used as signal (not stated as limitation)
 ❌ WhyThisMatters explains why this matters MORE for this user
-❌ Focus is PROTECT/HOLD/NARROW/IGNORE (not action list)
+✓ Progression is ADVANCE/STABILIZE/SIMPLIFY (not action list)
 ❌ No banned phrases appear anywhere
 
 FINAL CHECK:

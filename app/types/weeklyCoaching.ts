@@ -14,11 +14,10 @@ import { Timestamp } from 'firebase/firestore';
 // PATTERN TYPES
 // ============================================================================
 
-export type FocusType = 
-  | 'protect'
-  | 'hold'
-  | 'narrow'
-  | 'ignore';
+export type ProgressionType = 
+  | 'advance'
+  | 'stabilize'
+  | 'simplify';
 
 export type PatternType = 
   | 'insufficient_data'
@@ -45,19 +44,29 @@ export type SummaryStatus =
 // AI COACHING OUTPUT
 // ============================================================================
 
-
+/**
+ * WeeklyProgression
+ * 
+ * One sentence directive for next 7 days.
+ * Required for all coached weeks.
+ */
+export interface WeeklyProgression {
+  /** The directive (max 280 chars, 2 sentences) */
+  text: string;
+  
+  /** Progression type */
+  type: ProgressionType;
+}
 /**
  * WeeklyFocus
  * 
  * One sentence directive for next 7 days.
  * Required for all coached weeks.
  */
+
 export interface WeeklyFocus {
   /** The directive (max 280 chars, 2 sentences) */
   text: string;
-  
-  /** Focus type */
-  type: FocusType;
 }
 /**
  * WeeklyCoachingOutput
@@ -77,8 +86,8 @@ export interface WeeklyCoachingOutput {
   /** Why this matters for this specific user (4-6 sentences) */
   whyThisMatters: string;
   
-  /** Weekly focus directive (PROTECT/HOLD/NARROW/IGNORE) */
-  focus: WeeklyFocus;  
+ /** Weekly progression directive (ADVANCE/STABILIZE/SIMPLIFY) */
+ progression: WeeklyProgression;  
 }
 
 // ============================================================================

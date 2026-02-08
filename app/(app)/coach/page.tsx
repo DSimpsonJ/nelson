@@ -11,11 +11,17 @@ import { WeeklyCalibrationContainer } from '@/app/components/WeeklyCalibration';
 import { WeeklySummaryRecord } from "@/app/types/weeklyCoaching";
 
 // Types defined inline to avoid import issues
+type ProgressionType = 'advance' | 'stabilize' | 'simplify';
 type FocusType = 'protect' | 'hold' | 'narrow' | 'ignore';
 type PatternType = 'insufficient_data' | 'building_foundation' | 'gap_disruption' | 
   'commitment_misaligned' | 'recovery_deficit' | 'effort_inconsistent' | 
   'variance_high' | 'momentum_decline' | 'building_momentum' | 'momentum_plateau';
 type SummaryStatus = 'generated' | 'skipped' | 'rejected';
+
+interface WeeklyProgression {
+  text: string;
+  type: ProgressionType;
+}
 
 interface WeeklyFocus {
   text: string;
@@ -288,11 +294,11 @@ if (current && !current.viewedAt) {
                 🎯 Weekly Focus
               </div>
               <div className="px-2 py-1 bg-blue-800/50 rounded text-xs font-medium text-blue-200 uppercase">
-                {coaching.focus.type}
+              {coaching.progression.type}
               </div>
             </div>
             <p className="text-white text-lg font-semibold leading-relaxed">
-              {coaching.focus.text}
+            {coaching.progression.text}
             </p>
           </div>
         </motion.div>
@@ -424,10 +430,10 @@ function HistoricalWeekCard({ week }: { week: WeeklySummaryRecord }) {
         <div className="px-4 pb-4 space-y-3 border-t border-slate-700/30 pt-3">
           <div className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-3">
             <div className="text-xs font-semibold text-blue-300 uppercase tracking-wide mb-1">
-              🎯 Focus • {week.coaching.focus.type}
+              🎯 Focus • {week.coaching.progression.type}
             </div>
             <p className="text-white/90 text-sm leading-relaxed">
-              {week.coaching.focus.text}
+            {week.coaching.progression.text}
             </p>
           </div>
 

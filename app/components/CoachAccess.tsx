@@ -158,13 +158,13 @@ export default function CoachAccess({ userEmail, onNavigate }: CoachAccessProps)
         </div>
       </div>
 
-      {currentWeekCoaching?.coaching?.focus && (
+      {currentWeekCoaching?.coaching?.progression && (
         <div className="bg-blue-900/30 rounded-lg p-3 border border-blue-800/50">
           <div className="text-xs font-semibold text-blue-300 uppercase tracking-wide mb-1">
             This Week's Focus
           </div>
           <p className="text-white/90 text-sm leading-relaxed line-clamp-2">
-            {currentWeekCoaching.coaching.focus.text}
+          {currentWeekCoaching.coaching.progression.text}
           </p>
         </div>
       )}
