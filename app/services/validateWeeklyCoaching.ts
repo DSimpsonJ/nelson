@@ -23,6 +23,7 @@ import {
     PATTERN_BANS,
     FocusType,
   } from '../types/weeklyCoaching';
+import { ProgressionType } from './deriveProgressionType';
 
   // ============================================================================
 // TONE ENFORCEMENT
@@ -179,11 +180,11 @@ const BANNED_TONE_PHRASES = [
       });
     }
   
-    if (!coaching.focus) {
+    if (!coaching.progression) {
       errors.push({
         rule: 'required_field',
         message: 'Focus is required',
-        field: 'focus'
+        field: 'progression'
       });
     }
   
@@ -290,7 +291,7 @@ if (evidenceNumbers && patternNumbers) {
       coaching.pattern,
       coaching.tension,
       coaching.whyThisMatters,
-      coaching.focus.text
+      coaching.progression.text
     ].join(' ').toLowerCase();
   
     const foundToneBans = BANNED_TONE_PHRASES.filter(phrase => 
@@ -351,7 +352,7 @@ function validateFocus(coaching: WeeklyCoachingOutput): ValidationError[] {
   const errors: ValidationError[] = [];
 
   // Focus is required
-  if (!coaching.focus) {
+  if (!coaching.progression) {
     errors.push({
       rule: 'missing_focus',
       message: 'Focus is required for all coached weeks'
@@ -360,30 +361,30 @@ function validateFocus(coaching: WeeklyCoachingOutput): ValidationError[] {
   }
 
   // Text is required
-  if (!coaching.focus.text || coaching.focus.text.trim().length === 0) {
+  if (!coaching.progression.text || coaching.progression.text.trim().length === 0) {
     errors.push({
       rule: 'empty_focus',
       message: 'Focus text cannot be empty',
-      field: 'focus'
+      field: 'progression'
     });
   }
 
   // Length limit
-  if (coaching.focus.text.length > 280) {
+  if (coaching.progression.text.length > 280) {
     errors.push({
       rule: 'focus_length',
       message: 'Focus exceeds 280 character limit',
-      field: 'focus'
+      field: 'progression'
     });
   }
 
   // Valid type
-  const validTypes: FocusType[] = ['protect', 'hold', 'narrow', 'ignore'];
-  if (!validTypes.includes(coaching.focus.type)) {
+  const validTypes: ProgressionType[] = ['advance', 'stabilize', 'simplify'];
+  if (!validTypes.includes(coaching.progression.type)) {
     errors.push({
       rule: 'invalid_focus_type',
       message: `Focus type must be one of: ${validTypes.join(', ')}`,
-      field: 'focus'
+      field: 'progression'
     });
   }
 
@@ -396,9 +397,9 @@ function validateFocus(coaching: WeeklyCoachingOutput): ValidationError[] {
 function validateFocusTone(coaching: WeeklyCoachingOutput): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  if (!coaching.focus) return errors;
+  if (!coaching.progression) return errors;
 
-  const lower = coaching.focus.text.toLowerCase();
+  const lower = coaching.progression.text.toLowerCase();
   const metaLanguage = [
     'system',
     'the system',
@@ -419,7 +420,7 @@ function validateFocusTone(coaching: WeeklyCoachingOutput): ValidationError[] {
     errors.push({
       rule: 'focus_meta_language',
       message: `Focus contains meta-language: ${foundMeta.join(', ')}. Must sound like direct coaching.`,
-      field: 'focus'
+      field: 'progression'
     });
   }
 

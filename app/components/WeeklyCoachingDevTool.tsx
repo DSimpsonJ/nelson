@@ -308,13 +308,13 @@ function SummaryDisplay({ summary }: { summary: WeeklySummaryRecord }) {
         </div>
       )}
        {/* Weekly Focus - Always at top */}
-    {summary.coaching && summary.coaching.focus && (
+    {summary.coaching && summary.coaching.progression && (
       <div className="bg-blue-900/30 border-2 border-blue-600 rounded-lg p-3 mb-3">
         <div className="text-xs font-semibold text-blue-300 mb-1 uppercase tracking-wide">
-          🎯 Weekly Focus • {summary.coaching.focus.type}
+          🎯 Weekly Focus • {summary.coaching.progression.type}
         </div>
         <div className="text-base font-semibold text-white leading-snug">
-          {summary.coaching.focus.text}
+          {summary.coaching.progression.text}
         </div>
       </div>
     )}

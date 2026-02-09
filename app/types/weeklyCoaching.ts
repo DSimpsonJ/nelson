@@ -20,6 +20,11 @@ export type FocusType =
   | 'narrow'
   | 'ignore';
 
+export type ProgressionType = 
+  | 'advance'
+  | 'stabilize'
+  | 'simplify';
+
 export type PatternType = 
   | 'insufficient_data'
   | 'building_foundation'
@@ -47,10 +52,23 @@ export type SummaryStatus =
 
 
 /**
- * WeeklyFocus
+ * WeeklyProgression
  * 
- * One sentence directive for next 7 days.
+ * Progression directive for next 7 days.
  * Required for all coached weeks.
+ */
+export interface WeeklyProgression {
+  /** The directive (max 280 chars, 1-2 sentences) */
+  text: string;
+  
+  /** Progression type */
+  type: ProgressionType;
+}
+
+/**
+ * WeeklyFocus (DEPRECATED - keeping for backward compatibility)
+ * 
+ * Old focus system. Use WeeklyProgression instead.
  */
 export interface WeeklyFocus {
   /** The directive (max 280 chars, 2 sentences) */
@@ -78,7 +96,7 @@ export interface WeeklyCoachingOutput {
   whyThisMatters: string;
   
   /** Weekly focus directive (PROTECT/HOLD/NARROW/IGNORE) */
-  focus: WeeklyFocus;  
+  progression: WeeklyProgression;
 }
 
 // ============================================================================

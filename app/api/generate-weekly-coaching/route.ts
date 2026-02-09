@@ -24,6 +24,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { deriveUserConstraints, formatConstraintsForPrompt } from '@/app/services/deriveUserConstraints';
 import { deriveWeeklyConstraintsFromPattern, deriveWeeklyConstraints, formatWeeklyConstraintsForPrompt } from '@/app/services/deriveWeeklyConstraints';
 import { getOrCreateVulnerabilityMap, formatVulnerabilityForPrompt } from '@/app/services/vulnerabilityMap';
+import { deriveProgressionType, ProgressionResult } from '@/app/services/deriveProgressionType';
 // Types
 import {
   GenerateWeeklyCoachingRequest,
@@ -42,6 +43,7 @@ import { detectWeeklyPattern } from '@/app/services/detectWeeklyPattern';
 import { patternFixtures } from '@/app/services/fixtures/weeklyPatterns';
 import { getPreviousWeekCalibration, formatCalibrationForPrompt } from '@/app/services/weeklyCalibration';
 import { checkLanguageBeforeValidation } from '@/app/services/languageEnforcement';
+import { detectDayOfWeekPatterns } from '@/app/services/detectDayOfWeekPatterns';
 
 // Import from your existing Firebase config
 import { db } from '@/app/firebase/config';
@@ -186,39 +188,18 @@ CRITICAL FOR momentum_decline:
 };
 
 // ============================================================================
-// FOCUS ELIGIBILITY (Calibration Constraints)
-// ============================================================================
-
-function deriveAllowedFocusTypes(calibration: any): string[] {
-  if (!calibration) return ['protect', 'hold', 'narrow', 'ignore'];
-  
-  const { structuralState } = calibration;
-  
-  // Warning signs = protection only
-  if (structuralState === 'warning_signs') {
-    return ['protect'];
-  }
-  
-  // Holding = no pushing
-  if (structuralState === 'holding') {
-    return ['protect', 'hold'];
-  }
-  
-  // Solid or building = full options
-  return ['protect', 'hold', 'narrow', 'ignore'];
-}
-
-// ============================================================================
 // PROMPT BUILDING
 // ============================================================================
 async function buildSystemPrompt(
   email: string,
-  pattern: WeeklyPattern, 
-  allowedFocusTypes: string[],
+  pattern: WeeklyPattern,
   performanceAcknowledgment: string,
+  progressionData?: { type: string; reason: string; triggers: string[] },
+  dayPatterns?: { hasSignificantPatterns: boolean; patterns: Array<{ behavior: string; pattern: string }> },
   userNotes?: string[], 
   previousErrors?: string[]
 ): Promise<string> {
+  
   const constraints = PATTERN_CONSTRAINTS[pattern.primaryPattern];
 
 // PHASE 3A: Onboarding context (starting point)
@@ -294,14 +275,8 @@ ${vulnerabilityContext}
 ${await (async () => {
   const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
   const calibrationText = formatCalibrationForPrompt(prevCalibration);
-  const allowedFocusTypes = deriveAllowedFocusTypes(prevCalibration);
   
-  let focusConstraint = '';
-  if (allowedFocusTypes.length < 4) {
-    focusConstraint = `\n\nâš ï¸ FOCUS CONSTRAINTS (REQUIRED):\nBased on last week's calibration, you MUST use one of these focus types: ${allowedFocusTypes.join(', ')}\n${allowedFocusTypes.length === 1 ? 'YOU MUST USE THIS FOCUS TYPE. No other options are allowed.' : ''}`;
-  }
-  
-  return calibrationText + focusConstraint;
+  return calibrationText;
 })()}
 
 ## User Notes This Week
@@ -444,9 +419,9 @@ Respond with valid JSON in this exact structure:
   "pattern": "string",
   "tension": "string",
   "whyThisMatters": "string",
-  "focus": {
+  "progression": {
     "text": "string",
-    "type": "protect" | "hold" | "narrow" | "ignore"
+    "type": "advance" | "stabilize" | "simplify"
   }
 }
 
@@ -586,26 +561,32 @@ EXAMPLES:
 
 LITMUS TEST: Could I delete "Tension" and still feel the stakes? If NO, this section failed.
 
-## 4. WEEKLY FOCUS (1-2 sentences)
+## 4. WEEKLY PROGRESSION (1-2 sentences)
 
-The lever that addresses the tension.
+${progressionData ? `DETECTED PROGRESSION TYPE: ${progressionData.type.toUpperCase()}
+
+You MUST use this progression type. The deterministic analysis has already decided the direction.` : 'Use the most appropriate progression type based on the evidence.'}
 
 REQUIREMENTS:
-- Must be one of: PROTECT / HOLD / NARROW / IGNORE
-${allowedFocusTypes.length < 4 ? `- âš ï¸ CALIBRATION CONSTRAINT: Based on last week's answers, you MUST use one of: ${allowedFocusTypes.join(' OR ')}. Other options are FORBIDDEN and will cause validation failure.` : ''}
-- Directly addresses the tension identified above
-- States what NOT to change, add, or optimize
-- No action lists, no hedging
+- Must be one of: ADVANCE / STABILIZE / SIMPLIFY
+- Directly addresses the tension and provides a clear direction
+- States the specific behavior or action to focus on
+- No hedging, no action lists
+
+TYPE DEFINITIONS:
+- ADVANCE: Push forward on behaviors showing solid consistency (80%+ average, no Off ratings). Example: increase exercise frequency, tighten nutrition timing.
+- STABILIZE: Consolidate current load before advancing. Maintain current frequency while improving consistency. Time-boxed phase.
+- SIMPLIFY: Strategic retreat to rebuild foundation. Reduce volume, protect recovery, reset expectations. Not failure - load management.
 
 Examples:
-âœ… "Protect your current exercise rhythm. Do not add behaviors or change your approach while sleep stabilizes."
-âœ… "Hold exercise steady at 6/7 days. The constraint is sleep timing, not effort volume."
-âœ… "Narrow focus to evening sleep prep only. Ignore momentum fluctuations as signals to change strategy."
+✓ ADVANCE: "Increase exercise to 6 days per week. Your 4-day pattern is solid at 85% consistency with strong recovery support."
+✓ STABILIZE: "Hold exercise at 4 days while you stabilize sleep consistency. The load is working but foundation needs consolidation."
+✓ SIMPLIFY: "Drop to 3 exercise days this week. Five Off ratings signal overextension - strategic retreat protects your foundation."
 
-âŒ "Try to sleep more and keep exercising." (action list)
-âŒ "Consider focusing on recovery this week." (hedging)
+✗ "Try to exercise more and sleep better." (vague action list)
+✗ "Consider focusing on recovery." (hedging)
 
-FORBIDDEN IN FOCUS (will cause validation rejection):
+FORBIDDEN (will cause validation rejection):
 - "system", "your system", "the system"
 - "pattern", "this pattern", "the pattern"
 - "data", "metrics", "score", "momentum score"
@@ -685,7 +666,7 @@ Before submitting output, verify:
 âœ… If user notes exist, at least ONE is referenced
 âœ… If no notes exist, absence is used as signal (not stated as limitation)
 âœ… WhyThisMatters explains why this matters MORE for this user
-âœ… Focus is PROTECT/HOLD/NARROW/IGNORE (not action list)
+✅ Progression is ADVANCE/STABILIZE/SIMPLIFY with specific direction
 âœ… No banned phrases appear anywhere
 
 FINAL CHECK:
@@ -702,6 +683,33 @@ ${pattern.evidencePoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
 Week ID: ${pattern.weekId}
 Days Analyzed: ${pattern.daysAnalyzed}
 Real Check-Ins This Week: ${pattern.realCheckInsThisWeek}
+
+${progressionData ? `
+  # PROGRESSION DIRECTIVE
+  
+  Type: ${progressionData.type.toUpperCase()}
+  Reason: ${progressionData.reason}
+  ${progressionData.triggers.length > 0 ? `
+  Triggers:
+  ${progressionData.triggers.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+  ` : ''}
+  
+  This progression type should inform your recommendations:
+  - ADVANCE: User is ready to increase difficulty/volume in behaviors showing consistency
+  - STABILIZE: User should consolidate current load before advancing further  
+  - SIMPLIFY: User needs strategic retreat to rebuild foundation
+  
+  ` : ''}${dayPatterns && dayPatterns.hasSignificantPatterns ? `
+  # DAY-OF-WEEK PATTERNS DETECTED
+  
+  The following behavioral patterns by day of week were detected:
+  ${dayPatterns.patterns.map((p, i) => `${i + 1}. ${p.behavior}: ${p.pattern}`).join('\n')}
+  
+  These patterns reveal WHEN the user struggles, not just that they struggle. Use this to make coaching more specific.
+  Example: Instead of "sleep is inconsistent", say "Sunday sleep drops to 35% while weekday sleep averages 68%"
+  
+  ` : ''}
+  Week ID: ${pattern.weekId}
 
 # MANDATORY PRE-GENERATION CHECK
 
@@ -831,6 +839,9 @@ export async function POST(request: NextRequest) {
     console.log(`[Coaching] Pattern: ${pattern.primaryPattern}, canCoach: ${pattern.canCoach}`);
 // Fetch week data for performance detection
 let performance: { solidWeek: string[]; eliteWeek: string[] } = { solidWeek: [], eliteWeek: [] };
+let progressionResult: ProgressionResult | undefined;
+let dayPatterns: { hasSignificantPatterns: boolean; patterns: any[] } | undefined;
+
 if (!useFixture) {
   const { start, end } = pattern.dateRange;
   const momentumRef = collection(db, 'users', email, 'momentum');
@@ -842,12 +853,37 @@ if (!useFixture) {
     orderBy('date', 'asc')
   );
   const snapshot = await getDocs(q);
-  const weekData = snapshot.docs.map(doc => doc.data());
+  const weekData = snapshot.docs.map(doc => doc.data()) as any;
   
   performance = detectSolidWeekPerformance(weekData);
   console.log(`[Coaching] Performance detected - Solid: ${performance.solidWeek.join(', ')}, Elite: ${performance.eliteWeek.join(', ')}`);
-}
 
+  // Derive progression type
+  const prevWeekStart = new Date(pattern.dateRange.start);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const prevWeekEnd = new Date(pattern.dateRange.start);
+  prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
+
+  const prevWeekQuery = query(
+    momentumRef,
+    where('date', '>=', prevWeekStart.toLocaleDateString('en-CA')),
+    where('date', '<=', prevWeekEnd.toLocaleDateString('en-CA')),
+    where('checkinType', '==', 'real'),
+    orderBy('date', 'asc')
+  );
+  const prevSnapshot = await getDocs(prevWeekQuery);
+  const previousWeekData = prevSnapshot.docs.map(doc => doc.data()) as any;
+
+  const progressionResult = deriveProgressionType(weekData, previousWeekData);
+  console.log(`[Coaching] Progression: ${progressionResult.type} - ${progressionResult.reason}`);
+
+  // Detect day-of-week patterns
+  const dayPatterns = detectDayOfWeekPatterns(weekData);
+  console.log('[Coaching] Day patterns:', {
+    hasPatterns: dayPatterns.hasSignificantPatterns,
+    patterns: dayPatterns.patterns.map(p => `${p.behavior}: ${p.pattern}`)
+  });
+}
 // Build acknowledgment text
 let performanceAcknowledgment = '';
 if (performance.eliteWeek.length > 0) {
@@ -924,15 +960,17 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
       console.log(`[Coaching] Generation attempt ${attempt}/${maxAttempts}`);
 
       try {
+        
         // Build prompt (include previous errors on retry)
 
-const allowedFocusTypes = deriveAllowedFocusTypes(prevCalibration);
+
 
 const systemPrompt = await buildSystemPrompt(
   email,
   pattern,
-  allowedFocusTypes,
   performanceAcknowledgment,
+  progressionResult,
+  dayPatterns,
   userNotes.length > 0 ? userNotes : undefined,
   previousErrors.length > 0 ? previousErrors : undefined
 );

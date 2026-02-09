@@ -286,11 +286,11 @@ const [hasAnsweredCalibration, setHasAnsweredCalibration] = useState(false); // 
                 🎯 Weekly Focus
               </div>
               <div className="px-2 py-1 bg-blue-800/50 rounded text-xs font-medium text-blue-200 uppercase">
-                {coaching.focus.type}
+                {coaching.progression.type}
               </div>
             </div>
             <p className="text-white text-lg font-semibold leading-relaxed">
-              {coaching.focus.text}
+              {coaching.progression.text}
             </p>
           </div>
         </motion.div>
@@ -422,10 +422,10 @@ function HistoricalWeekCard({ week }: { week: WeeklySummaryRecord }) {
         <div className="px-4 pb-4 space-y-3 border-t border-slate-700/30 pt-3">
           <div className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-3">
             <div className="text-xs font-semibold text-blue-300 uppercase tracking-wide mb-1">
-              🎯 Focus • {week.coaching.focus.type}
+              🎯 Focus • {week.coaching.progression.type}
             </div>
             <p className="text-white/90 text-sm leading-relaxed">
-              {week.coaching.focus.text}
+              {week.coaching.progression.text}
             </p>
           </div>
 
