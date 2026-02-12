@@ -243,27 +243,30 @@ const BANNED_TONE_PHRASES = [
   ): ValidationError[] {
     const errors: ValidationError[] = [];
   
-// Check if pattern section includes specific numbers from evidence
-const evidenceNumbers = pattern.evidencePoints
-  .join(' ')
-  .match(/\d+/g);
+    // Extract numbers from evidence points
+    const evidenceNumbers = pattern.evidencePoints
+      .join(' ')
+      .match(/\d+/g) || [];
 
-const patternNumbers = coaching.pattern.match(/\d+/g);
+    // Also accept numbers that commonly appear in coaching data:
+    // week-over-week deltas, behavioral averages, check-in counts.
+    // The scoped prompt gives the AI different numbers than the
+    // pattern evidence points (which may reference non-constraint
+    // behaviors the AI was told not to discuss).
+    const patternText = coaching.pattern;
+    const patternNumbers = patternText.match(/\d+/g) || [];
 
-// Only validate if we have numbers to check
-if (evidenceNumbers && patternNumbers) {
-  const matchingNumbers = evidenceNumbers.filter((num: string) =>
-    patternNumbers.includes(num)
-  ).length;
-
-  if (matchingNumbers < 1) {
-    errors.push({
-      rule: 'evidence_anchoring',
-      message: `Pattern must include at least TWO specific numbers from evidence. Found: ${matchingNumbers}`,
-      field: 'pattern'
-    });
-  }
-}
+    // Pass if the pattern section contains ANY specific number at all.
+    // The constraint alignment validator already ensures the AI is
+    // discussing the right behavior. This rule just confirms the AI
+    // is grounding its output in data rather than pure narrative.
+    if (patternNumbers.length === 0) {
+      errors.push({
+        rule: 'evidence_anchoring',
+        message: 'Pattern must include at least one specific number (percentage, delta, or count). Found: 0',
+        field: 'pattern'
+      });
+    }
   
     return errors;
   }
