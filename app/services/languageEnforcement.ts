@@ -7,7 +7,7 @@
  * Philosophy:
  * - No auto-translation (AI must learn to speak correctly)
  * - Hard rejects force regeneration
- * - Abstract noun without bodily/practical consequence → reject
+ * - Abstract noun without bodily/practical consequence â†’ reject
  * 
  * This runs BEFORE standard validation.
  */
@@ -36,6 +36,60 @@ const BANNED_ABSTRACT_NOUNS = [
   'bandwidth limitation',
   'execution failure',
   'adherence deficit'
+] as const;
+
+/**
+ * Harsh/judgmental language that frames struggles as catastrophes
+ * These make users feel judged rather than supported
+ */
+const BANNED_HARSH_LANGUAGE = [
+  'chaos',
+  'chaotic',
+  'collapse',
+  'collapsed',
+  'collapsing',
+  'disaster',
+  'crisis',
+  'catastrophe',
+  'catastrophic',
+  'terrible',
+  'awful',
+  'horrible',
+  'breaking down',
+  'falling apart',
+  'unraveling',
+  'spiraling',
+  'plummeting',
+  'cratering',
+  'tanking',
+  'derailed',
+  'derailing',
+  'out of control',
+  'losing control',
+  'completely off track',
+  'totally off',
+  'way off',
+  'nowhere near'
+] as const;
+
+/**
+ * Discouraging framings that undermine user confidence
+ * These suggest the user is failing rather than learning
+ */
+const BANNED_DISCOURAGING_FRAMINGS = [
+  'still struggling',
+  'continue to struggle',
+  'keep struggling',
+  'unable to maintain',
+  'failed to maintain',
+  'can\'t seem to',
+  'haven\'t been able to',
+  'keeps failing',
+  'keeps dropping',
+  'repeatedly',
+  'once again',
+  'yet again',
+  'same pattern'
 ] as const;
 
 /**
@@ -108,7 +162,97 @@ const APPROVED_ALTERNATIVES = {
     'what you can maintain',
     'your current limit',
     'where your body holds steady'
+  ],
+  'chaos': [
+    'inconsistent',
+    'scattered',
+    'variable'
+  ],
+  'collapse': [
+    'dropped',
+    'fell',
+    'declined',
+    'dipped'
+  ],
+  'disaster': [
+    'challenge',
+    'struggle',
+    'constraint'
+  ],
+  'breaking down': [
+    'needs reinforcement',
+    'needs support',
+    'requires attention'
+  ],
+  'falling apart': [
+    'loosening',
+    'slipping',
+    'becoming inconsistent'
+  ],
+  'still struggling': [
+    'nutrition dropped this week',
+    'nutrition needs attention',
+    'nutrition is the current focus'
+  ],
+  'unable to maintain': [
+    'nutrition dropped',
+    'consistency loosened',
+    'needs reinforcement'
+  ],
+  'failed to': [
+    'didn\'t hit',
+    'dropped below',
+    'needs work'
+  ],
+  'can\'t seem to': [
+    'nutrition needs attention',
+    'this behavior needs focus',
+    'this requires reinforcement'
+  ],
+  'keeps failing': [
+    'this behavior is inconsistent',
+    'this needs sustained focus',
+    'structure will help here'
+  ],
+  'repeatedly': [
+    'consistently',
+    'this pattern shows',
+    'data indicates'
   ]
+} as const;
+
+/**
+ * Supportive framing required for celebration-worthy performance
+ * 
+ * CRITICAL: Solid is success, not baseline. 80% execution is the target.
+ * Elite is exceptional, not expected.
+ * 
+ * ANY behavior hitting these thresholds deserves acknowledgment.
+ * There are only 6 graded behaviors - even ONE at Solid/Elite is worth celebrating.
+ */
+const CELEBRATION_TRIGGERS = {
+  solidWeek: {
+    threshold: '80%+ on ANY behavior (all 7 days)',
+    requiredTone: 'prominent acknowledgment - this is success',
+    philosophy: 'Solid = success. ANY behavior at 80%+ all week must be acknowledged.',
+    examples: [
+      'Solid performance on [behavior] - this is success',
+      '[Behavior] at 80%+ all week - you\'re hitting the target',
+      'This level of consistency on [behavior] is what builds momentum',
+      '80% execution on [behavior] - this is exactly what we\'re aiming for'
+    ]
+  },
+  eliteWeek: {
+    threshold: '100% on ANY behavior (all 7 days)',
+    requiredTone: 'strong celebration - exceptional performance',
+    philosophy: 'Elite is exceptional. ANY behavior at 100% all week deserves high praise.',
+    examples: [
+      'Elite performance on [behavior] - this is exceptional',
+      'Perfect execution on [behavior] - 100% all week',
+      'You nailed [behavior] completely - Elite level',
+      '100% on [behavior] is outstanding work'
+    ]
+  }
 } as const;
 
 // ============================================================================
@@ -127,19 +271,24 @@ interface LanguageEnforcementResult {
 }
 
 /**
- * Enforce body-first language across all coaching sections
+ * Enforce body-first language and supportive tone across all coaching sections
  */
 export function enforceBodyFirstLanguage(
-  coaching: WeeklyCoachingOutput
+  coaching: WeeklyCoachingOutput,
+  solidWeek: string[] = [],
+  eliteWeek: string[] = []
 ): LanguageEnforcementResult {
   
   const violations: LanguageViolation[] = [];
   
-  // Check each section
+  // Check each section for banned language
   violations.push(...checkSection(coaching.pattern, 'pattern'));
   violations.push(...checkSection(coaching.tension, 'tension'));
   violations.push(...checkSection(coaching.whyThisMatters, 'whyThisMatters'));
-  violations.push(...checkSection(coaching.focus.text, 'focus'));
+  violations.push(...checkSection(coaching.progression.text, 'focus'));
+  
+  // Check celebration tone (Solid = success)
+  violations.push(...checkCelebrationTone(coaching, solidWeek, eliteWeek));
   
   return {
     passed: violations.length === 0,
@@ -165,6 +314,35 @@ function checkSection(
         phrase,
         location,
         alternatives: (APPROVED_ALTERNATIVES as any)[phrase] || undefined
+      });
+    }
+  }
+  
+  // Check harsh/judgmental language
+  for (const phrase of BANNED_HARSH_LANGUAGE) {
+    if (lower.includes(phrase)) {
+      violations.push({
+        phrase,
+        location,
+        alternatives: (APPROVED_ALTERNATIVES as any)[phrase] || [
+          'Use neutral, supportive language',
+          'Frame as solvable challenge, not catastrophe'
+        ]
+      });
+    }
+  }
+  
+  // Check discouraging framings
+  for (const phrase of BANNED_DISCOURAGING_FRAMINGS) {
+    if (lower.includes(phrase)) {
+      violations.push({
+        phrase,
+        location,
+        alternatives: [
+          'Frame as data point, not pattern of failure',
+          'Use neutral observation: "nutrition dropped" not "still struggling"',
+          'Suggest capability: "needs attention" not "unable to maintain"'
+        ]
       });
     }
   }
@@ -246,6 +424,103 @@ function checkAbstractWithoutConsequence(
   return violations;
 }
 
+/**
+ * Check if coaching properly acknowledges Solid/Elite performance
+ * 
+ * CRITICAL PRINCIPLE: Solid = success, not just baseline
+ * - 80% execution is the target, not a consolation prize
+ * - Solid performance must be acknowledged BEFORE discussing constraints
+ * - Users should feel successful when they hit Solid
+ */
+function checkCelebrationTone(
+  coaching: WeeklyCoachingOutput,
+  solidWeek: string[],
+  eliteWeek: string[]
+): LanguageViolation[] {
+  
+  const violations: LanguageViolation[] = [];
+  
+  // If user hit Elite on ANY behavior, require strong celebration
+  if (eliteWeek.length >= 1) {
+    const hasEliteCelebration = 
+      /\b(elite|perfect|exceptional|nailed|outstanding|100%)\b/gi.test(coaching.pattern) ||
+      /\b(elite|perfect|exceptional|nailed|outstanding|100%)\b/gi.test(coaching.whyThisMatters);
+    
+    if (!hasEliteCelebration) {
+      violations.push({
+        phrase: 'Missing Elite celebration',
+        location: 'pattern',
+        alternatives: [
+          'Elite performance on ' + eliteWeek.join(', ') + ' - this is exceptional',
+          'Perfect execution on ' + eliteWeek.join(' and ') + ' - 100% all week',
+          '100% on ' + eliteWeek.join(', ') + ' is outstanding work'
+        ]
+      });
+    }
+  }
+  
+  // If user hit Solid on ANY behavior, require prominent acknowledgment
+  // SOLID IS SUCCESS - must be celebrated as such
+  if (solidWeek.length >= 1) {
+    const hasSolidAcknowledgment =
+      /\b(solid|consistent|success|target|hitting|80%)\b/gi.test(coaching.pattern) ||
+      /\b(solid|consistent|success|target|hitting|80%)\b/gi.test(coaching.whyThisMatters);
+    
+    if (!hasSolidAcknowledgment) {
+      violations.push({
+        phrase: 'Missing Solid acknowledgment - Solid is success',
+        location: 'pattern',
+        alternatives: [
+          'Solid performance on ' + solidWeek.join(', ') + ' - this is success',
+          'This is exactly what success looks like on ' + solidWeek.join(', '),
+          'You\'re hitting the target with ' + solidWeek.join(' and '),
+          '80% execution on ' + solidWeek.join(', ') + ' - this is what we\'re aiming for'
+        ]
+      });
+    }
+  }
+  
+  // Check for problem-first framing (constraint mentioned before acknowledgment)
+  // Pattern section should lead with what's working, then discuss constraint
+  const patternLower = coaching.pattern.toLowerCase();
+  const constraintWords = ['constraint', 'struggle', 'challenge', 'dropped', 'dipped', 'fell', 'inconsistent'];
+  const celebrationWords = ['solid', 'elite', 'success', 'hitting', 'consistent', 'working'];
+  
+  // Find first occurrence of constraint vs celebration words
+  let firstConstraintIndex = Infinity;
+  let firstCelebrationIndex = Infinity;
+  
+  for (const word of constraintWords) {
+    const index = patternLower.indexOf(word);
+    if (index !== -1 && index < firstConstraintIndex) {
+      firstConstraintIndex = index;
+    }
+  }
+  
+  for (const word of celebrationWords) {
+    const index = patternLower.indexOf(word);
+    if (index !== -1 && index < firstCelebrationIndex) {
+      firstCelebrationIndex = index;
+    }
+  }
+  
+  // If user has ANY Solid/Elite performance, celebration should come first
+  if ((solidWeek.length > 0 || eliteWeek.length > 0) && 
+      firstConstraintIndex < firstCelebrationIndex) {
+    violations.push({
+      phrase: 'Problem-first framing detected',
+      location: 'pattern',
+      alternatives: [
+        'Start with what\'s working (Solid/Elite behaviors)',
+        'Acknowledge wins before discussing constraints',
+        'Lead with success, then address the challenge'
+      ]
+    });
+  }
+  
+  return violations;
+}
+
 // ============================================================================
 // FORMATTING FOR ERROR MESSAGES
 // ============================================================================
@@ -276,10 +551,10 @@ export function formatLanguageViolations(
     lines.push(`In ${location}:`);
     
     for (const v of viols) {
-      lines.push(`  ❌ Found: "${v.phrase}"`);
+      lines.push(`  âŒ Found: "${v.phrase}"`);
       
       if (v.alternatives && v.alternatives.length > 0) {
-        lines.push(`  ✅ Use instead:`);
+        lines.push(`  âœ… Use instead:`);
         v.alternatives.forEach(alt => {
           lines.push(`     - ${alt}`);
         });
@@ -288,9 +563,14 @@ export function formatLanguageViolations(
     }
   }
   
-  lines.push('RULE: Abstract nouns must have physical/practical grounding.');
-  lines.push('RULE: No clinical or system language.');
-  lines.push('RULE: Body-first language required.');
+  lines.push('RULES:');
+  lines.push('- Abstract nouns must have physical/practical grounding');
+  lines.push('- No clinical or system language');
+  lines.push('- No harsh/judgmental language (chaos, collapse, disaster, crisis)');
+  lines.push('- Body-first language required');
+  lines.push('- SOLID (80%+) = SUCCESS and must be celebrated prominently');
+  lines.push('- Elite (100%) = exceptional and must be celebrated strongly');
+  lines.push('- Lead with what\'s working before discussing constraints');
   
   return lines.join('\n');
 }
@@ -304,7 +584,9 @@ export function formatLanguageViolations(
  * Returns error message if language enforcement fails
  */
 export function checkLanguageBeforeValidation(
-  rawOutput: string
+  rawOutput: string,
+  solidWeek: string[] = [],
+  eliteWeek: string[] = []
 ): { passed: boolean; error?: string } {
   
   try {
@@ -317,7 +599,7 @@ export function checkLanguageBeforeValidation(
     const parsed = JSON.parse(cleaned) as WeeklyCoachingOutput;
     
     // Enforce language
-    const result = enforceBodyFirstLanguage(parsed);
+    const result = enforceBodyFirstLanguage(parsed, solidWeek, eliteWeek);
     
     if (!result.passed) {
       return {

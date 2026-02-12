@@ -11,8 +11,8 @@ export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
   return [
     {
       id: 'nutrition_pattern',
-      title: 'Nutrition Pattern',
-      prompt: 'How was the quality of what you ate yesterday?',
+      title: 'Nutrition Quality',
+      prompt: 'How nutrient-rich were your meals yesterday?',
       tooltip:
         'Elite: Planned and executed as intended with no meaningful deviation. ' +
         'Solid: Intentional eating with minor, controlled deviation. ' +
@@ -22,8 +22,8 @@ export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
     },
     {
       id: 'energy_balance',
-      title: 'Energy Balance',
-      prompt: 'Were your portions aligned with your goals?',
+      title: 'Portion Control',
+      prompt: 'How well did your intake align with your goal?',
       tooltip:
         'Elite: Portions matched target as planned with high precision. ' +
         'Solid: Minor, controlled deviation from target. ' +

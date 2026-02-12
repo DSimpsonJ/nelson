@@ -21,8 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { doc, setDoc, getDoc, Timestamp, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import Anthropic from '@anthropic-ai/sdk';
-import { deriveUserConstraints, formatConstraintsForPrompt } from '@/app/services/deriveUserConstraints';
-import { deriveWeeklyConstraintsFromPattern, deriveWeeklyConstraints, formatWeeklyConstraintsForPrompt } from '@/app/services/deriveWeeklyConstraints';
+import { deriveWeeklyConstraintsFromPattern, deriveWeeklyConstraints, formatWeeklyConstraintsForPrompt, WeeklyConstraintSnapshot } from '@/app/services/deriveWeeklyConstraints';
 import { getOrCreateVulnerabilityMap, formatVulnerabilityForPrompt } from '@/app/services/vulnerabilityMap';
 import { deriveProgressionType, ProgressionResult } from '@/app/services/deriveProgressionType';
 // Types
@@ -43,7 +42,8 @@ import { detectWeeklyPattern } from '@/app/services/detectWeeklyPattern';
 import { patternFixtures } from '@/app/services/fixtures/weeklyPatterns';
 import { getPreviousWeekCalibration, formatCalibrationForPrompt } from '@/app/services/weeklyCalibration';
 import { checkLanguageBeforeValidation } from '@/app/services/languageEnforcement';
-import { detectDayOfWeekPatterns } from '@/app/services/detectDayOfWeekPatterns';
+import { deriveUserConstraints, formatConstraintsForPrompt } from '@/app/services/deriveUserConstraints';
+import { detectDayOfWeekPatterns, DayOfWeekAnalysis } from '@/app/services/detectDayOfWeekPatterns';
 
 // Import from your existing Firebase config
 import { db } from '@/app/firebase/config';
@@ -188,18 +188,44 @@ CRITICAL FOR momentum_decline:
 };
 
 // ============================================================================
+// FOCUS ELIGIBILITY (Calibration Constraints)
+// ============================================================================
+
+function deriveAllowedFocusTypes(calibration: any): string[] {
+  if (!calibration) return ['protect', 'hold', 'narrow', 'ignore'];
+  
+  const { structuralState } = calibration;
+  
+  // Warning signs = protection only
+  if (structuralState === 'warning_signs') {
+    return ['protect'];
+  }
+  
+  // Holding = no pushing
+  if (structuralState === 'holding') {
+    return ['protect', 'hold'];
+  }
+  
+  // Solid or building = full options
+  return ['protect', 'hold', 'narrow', 'ignore'];
+}
+
+// ============================================================================
 // PROMPT BUILDING
 // ============================================================================
 async function buildSystemPrompt(
   email: string,
-  pattern: WeeklyPattern,
+  pattern: WeeklyPattern, 
+  allowedFocusTypes: string[],
   performanceAcknowledgment: string,
-  progressionData?: { type: string; reason: string; triggers: string[] },
-  dayPatterns?: { hasSignificantPatterns: boolean; patterns: Array<{ behavior: string; pattern: string }> },
+  progressionType: string,
+  progressionReason: string,
+  dayPatterns?: DayOfWeekAnalysis,
+  weekOverWeekChanges?: Array<{ behavior: string; currentAvg: number; previousAvg: number; delta: number; direction: 'up' | 'down' | 'flat' }>,
+  dominantLimiter?: string,
   userNotes?: string[], 
   previousErrors?: string[]
 ): Promise<string> {
-  
   const constraints = PATTERN_CONSTRAINTS[pattern.primaryPattern];
 
 // PHASE 3A: Onboarding context (starting point)
@@ -209,7 +235,25 @@ const onboardingContext = formatConstraintsForPrompt(userConstraints);
 // PHASE 3B: Weekly snapshot (current reality - OVERRIDES onboarding)
 const weeklyConstraints = await deriveWeeklyConstraintsFromPattern(email, pattern);
 console.log('[Coaching] Weekly snapshot:', JSON.stringify(weeklyConstraints, null, 2));
-const currentContext = formatWeeklyConstraintsForPrompt(weeklyConstraints);
+
+// Filter context based on dominant limiter to prevent cross-behavior reasoning
+let filteredConstraints = weeklyConstraints;
+if (dominantLimiter && weeklyConstraints) {
+  if (dominantLimiter === 'nutrition') {
+    // Only show nutrition-related data, hide other behaviors
+    filteredConstraints = {
+      timeCapacity: weeklyConstraints.timeCapacity,
+      recoveryMargin: weeklyConstraints.recoveryMargin,
+      phaseSignal: weeklyConstraints.phaseSignal,
+      dominantLimiter: weeklyConstraints.dominantLimiter,
+      nutritionAverage: weeklyConstraints.nutritionAverage,
+      derivedFrom: weeklyConstraints.derivedFrom,
+      generatedAt: weeklyConstraints.generatedAt
+    } as WeeklyConstraintSnapshot;
+  }
+}
+
+const currentContext = formatWeeklyConstraintsForPrompt(filteredConstraints);
 console.log('[Coaching] Current context for prompt:', currentContext);
 
   const vulnerabilityMap = await getOrCreateVulnerabilityMap(email, {
@@ -221,10 +265,95 @@ console.log('[Coaching] Current context for prompt:', currentContext);
   return `You are Nelson, an evidence-based personal health coach.
 
   # BEHAVIORAL DATA THIS WEEK (TRUST THIS FIRST)
+  
   ${currentContext}
   
   ${performanceAcknowledgment}
-  
+# CONSTRAINT AUTHORITY LOCK (NON-NEGOTIABLE)
+
+PRIMARY CONSTRAINT: ${dominantLimiter}
+LARGEST NEGATIVE CHANGE: ${weekOverWeekChanges ? weekOverWeekChanges.filter(c => c.direction === 'down').sort((a, b) => a.delta - b.delta)[0]?.behavior + ' (dropped ' + Math.abs(weekOverWeekChanges.filter(c => c.direction === 'down').sort((a, b) => a.delta - b.delta)[0]?.delta || 0) + ' points)' : 'none detected'}
+
+BACKGROUND CONDITIONS (non-causal state):
+${filteredConstraints?.sleepAverage ? `Sleep: ${filteredConstraints.sleepAverage >= 80 ? 'strong' : filteredConstraints.sleepAverage >= 65 ? 'moderate' : 'variable'}` : ''}
+${filteredConstraints?.hydrationAverage ? `Hydration: ${filteredConstraints.hydrationAverage >= 80 ? 'strong' : filteredConstraints.hydrationAverage >= 65 ? 'adequate' : 'inconsistent'}` : ''}
+${filteredConstraints?.proteinAverage ? `Protein: ${filteredConstraints.proteinAverage >= 80 ? 'strong' : filteredConstraints.proteinAverage >= 65 ? 'moderate' : 'low'}` : ''}
+
+The dominant limiter is binding.
+
+You must:
+- Describe the failing behavior directly
+- Not introduce other behaviors as causes
+- Not explain why the failure is happening
+- Not construct cross-behavior causal chains
+- Not use phrases like "because," "due to," "drives," "creates," "leads to," "cascades," or similar causal connectors when referencing other behaviors
+
+Focus only on describing the constraint itself.
+
+  # ENCOURAGEMENT FRAMEWORK (CRITICAL)
+
+You are coaching a capable adult conducting a behavioral experiment on themselves.
+
+CORE PRINCIPLES:
+1. SOLID = SUCCESS (80% execution is the target, not Elite)
+   - ANY behavior at 80%+ all week deserves acknowledgment
+   - Frame Solid performance as hitting the target, not falling short
+   - Elite (100%) is exceptional and rare, not expected
+
+2. ACKNOWLEDGE EFFORT EVEN WITHOUT SOLID/ELITE
+   - If no Solid/Elite exists, acknowledge check-in compliance
+   - 5+/7 check-ins = showing up consistently
+   - Maintained any behavior despite constraints = resilience
+
+3. FRAME CONSTRAINTS AS DATA, NOT CHARACTER FLAWS
+   - "Nutrition dropped 44 points" not "nutrition collapsed into chaos"
+   - "Weekend pattern detected" not "weekend chaos"
+   - State what happened, not what's wrong with them
+
+4. ASSUME CAPABILITY
+   - User is conducting experiment, not failing tests
+   - Constraints are solvable puzzles, not catastrophes
+   - The behavior needs adjustment, not the person
+
+TONE REQUIREMENTS:
+- Lead with what's working (check-ins, maintained behaviors, improvements)
+- If NOTHING is Solid/Elite, acknowledge effort: "You showed up 6 out of 7 days"
+- Present data as neutral observation, not judgment
+- End with capability: "This is recoverable", "Structure will fix this"
+
+FORBIDDEN LANGUAGE (will cause validation rejection):
+- Harsh: chaos, collapse, disaster, crisis, terrible, awful, breaking down, falling apart
+- Discouraging: still struggling, can't seem to, unable to maintain, keeps failing
+- Catastrophizing: out of control, completely off track, nowhere near
+
+REQUIRED ALTERNATIVES:
+- "dropped" not "collapsed"
+- "inconsistent" not "chaos"  
+- "needs reinforcement" not "breaking down"
+- "this behavior needs focus" not "you can't seem to"
+
+  ${dayPatterns && dayPatterns.hasSignificantPatterns ? `
+    
+ # DAY-OF-WEEK PATTERNS (Reveals When Constraints Activate)
+    
+    Significant day-of-week variations detected:
+    ${dayPatterns.patterns.map((p, i) => `${i + 1}. ${p.behavior}: ${p.pattern}
+       - Weekday avg: ${p.weekdayAvg}
+       - Weekend avg: ${p.weekendAvg}
+       - Worst day: ${p.worstDay} (${p.worstDayAvg})
+       - Best day: ${p.bestDay} (${p.bestDayAvg})`).join('\n')}
+    How to use this data:
+    • "Drops on weekends" with 30+ point gap = different constraint operating on weekends vs weekdays
+    • Specific worst day (e.g., "Tuesday at 35") = something about that day's structure or demands
+    • Small variance (≤10 points) = consistent constraint, not timing-based
+    
+    Example of good reasoning:
+    "Nutrition drops to 42 on weekends while weekdays average 78. That 36-point weekend gap suggests weekday structure (meal prep? routine?) isn't translating to unstructured days."
+    
+    Example of lazy reasoning:
+    "Nutrition is inconsistent throughout the week." (This ignores the clear weekend pattern)
+    ` : ''}
+    
   ${previousErrors && previousErrors.length > 0 ? `
 âš ï¸ VALIDATION ERRORS FROM PREVIOUS ATTEMPT:
 ${previousErrors.map(err => `- ${err}`).join('\n')}
@@ -232,11 +361,77 @@ ${previousErrors.map(err => `- ${err}`).join('\n')}
 Your previous output was rejected. Please correct these specific violations and regenerate.
 ` : ''}
 
-# PRIMARY OBJECTIVE
 
-Your job is to identify the single dominant tension currently limiting this user's momentum.
+ ${weekOverWeekChanges && weekOverWeekChanges.length > 0 ? `
+  # WEEK-OVER-WEEK CHANGES (Reveals Momentum Direction)
+  
+  Behavior changes from last week to this week:
+  ${weekOverWeekChanges.map(c => {
+    const arrow = c.direction === 'up' ? '↑' : c.direction === 'down' ? '↓' : '→';
+    return `- ${c.behavior}: ${c.previousAvg} → ${c.currentAvg} (${c.delta > 0 ? '+' : ''}${c.delta}) ${arrow}`;
+  }).join('\n')}
+  
+  How to use this data:
+  • Large deltas (±20+ points) usually reveal the actual constraint, not just "inconsistency"
+  • Simultaneous drops across multiple behaviors suggest a common root cause
+  • One behavior improving while others decline shows where capacity traded off
+  
+  Example of good reasoning:
+  "Sleep jumped 34 points week-over-week (33 → 67), which opened recovery capacity. But nutrition dropped 33 points in the same window (96 → 63). That's the tradeoff - sleep improved but the structure that was protecting nutrition collapsed."
+  
+  Example of lazy reasoning:
+  "Sleep improved and nutrition was inconsistent." (This hides the actual story in the numbers)
+  ` : ''}
 
-# PRIMARY OBJECTIVE
+# REASONING HIERARCHY (BINDING CONTRACT)
+
+When multiple patterns exist, you MUST reason in this exact order:
+
+0. THE CONSTRAINT IS NOT THE CAUSE
+   If nutrition dropped 36 points and notes say "sleep disrupted eating", the constraint is still nutrition.
+   Upstream causes (sleep) do not override downstream collapses (nutrition).
+   You coach the behavior that failed, not the behavior that explains why it failed.
+
+1. WEEK-OVER-WEEK DELTAS override absolute values
+   Direction of change reveals the active constraint. Large negative deltas matter more than static averages.
+
+2. THE LARGEST NEGATIVE CHANGE is the primary constraint
+   Improvements do not outweigh collapses. The biggest drop defines the problem to solve.
+
+3. STRUCTURAL PATTERNS outrank transient events
+   Repeating failures (weekend drops, same-day misses) are constraints. One-off bad days are noise.
+
+4. USER NOTES are explanatory only
+   Notes may explain WHY a pattern exists. Notes may NOT replace, soften, or override numerical evidence.
+
+5. DOMINANT LIMITER is the default anchor
+   Begin reasoning from the dominantLimiter in the snapshot. You may shift focus only if numerical evidence clearly contradicts it.
+
+6. FOCUS MUST ALIGN WITH THE CONSTRAINT
+   Selecting a focus that contradicts the dominant numerical pattern is incorrect. Do not give "coach-safe" advice that ignores the data.
+
+   7. COACH THE BEHAVIOR THAT FAILED, NOT THE UPSTREAM CAUSE
+   If nutrition dropped 36 points due to sleep disruption, the constraint is still nutrition.
+   The focus must address nutrition directly (structure, timing, prep) not the upstream trigger.
+   Explain the causal chain in Tension, then solve the downstream collapse in Focus.
+
+   8. IMPROVEMENTS DO NOT JUSTIFY FOCUSING ELSEWHERE
+   If sleep improved 25 points while nutrition dropped 36 points, the constraint is nutrition.
+   Do NOT say "fix nutrition so sleep improves" - sleep is ALREADY improving.
+   Say "sleep improved, which should have stabilized nutrition, but nutrition collapsed anyway."
+   The behavior that's failing despite improvements elsewhere is the actual constraint.
+
+# USER'S STATED GOAL
+
+This user came to Nelson to: ${userConstraints.primaryDriver}
+
+In Why This Matters, show how fixing the constraint moves them toward THIS SPECIFIC GOAL.
+In your Why This Matters section, you MUST include this exact phrase:
+"... your goal to ${userConstraints.primaryDriver.toLowerCase()}."
+
+Do not paraphrase. Do not generalize. Copy that phrase verbatim.
+
+   # PRIMARY OBJECTIVE
 
 Your job is to identify the single dominant tension currently limiting this user's momentum.
 
@@ -275,57 +470,22 @@ ${vulnerabilityContext}
 ${await (async () => {
   const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
   const calibrationText = formatCalibrationForPrompt(prevCalibration);
+  const allowedFocusTypes = deriveAllowedFocusTypes(prevCalibration);
   
-  return calibrationText;
+  let focusConstraint = '';
+  if (allowedFocusTypes.length < 4) {
+    focusConstraint = `\n\nâš ï¸ FOCUS CONSTRAINTS (REQUIRED):\nBased on last week's calibration, you MUST use one of these focus types: ${allowedFocusTypes.join(', ')}\n${allowedFocusTypes.length === 1 ? 'YOU MUST USE THIS FOCUS TYPE. No other options are allowed.' : ''}`;
+  }
+  
+  return calibrationText + focusConstraint;
 })()}
 
 ## User Notes This Week
 ${userNotes && userNotes.length > 0 ? `
 ${userNotes.map((note, i) => `${i + 1}. "${note}"`).join('\n')}
 
-CRITICAL: DATA IS TRUTH, NOTES ARE CONTEXT
-
-Users often worry about things that aren't actually constraints. Your job is to coach on DATA, not fears.
-
-DECISION TREE:
-1. Identify the constraint from behavioral averages (sleep 54% = constraint, nutrition 81% = solid)
-2. Check if ANY notes connect to the actual constraint
-3. If yes → integrate those notes to explain the constraint
-4. If no → ignore all notes and coach on the data
-
-WHEN TO IGNORE NOTES ENTIRELY:
-- Note mentions specific food (ice cream, pizza) BUT nutrition averaged 80+% → Ignore food mention completely
-- Note says "I need to exercise more" BUT movement is 6/7 days → Ignore, that's not the problem
-- Note says "sleep was bad" BUT sleep averaged 85%+ → Ignore, that's perception not reality
-- ANY time a note complains about something the data shows is actually solid
-
-WHEN TO USE NOTES:
-- Sleep 54%, note: "morning routine felt rushed" → YES, explains mechanism
-- Sleep 54%, note: "energy was low but stayed consistent" → YES, shows impact
-- Nutrition 45%, note: "ate ice cream every night" → YES, aligns with data
-- ANY time a note explains or deepens what the data already shows
-
-WHERE TO USE NOTES:
-- Pattern: Can reference notes briefly if they reveal the pattern
-- Tension: PRIMARY location for note integration - use notes to explain the mechanism
-- Why This Matters: DO NOT mention notes - focus on stakes and consequences only
-
-IF ALL NOTES CONTRADICT THE DATA:
-Proceed as if no notes exist. Do not mention the notes. Coach on the actual constraint shown in behavioral averages.
-
-SPECIFIC FOOD MENTION RULE:
-If user mentions a specific food AND that category is 80+%, you MUST acknowledge the disconnect:
-"Your notes mention ice cream, but nutrition averaged 81% this week - solid performance. The constraint isn't food choices."
-Then coach on the ACTUAL constraint (sleep, consistency, etc).
-` : `
-No notes provided this week.
-
-This is normal and expected. Do NOT say "context is inferred from behavior alone."
-Instead, if the pattern suggests disruption, acknowledge the absence:
-"There's no note explaining the weekend dip, but the timing and sleep variance suggest schedule or social disruption rather than loss of intent."
-
-Make the absence of notes informative, not a limitation.
-`}
+Notes provide context. The constraint is determined by behavioral data.
+` : 'No notes provided this week.'}
 
 # CATEGORY SEMANTIC DEFINITIONS
 
@@ -409,6 +569,23 @@ Example Elite behaviors:
 
 If Elite performance exists and is NOT acknowledged in all three sections, the output is INVALID.
 
+# FINAL CONSTRAINT CHECK (MANDATORY VALIDATION)
+
+Before generating your Focus, verify:
+
+QUESTION: What was the largest negative week-over-week change?
+ANSWER FROM DATA: ${weekOverWeekChanges ? weekOverWeekChanges.filter(c => c.direction === 'down').sort((a, b) => a.delta - b.delta)[0]?.behavior + ' dropped ' + Math.abs(weekOverWeekChanges.filter(c => c.direction === 'down').sort((a, b) => a.delta - b.delta)[0]?.delta || 0) + ' points' : 'none'}
+
+QUESTION: What is the dominant limiter?
+ANSWER FROM DATA: ${weeklyConstraints?.dominantLimiter || 'unknown'}
+
+YOUR FOCUS MUST ADDRESS ONE OF THESE TWO BEHAVIORS.
+
+If your Focus mentions sleep but the answers above say "nutrition", you have FAILED the reasoning hierarchy.
+If your Focus mentions hydration but the answers above say "nutrition", you have FAILED the reasoning hierarchy.
+
+Regenerate your Focus to address the actual constraint.
+
 # OUTPUT STRUCTURE (REQUIRED)
 
 Target length: 200-300 words total. No character limits per section.
@@ -427,52 +604,66 @@ Respond with valid JSON in this exact structure:
 
 OUTPUT STRUCTURE:
 
+LEAD WITH DATA, NOT NARRATIVE (CRITICAL):
+Pattern MUST show actual behavioral averages, not just narrative from notes.
+
+REQUIRED DATA IN PATTERN:
+- Mention at least 2 behavioral category averages with percentages
+- Show the pattern in the numbers
+- ONLY AFTER stating data → reference notes to explain WHY
+- Format: Data (what happened) → Pattern (how it unfolded) → Notes (why)
+
+ANTI-PATTERNS - DO NOT DO THIS:
+❌ Do not summarize notes without first stating behavioral data
+❌ Do not explain causes that are not visible in the data
+❌ Do not use vague terms like "consistency" without specific percentages
+
 ## ACKNOWLEDGMENT + PATTERN (Combined: 2-3 sentences)
 
 First sentence: Call out the standout win.
 - If Elite performance exists (grade 100 all 7 days), name it specifically
 - If no Elite, acknowledge best consistency or improvement
 
-Then: Show the behavioral data.
+Second sentence: Show the behavioral data with specific averages.
 - Check-ins completed, exercise days, momentum score
-- Anchor to TWO specific numbers from evidence
+- At least 2 behavioral category averages (Nutrition X%, Sleep Y%, Hydration Z%)
+- Show the pattern: "mid-week dip", "steady all week", "improving trajectory"
 
-Then: Introduce the contrast or constraint.
-- Elite sleep but flat momentum â†’ nutrition is the gap
-- Perfect exercise but low energy â†’ sleep or nutrition issue
-
-Example:
-"Elite sleep all 7 nights is directly supporting your long-term health goal. You checked in every day and exercised 6/7 days, maintaining 68% momentum. However, the ice cream pattern you mentioned is creating a disconnect between effort and results."
+Third sentence: Introduce the contrast or limiting factor.
+- Reference notes ONLY to explain the data pattern, not replace it
+- Elite sleep but flat momentum → nutrition is the gap
+- Perfect exercise but low energy → sleep or nutrition issue
 
 REQUIREMENTS:
 - FIRST SENTENCE must acknowledge what went well or stayed consistent
+- SECOND SENTENCE must include at least 2 behavioral averages with percentages
 - If Elite performance exists, name it specifically
-- Then show contrast (effort vs outcome, before vs after, stable vs drifting)
+- Show contrast using data (effort vs outcome, before vs after, stable vs drifting)
 - Use natural language: "every day" not "7/7 days", "all 7 days" not "7/7"
 - Anchor to at least TWO specific numbers from evidence (exact values required, phrasing can vary):
 ${pattern.evidencePoints.map((e, i) => `  ${i + 1}. "${e}"`).join('\n')}
 - May include directional observation (momentum up/down, stable/changing) but NOT causality
 - NO interpretation yet, just orientation
 
-ALLOWED:
-âœ… "You exercised every day this week"
-âœ… "Exercise stayed consistent all 7 days"
-âœ… "Momentum held at 71% despite disruption"
-
 FORBIDDEN:
-âŒ "7/7 days" or "x/x" notation
-âŒ "This means recovery is limiting you"
-âŒ "The drop shows you're overreaching"
+❌ "7/7 days" or "x/x" notation - NEVER USE FRACTIONS OR RATIOS
+❌ Write "all 7 days" or "every day" or "almost every day" or "most days" or "some days" or "few days" or "on occassion"
+❌ "The drop shows you're overreaching"
+❌ "Your notes reveal X created a disconnect" (without stating data first)
+
+UNIQUENESS REQUIREMENT:
+Do not reuse sentence structure, metaphors, or framing from this user's prior weeks.
+Each coaching must feel fresh, not templated.
 
 ## 2. THE TENSION (2-3 sentences)
 
 What is actually happening right now.
 
-ROLE: Describe the mechanism creating this constraint in present tense.
+ROLE: Describe the mechanism creating this limitation in present tense.
 
 REQUIREMENTS:
 - Present tense only: "is creating", "is disrupting", "is breaking"
-- Use pronouns if Pattern already named specifics: "This constraint" not "Sleep timing"
+- Use pronouns if Pattern already named specifics: "This pattern" not "Sleep timing"
 - Integrate user notes as evidence of HOW the mechanism operates
 - Must be specific to THIS user (not generic wellness advice)
 
@@ -483,27 +674,18 @@ FORBIDDEN - OUTCOME LANGUAGE:
 ❌ Any phrase about what this stops or enables (that's Why This Matters)
 
 REQUIRED - MECHANISM LANGUAGE:
-✅ "is creating a recovery debt that accumulates with each session"
-✅ "is disrupting the adaptation cycle"
-✅ "breaks the connection between training and recovery"
-✅ "operates at inconsistent timing"
+- Use present tense action verbs: "is creating", "is disrupting", "breaks"
+- Describe HOW the constraint operates, not what it prevents
 
 ANTI-REDUNDANCY:
 - Don't repeat specific nouns from Pattern (use pronouns instead)
 - Each section introduces NEW information
 
-EXAMPLES:
-✅ "Inconsistent sleep is creating a recovery debt that accumulates faster than your body clears it. Your notes about rushed mornings and low energy reveal the timing disruption."
-✅ "This pattern breaks the connection between nutrition timing and energy availability. Evening choices create morning deficits that cascade through the day."
-
-❌ "Sleep disruption is preventing your body from adapting to the training load" (outcome language)
-❌ "This creates a debt that exercise consistency can't overcome" (outcome language)
-
 TEST: Does this sentence describe WHAT'S HAPPENING or WHAT IT PREVENTS? If the latter, rewrite.
 
 ## 3. WHY THIS MATTERS (4-5 sentences)
 
-Why THIS constraint matters for YOU specifically.
+Why THIS limitation matters for YOU specifically.
 
 ROLE: Forward-looking personal consequence ONLY.
 - Answer: "What's at stake if this stays unresolved? What unlocks if addressed?"
@@ -525,72 +707,63 @@ POSITIVITY REQUIREMENTS (CRITICAL):
 - End on forward momentum, not warning.  Be encouraging.
 
 FORBIDDEN:
-❌ Re-explaining the ice cream pattern
+❌ Re-explaining the specific limitation already named
 ❌ "You're doing X consistently" (already stated in Pattern)
-❌ "The constraint is Y" (already stated in Tension)
+❌ "The limitation is Y" (already stated in Tension)
 ❌ Re-describing the mechanism
 ❌ "Moderate vulnerability zone" or technical backend language
 ❌ Mentioning or referencing user notes (notes explain mechanism, this section is about stakes)
+❌ "This single constraint" / "This one constraint" (overused connector phrase)
+❌ "Your body can handle [X]" (becoming templated reassurance - be more specific)
+❌ Using "constraint" in coaching output (use: gap, limitation, bottleneck, factor)
 
 ANTI-REDUNDANCY:
-- If you used specific phrases in Pattern or Tension (ice cream, evening nutrition, sleep timing),
-  do NOT repeat them verbatim here
+- If you used specific phrases in Pattern or Tension (specific foods, timing issues, behavioral patterns),
 - Reference indirectly: "If this stays unresolved", "Address it", "This one pattern"
 - Focus on consequence and unlock, not re-explaining the mechanism
 
 STAKES-ONLY RULE (CRITICAL):
-Why This Matters describes CONSEQUENCES and UNLOCKS, NOT how the constraint operates.
+Why This Matters describes CONSEQUENCES and UNLOCKS, NOT how the limitation operates.
 FORBIDDEN MECHANISM WORDS:
 - "bottleneck", "leak", "debt", "acting as", "creating", "undermining", "disrupting"
-- Any description of HOW the constraint works (that's Tension's job)
+- Any description of HOW the limitation works (that's Tension's job)
+
 REQUIRED FOCUS:
 - What happens if unresolved (momentum stays flat, progress stalls)
 - What unlocks if addressed (acceleration, compounding, visible results)
 - Why THIS user specifically (not generic wellness advice)
 TEST: If the sentence could fit in Tension, it doesn't belong here.
 
-REQUIRED PHRASING:
-âœ… "If this stays unresolved, [specific consequence]"
-âœ… "If you address it, [specific unlock]"
-âœ… "This one pattern is holding back [specific thing]"
-âœ… Instead of "moderate vulnerability": just state why it matters for their goal
-
-EXAMPLES:
-âœ… "Address evening nutrition and your sleep and exercise finally compound into visible progress. Your recovery capacity isn't the constraint - nutrition is. That makes this simple: fix this one pattern and everything else you're doing pays off."
-âœ… "Your 6-day exercise rhythm is ready to produce results. The only thing holding it back is this nutrition pattern. Fix it, and momentum accelerates instead of maintaining. You're not stuck because of effort or capacity - just this one constraint."
-
 LITMUS TEST: Could I delete "Tension" and still feel the stakes? If NO, this section failed.
 
 ## 4. WEEKLY PROGRESSION (1-2 sentences)
 
-${progressionData ? `DETECTED PROGRESSION TYPE: ${progressionData.type.toUpperCase()}
+⚠️ PROGRESSION TYPE: ${progressionType.toUpperCase()}
+Reason: ${progressionReason}
 
-You MUST use this progression type. The deterministic analysis has already decided the direction.` : 'Use the most appropriate progression type based on the evidence.'}
+The directive for the next 7 days based on your current state.
+
+PROGRESSION TYPES:
+- ADVANCE: Move forward (increase intensity/frequency/commitment)
+  Examples: "Increase movement to 6 days/week", "Add protein focus at lunch", "Increase sleep target by 30 minutes"
+  
+- STABILIZE: Hold position (consolidate recent changes, time-boxed for 7 days)
+  Examples: "Hold at 5 days/week for one more week", "Maintain current sleep target while body adapts"
+  
+- SIMPLIFY: Back up (strategic retreat to rebuild foundation, not failure)
+  Examples: "Drop to 3 exercise days this week", "Focus only on sleep and hydration, let everything else coast"
 
 REQUIREMENTS:
-- Must be one of: ADVANCE / STABILIZE / SIMPLIFY
-- Directly addresses the tension and provides a clear direction
-- States the specific behavior or action to focus on
-- No hedging, no action lists
+- Use the progression type provided above (${progressionType.toUpperCase()})
+- Give ONE specific, actionable directive
+- No hedging ("consider", "try to", "maybe")
+- Frame as earned next step or strategic choice, not moral judgment
 
-TYPE DEFINITIONS:
-- ADVANCE: Push forward on behaviors showing solid consistency (80%+ average, no Off ratings). Example: increase exercise frequency, tighten nutrition timing.
-- STABILIZE: Consolidate current load before advancing. Maintain current frequency while improving consistency. Time-boxed phase.
-- SIMPLIFY: Strategic retreat to rebuild foundation. Reduce volume, protect recovery, reset expectations. Not failure - load management.
-
-Examples:
-✓ ADVANCE: "Increase exercise to 6 days per week. Your 4-day pattern is solid at 85% consistency with strong recovery support."
-✓ STABILIZE: "Hold exercise at 4 days while you stabilize sleep consistency. The load is working but foundation needs consolidation."
-✓ SIMPLIFY: "Drop to 3 exercise days this week. Five Off ratings signal overextension - strategic retreat protects your foundation."
-
-✗ "Try to exercise more and sleep better." (vague action list)
-✗ "Consider focusing on recovery." (hedging)
-
-FORBIDDEN (will cause validation rejection):
+FORBIDDEN IN PROGRESSION:
 - "system", "your system", "the system"
 - "pattern", "this pattern", "the pattern"
 - "data", "metrics", "score", "momentum score"
-- "reflects","indicates", "shows"
+- Generic advice without specific behavior/target
 - Any meta-language about measurement or analysis
 
 Write as if speaking directly to a person, not analyzing their data.
@@ -624,21 +797,9 @@ MANDATORY TONE RULES:
 - Consequences must be emotionally recognizable, not theoretically correct
 
 APPROVED ALTERNATIVES FOR BANNED PHRASES:
-Instead of "your system":
-  âœ… "your body"
-  âœ… "you"
-  âœ… "your recovery"
-  âœ… "what you're doing"
-
-Instead of "suggests" or "signals":
-  âœ… "means"
-  âœ… "shows"
-  âœ… "this is"
-
-Instead of "capacity ceiling":
-  âœ… "your limit"
-  âœ… "what you can handle"
-  âœ… "your recovery capacity"
+Instead of "your system" → use "your body", "you", "your recovery"
+Instead of "suggests" or "signals" → use "means", "shows", "this is"
+Instead of "capacity ceiling" → use "your limit", "what you can handle"
 
 ALLOWED AND ENCOURAGED:
 - Capacity, recovery, load, limits, tradeoffs
@@ -660,14 +821,14 @@ FORBIDDEN:
 
 Before submitting output, verify:
 
-âœ… Pattern section cites at least TWO specific data points
-âœ… Tension synthesizes at least TWO context layers (pattern + constraints/vulnerability/notes)
-âœ… Tension is specific to this user (would NOT apply to most users)
-âœ… If user notes exist, at least ONE is referenced
-âœ… If no notes exist, absence is used as signal (not stated as limitation)
-âœ… WhyThisMatters explains why this matters MORE for this user
-✅ Progression is ADVANCE/STABILIZE/SIMPLIFY with specific direction
-âœ… No banned phrases appear anywhere
+❌ Pattern section cites at least TWO specific data points
+❌ Tension synthesizes at least TWO context layers (pattern + constraints/vulnerability/notes)
+❌ Tension is specific to this user (would NOT apply to most users)
+❌ If user notes exist, at least ONE is referenced
+❌ If no notes exist, absence is used as signal (not stated as limitation)
+❌ WhyThisMatters explains why this matters MORE for this user
+✓ Progression is ADVANCE/STABILIZE/SIMPLIFY (not action list)
+❌ No banned phrases appear anywhere
 
 FINAL CHECK:
 "Did this reframe how the user understands their situation?"
@@ -683,33 +844,6 @@ ${pattern.evidencePoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
 Week ID: ${pattern.weekId}
 Days Analyzed: ${pattern.daysAnalyzed}
 Real Check-Ins This Week: ${pattern.realCheckInsThisWeek}
-
-${progressionData ? `
-  # PROGRESSION DIRECTIVE
-  
-  Type: ${progressionData.type.toUpperCase()}
-  Reason: ${progressionData.reason}
-  ${progressionData.triggers.length > 0 ? `
-  Triggers:
-  ${progressionData.triggers.map((t, i) => `${i + 1}. ${t}`).join('\n')}
-  ` : ''}
-  
-  This progression type should inform your recommendations:
-  - ADVANCE: User is ready to increase difficulty/volume in behaviors showing consistency
-  - STABILIZE: User should consolidate current load before advancing further  
-  - SIMPLIFY: User needs strategic retreat to rebuild foundation
-  
-  ` : ''}${dayPatterns && dayPatterns.hasSignificantPatterns ? `
-  # DAY-OF-WEEK PATTERNS DETECTED
-  
-  The following behavioral patterns by day of week were detected:
-  ${dayPatterns.patterns.map((p, i) => `${i + 1}. ${p.behavior}: ${p.pattern}`).join('\n')}
-  
-  These patterns reveal WHEN the user struggles, not just that they struggle. Use this to make coaching more specific.
-  Example: Instead of "sleep is inconsistent", say "Sunday sleep drops to 35% while weekday sleep averages 68%"
-  
-  ` : ''}
-  Week ID: ${pattern.weekId}
 
 # MANDATORY PRE-GENERATION CHECK
 
@@ -728,11 +862,11 @@ If Elite exists but is not mentioned, DO NOT SUBMIT. Regenerate with Elite ackno
 Before submitting output, verify:
 
 TENSION section:
-- âœ… Present tense only
-- âœ… Describes mechanism, NOT consequence
-- âœ… No "unlock" or "would" language
-- âŒ Does NOT repeat pattern description
-- âŒ Does NOT list what's working
+- Present tense only
+- Describes mechanism, NOT consequence
+- No "unlock" or "would" language
+- Does NOT repeat pattern description
+- Does NOT list what's working
 
 WHY THIS MATTERS section:
 - Forward-looking only
@@ -802,6 +936,51 @@ function detectSolidWeekPerformance(weekData: any[]): {
   
   return { solidWeek, eliteWeek };
 }
+/**
+ * Compare current week to previous week behaviors
+ * Returns delta data for each behavior
+ */
+function compareWeekToWeek(
+  currentWeek: Array<{ behaviorGrades: Array<{ name: string; grade: number }> }>,
+  previousWeek: Array<{ behaviorGrades: Array<{ name: string; grade: number }> }>
+): Array<{ behavior: string; currentAvg: number; previousAvg: number; delta: number; direction: 'up' | 'down' | 'flat' }> {
+  const behaviors = ['nutrition_pattern', 'energy_balance', 'protein', 'hydration', 'sleep', 'movement'];
+  const comparisons = [];
+
+  for (const behavior of behaviors) {
+    // Calculate current week average
+    const currentGrades = currentWeek
+      .flatMap(day => day.behaviorGrades.filter(b => b.name === behavior))
+      .map(b => b.grade);
+    const currentAvg = currentGrades.length > 0 
+      ? Math.round(currentGrades.reduce((sum, g) => sum + g, 0) / currentGrades.length)
+      : 0;
+
+    // Calculate previous week average
+    const previousGrades = previousWeek
+      .flatMap(day => day.behaviorGrades.filter(b => b.name === behavior))
+      .map(b => b.grade);
+    const previousAvg = previousGrades.length > 0
+      ? Math.round(previousGrades.reduce((sum, g) => sum + g, 0) / previousGrades.length)
+      : 0;
+
+    // Calculate delta
+    const delta = currentAvg - previousAvg;
+    let direction: 'up' | 'down' | 'flat' = 'flat';
+    if (delta > 5) direction = 'up';
+    if (delta < -5) direction = 'down';
+
+    comparisons.push({
+      behavior: behavior.replace('_', ' '),
+      currentAvg,
+      previousAvg,
+      delta,
+      direction
+    });
+  }
+
+  return comparisons;
+}
 // ============================================================================
 // API HANDLER
 // ============================================================================
@@ -839,9 +1018,14 @@ export async function POST(request: NextRequest) {
     console.log(`[Coaching] Pattern: ${pattern.primaryPattern}, canCoach: ${pattern.canCoach}`);
 // Fetch week data for performance detection
 let performance: { solidWeek: string[]; eliteWeek: string[] } = { solidWeek: [], eliteWeek: [] };
-let progressionResult: ProgressionResult | undefined;
-let dayPatterns: { hasSignificantPatterns: boolean; patterns: any[] } | undefined;
-
+let progressionResult: ProgressionResult = {
+  type: 'advance',
+  reason: 'Default progression - no data available',
+  triggers: []
+};
+let dayOfWeekPatterns: DayOfWeekAnalysis | undefined;
+let weekOverWeekComparison: Array<{ behavior: string; currentAvg: number; previousAvg: number; delta: number; direction: 'up' | 'down' | 'flat' }> | undefined;
+let dominantLimiter: string | undefined;
 if (!useFixture) {
   const { start, end } = pattern.dateRange;
   const momentumRef = collection(db, 'users', email, 'momentum');
@@ -853,17 +1037,17 @@ if (!useFixture) {
     orderBy('date', 'asc')
   );
   const snapshot = await getDocs(q);
-  const weekData = snapshot.docs.map(doc => doc.data()) as any;
+  const weekData = snapshot.docs.map(doc => doc.data());
   
   performance = detectSolidWeekPerformance(weekData);
   console.log(`[Coaching] Performance detected - Solid: ${performance.solidWeek.join(', ')}, Elite: ${performance.eliteWeek.join(', ')}`);
-
-  // Derive progression type
+// Derive progression type from week data
+  // Need previous week data for comparison
   const prevWeekStart = new Date(pattern.dateRange.start);
   prevWeekStart.setDate(prevWeekStart.getDate() - 7);
   const prevWeekEnd = new Date(pattern.dateRange.start);
   prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
-
+  
   const prevWeekQuery = query(
     momentumRef,
     where('date', '>=', prevWeekStart.toLocaleDateString('en-CA')),
@@ -872,18 +1056,68 @@ if (!useFixture) {
     orderBy('date', 'asc')
   );
   const prevSnapshot = await getDocs(prevWeekQuery);
-  const previousWeekData = prevSnapshot.docs.map(doc => doc.data()) as any;
-
-  const progressionResult = deriveProgressionType(weekData, previousWeekData);
-  console.log(`[Coaching] Progression: ${progressionResult.type} - ${progressionResult.reason}`);
-
-  // Detect day-of-week patterns
-  const dayPatterns = detectDayOfWeekPatterns(weekData);
-  console.log('[Coaching] Day patterns:', {
-    hasPatterns: dayPatterns.hasSignificantPatterns,
-    patterns: dayPatterns.patterns.map(p => `${p.behavior}: ${p.pattern}`)
-  });
+  const previousWeekData = prevSnapshot.docs.map(doc => doc.data());
+  
+  try {
+    progressionResult = deriveProgressionType(
+      weekData as Array<{
+        date: string;
+        checkinType: 'real' | 'gap_fill';
+        exerciseCompleted: boolean;
+        behaviorGrades: Array<{ name: string; grade: number }>;
+        momentumScore: number;
+        dailyScore: number;
+      }>,
+      previousWeekData as Array<{
+        date: string;
+        checkinType: 'real' | 'gap_fill';
+        exerciseCompleted: boolean;
+        behaviorGrades: Array<{ name: string; grade: number }>;
+        momentumScore: number;
+        dailyScore: number;
+      }>
+    );
+    console.log(`[Coaching] Progression: ${progressionResult.type} - ${progressionResult.reason}`);
+    console.log(`[Coaching] Progression triggers:`, progressionResult.triggers);
+  } catch (error) {
+    console.error('[Coaching] Error deriving progression:', error);
+    // Keep default progression on error
+  }
+  
+ // Detect day-of-week patterns
+ let dayOfWeekPatterns: DayOfWeekAnalysis | undefined;
+ try {
+   dayOfWeekPatterns = detectDayOfWeekPatterns(weekData as Array<{
+     date: string;
+     checkinType: 'real' | 'gap_fill';
+     exerciseCompleted: boolean;
+     behaviorGrades: Array<{ name: string; grade: number }>;
+     momentumScore: number;
+     dailyScore: number;
+   }>);
+   console.log(`[Coaching] Day patterns:`, dayOfWeekPatterns.hasSignificantPatterns ? 'DETECTED' : 'none');
+   if (dayOfWeekPatterns.hasSignificantPatterns) {
+     console.log('[Coaching] Pattern details:', dayOfWeekPatterns.patterns.map(p => `${p.behavior}: ${p.pattern}`).join(', '));
+   }
+ } catch (error) {
+   console.error('[Coaching] Error detecting day patterns:', error);
+ }
+// Calculate dominant limiter for validation
+const weeklyConstraints = await deriveWeeklyConstraintsFromPattern(email, pattern);
+dominantLimiter = weeklyConstraints?.dominantLimiter;
+  // Compare to previous week
+  if (previousWeekData.length > 0) {
+    weekOverWeekComparison = compareWeekToWeek(
+      weekData as Array<{ behaviorGrades: Array<{ name: string; grade: number }> }>,
+      previousWeekData as Array<{ behaviorGrades: Array<{ name: string; grade: number }> }>
+    );
+    console.log('[Coaching] Week-over-week changes:', weekOverWeekComparison
+      .filter(c => c.direction !== 'flat')
+      .map(c => `${c.behavior}: ${c.delta > 0 ? '+' : ''}${c.delta}`)
+      .join(', '));
+  }
 }
+
 // Build acknowledgment text
 let performanceAcknowledgment = '';
 if (performance.eliteWeek.length > 0) {
@@ -960,21 +1194,25 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
       console.log(`[Coaching] Generation attempt ${attempt}/${maxAttempts}`);
 
       try {
-        
         // Build prompt (include previous errors on retry)
 
-
+const allowedFocusTypes = deriveAllowedFocusTypes(prevCalibration);
+// Default progression for fixtures
+const progressionType = progressionResult.type;
+const progressionReason = progressionResult.reason;
 
 const systemPrompt = await buildSystemPrompt(
   email,
   pattern,
+  allowedFocusTypes,
   performanceAcknowledgment,
-  progressionResult,
-  dayPatterns,
+  progressionType,
+  progressionReason,
+  dayOfWeekPatterns,
+  weekOverWeekComparison,
+  dominantLimiter,  // ADD THIS LINE
   userNotes.length > 0 ? userNotes : undefined,
-  previousErrors.length > 0 ? previousErrors : undefined
 );
-
         // Call Anthropic API
         const message = await anthropic.messages.create({
           model: MODEL_CONFIG.model,
@@ -991,35 +1229,102 @@ const systemPrompt = await buildSystemPrompt(
           ]
         });
 
-        // Extract text content
-        const textContent = message.content.find(block => block.type === 'text');
-        if (!textContent || textContent.type !== 'text') {
-          throw new Error('No text content in API response');
-        }
-
-        rawOutput = textContent.text;
-        console.log(`[Coaching] Received output, length: ${rawOutput.length}`);
-
-      // LANGUAGE ENFORCEMENT (runs before validation)
-const languageCheck = checkLanguageBeforeValidation(rawOutput);
-if (!languageCheck.passed) {
-  console.log(`[Coaching] Language enforcement failed on attempt ${attempt}:`, languageCheck.error);
-  previousErrors = [languageCheck.error || 'Language enforcement failure'];
-  continue; // Skip to next attempt
+// Extract text content
+const textContent = message.content.find(block => block.type === 'text');
+if (!textContent || textContent.type !== 'text') {
+  throw new Error('No text content in API response');
 }
 
-// Validate output
+rawOutput = textContent.text;
+console.log(`[Coaching] Received output, length: ${rawOutput.length}`);
+console.log('[Coaching] Raw output to check:\n', rawOutput);
+
+// LANGUAGE ENFORCEMENT (runs before validation)
+console.log('[DEBUG] About to run language enforcement...');
+const languageCheck = checkLanguageBeforeValidation(rawOutput, performance.solidWeek, performance.eliteWeek);
+console.log('[DEBUG] Language check passed:', languageCheck.passed);
+
+if (!languageCheck.passed) {
+console.error(`\n[LANGUAGE ENFORCEMENT FAILED - ATTEMPT ${attempt}]`);
+console.error('Full error:');
+console.error(languageCheck.error);
+console.error('\n');
+previousErrors = [languageCheck.error || 'Language enforcement failure'];
+continue; // Skip to next attempt
+}
+
+console.log('[DEBUG] Language enforcement passed, proceeding to validation...');
+
+// Get largest drop for validation  
+const largestDrop = weekOverWeekComparison 
+  ? weekOverWeekComparison
+      .filter(c => c.direction === 'down')
+      .sort((a, b) => a.delta - b.delta)[0]?.behavior
+  : undefined;
+
+// STEP 1: Run standard validation first
 validationResult = validateWeeklyCoaching(rawOutput, pattern);
 
-        if (validationResult.valid) {
-          console.log(`[Coaching] Validation passed on attempt ${attempt}`);
+// STEP 2: If standard validation passed, run constraint checks
+if (validationResult.valid) {
+  if (dominantLimiter) {
+    const parsed = JSON.parse(rawOutput.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim());
+    const tensionLower = parsed.tension.toLowerCase();
+    const focusLower = parsed.progression.text.toLowerCase();
+    const whyLower = parsed.whyThisMatters.toLowerCase();
+    const limiterLower = dominantLimiter.toLowerCase();
+    
+    let topicDrift = false;
+    let driftError = '';
+    
+    if (limiterLower.includes('nutrition')) {
+      const bannedTopics = ['sleep', 'phone', 'hydration', 'protein', 'mindset', 'movement'];
+      
+      for (const topic of bannedTopics) {
+        if (tensionLower.includes(topic)) {
+          console.log(`[Coaching] Tension mentions ${topic} but constraint is nutrition`);
+          topicDrift = true;
+          driftError = `Tension must describe nutrition only, not ${topic}`;
           break;
         }
+        if (focusLower.includes(topic)) {
+          console.log(`[Coaching] Focus mentions ${topic} but constraint is nutrition`);
+          topicDrift = true;
+          driftError = `Focus must address nutrition only, not ${topic}`;
+          break;
+        }
+        if (whyLower.includes(topic)) {
+          console.log(`[Coaching] Why mentions ${topic} but constraint is nutrition`);
+          topicDrift = true;
+          driftError = `Why This Matters must discuss nutrition only, not ${topic}`;
+          break;
+        }
+      }
+      
+      if (topicDrift) {
+        previousErrors = [driftError];
+        continue;
+      }
+      
+      const causalityWords = ['because', 'due to', 'leads to', 'creates', 'drives', 'cascades', 'compounds', 'unlocks', 'accelerates'];
+      for (const word of causalityWords) {
+        if (tensionLower.includes(word)) {
+          console.log(`[Coaching] Tension contains explanatory language: ${word}`);
+          previousErrors = ['Tension must describe the constraint, not explain why it exists'];
+          continue;
+        }
+      }
+    }
+  }
+  
+  console.log(`[Coaching] Validation passed on attempt ${attempt}`);
+  break;
+}
 
-        // Store errors for retry
-        previousErrors = validationResult.errors.map(e => `[${e.rule}] ${e.message}`);
-        console.log(`[Coaching] Validation failed on attempt ${attempt}:`, 
-          getErrorSummary(validationResult.errors));
+// STEP 3: If validation failed, store errors for retry
+previousErrors = validationResult.errors.map(e => `[${e.rule}] ${e.message}`);
+console.log(`[Coaching] Validation failed on attempt ${attempt}:`, 
+  getErrorSummary(validationResult.errors));
 
       } catch (error) {
         console.error(`[Coaching] Error on attempt ${attempt}:`, error);
