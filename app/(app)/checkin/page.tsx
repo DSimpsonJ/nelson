@@ -345,7 +345,7 @@ export default function CheckinPage() {
                 Anything worth noting?
               </h2>
               <p className="text-white/60 text-sm mb-6 text-center">
-                Optional. For your reference only.
+                Optional, but helps me provide personalized coaching.
               </p>
               
               <textarea

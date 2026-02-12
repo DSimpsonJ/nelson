@@ -161,13 +161,21 @@ Respond with ONLY this JSON, no markdown blocks, no preamble:
   }
 }
 
-## pattern (Acknowledgment + What Happened)
+## pattern (Celebration + What Happened)
 
-Start with what went well. If any behavior hit Elite (100% all week) or Solid (80%+ average), name it first. Then show the data: at least 2 specific numbers from the evidence points. Then introduce the contrast or limiting factor.
+IMPORTANT: Start by celebrating the wins listed in "WINS THIS WEEK" above. Follow the tone guidance for each tier. A good coach makes the user feel seen before pivoting to the problem.
 
-Good example: "Hydration stayed strong all week and you checked in every day. But nutrition averaged 38%, down 44 points from last week, with weekends hitting the lowest marks."
+If there are no wins to celebrate, start with whatever positive signal exists (check-in consistency, improvement from last week, etc).
 
-Bad example: "Your data indicates a systemic nutrition pattern disruption correlated with temporal inconsistency."
+After celebrating, show the data using at least 2 specific numbers taken directly from the evidence points listed above (exact values required, your phrasing can vary). Then introduce the contrast or limiting factor.
+
+CRITICAL: Validation will reject your output if the Pattern section does not contain at least 1 specific number that matches evidence points.
+
+Good example (with Tier 4 win): "Protein was perfect all seven days — that doesn't happen without real intention. But nutrition overall averaged just 29%, dropping 53 points from last week."
+
+Good example (with Tier 1 win): "Hydration held Solid this week. But sleep averaged 55% and dropped 22 points, with the worst nights clustered around weekends."
+
+Bad example: "Your protein hit 100% this week. But nutrition averaged 29%." (This treats the win as a data point, not a celebration. Linger on it.)
 
 Use natural language: "every day" not "7/7", "most days" not "5/7".
 

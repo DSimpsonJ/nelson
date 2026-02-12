@@ -265,58 +265,64 @@ function qualitativeLabel(average: number): string {
 // ============================================================================
 
 /**
- * Filter user notes to remove those that primarily discuss
- * non-constraint behaviors.
+ * Filter user notes with a permissive approach.
  * 
- * Logic:
- * - Count how many constraint-related keywords appear in the note
- * - Count how many non-constraint keywords appear
- * - Keep the note if constraint keywords >= non-constraint keywords
- * - Keep the note if it has zero behavior-specific keywords (general note)
- * - Drop the note if it's primarily about a non-constraint behavior
+ * Philosophy: The scoped data already prevents cross-behavior causal chains
+ * because the AI doesn't have the numbers to build them. Notes are human
+ * context that makes coaching feel personal. Be generous with keeping them.
  * 
- * Example when constraint is nutrition:
- *   "Weekend completely off track with food" → KEEP (food = nutrition)
- *   "Late-night phone use disrupting sleep, then poor eating" → DROP (sleep > nutrition)
- *   "Felt great after early bedtime Monday" → DROP (sleep only)
- *   "Rough week at work" → KEEP (general, no specific behavior)
+ * KEEP if:
+ * - Note mentions the constraint behavior at all (even once)
+ * - Note has no behavior-specific keywords (general life context)
+ * - Note mentions both constraint and non-constraint (mixed notes are fine)
+ * 
+ * DROP only if:
+ * - Note is EXCLUSIVELY about a non-constraint behavior
+ *   (mentions non-constraint keywords but ZERO constraint keywords)
+ * 
+ * Examples when constraint is nutrition:
+ *   "Weekend off track with food" → KEEP (food = nutrition)
+ *   "Phone disrupted sleep, then poor eating" → KEEP (mentions eating)
+ *   "Sleep continues to improve and I'm focusing on eating better" → KEEP (mentions eating)
+ *   "Felt great after early bedtime Monday" → DROP (sleep only, zero nutrition)
+ *   "Rough week at work" → KEEP (general context)
+ *   "I don't have time to meal prep" → KEEP (meal = nutrition)
  */
 function filterUserNotes(
-  limiter: string,
-  relevantBehaviors: string[],
-  notes: string[]
-): { filtered: string[]; dropped: Array<{ note: string; reason: string }> } {
-  
-  const filtered: string[] = [];
-  const dropped: Array<{ note: string; reason: string }> = [];
-  
-  // Build keyword sets
-  const constraintKeywords = getKeywordsForLimiter(limiter);
-  const allNonConstraintKeywords = getAllKeywordsExcept(limiter);
-  
-  for (const note of notes) {
-    const lower = note.toLowerCase();
+    limiter: string,
+    relevantBehaviors: string[],
+    notes: string[]
+  ): { filtered: string[]; dropped: Array<{ note: string; reason: string }> } {
     
-    const constraintHits = constraintKeywords.filter(kw => lower.includes(kw)).length;
-    const nonConstraintHits = allNonConstraintKeywords.filter(kw => lower.includes(kw)).length;
+    const filtered: string[] = [];
+    const dropped: Array<{ note: string; reason: string }> = [];
     
-    if (constraintHits >= nonConstraintHits) {
-      // Note is primarily about the constraint, or general
-      filtered.push(note);
-    } else if (nonConstraintHits === 0 && constraintHits === 0) {
-      // General note with no behavior keywords, keep it
-      filtered.push(note);
-    } else {
-      // Note is primarily about non-constraint behaviors
-      dropped.push({
-        note,
-        reason: `Primarily discusses non-constraint behavior (${nonConstraintHits} non-constraint keywords vs ${constraintHits} constraint keywords)`
-      });
+    const constraintKeywords = getKeywordsForLimiter(limiter);
+    const allNonConstraintKeywords = getAllKeywordsExcept(limiter);
+    
+    for (const note of notes) {
+      const lower = note.toLowerCase();
+      
+      const constraintHits = constraintKeywords.filter(kw => lower.includes(kw)).length;
+      const nonConstraintHits = allNonConstraintKeywords.filter(kw => lower.includes(kw)).length;
+      
+      if (constraintHits > 0) {
+        // Note mentions the constraint at all, keep it
+        filtered.push(note);
+      } else if (nonConstraintHits === 0) {
+        // General note with no behavior keywords, keep it
+        filtered.push(note);
+      } else {
+        // Note is EXCLUSIVELY about non-constraint behaviors
+        dropped.push({
+          note,
+          reason: `Exclusively discusses non-constraint behavior (${nonConstraintHits} non-constraint keywords, 0 constraint keywords)`
+        });
+      }
     }
+    
+    return { filtered, dropped };
   }
-  
-  return { filtered, dropped };
-}
 
 /**
  * Get keywords for a specific limiter type

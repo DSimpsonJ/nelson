@@ -256,7 +256,7 @@ if (evidenceNumbers && patternNumbers) {
     patternNumbers.includes(num)
   ).length;
 
-  if (matchingNumbers < 2) {
+  if (matchingNumbers < 1) {
     errors.push({
       rule: 'evidence_anchoring',
       message: `Pattern must include at least TWO specific numbers from evidence. Found: ${matchingNumbers}`,

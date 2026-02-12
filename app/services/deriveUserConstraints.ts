@@ -137,15 +137,25 @@ function deriveBodyCompositionPhase(
  * Translate primaryFocus code to human-readable driver
  */
 function interpretPrimaryDriver(focus: string): string {
+  const normalized = focus.toLowerCase().trim();
+  
   const focusMap: Record<string, string> = {
     "consistency": "Build sustainable daily habits",
     "stronger": "Increase strength and muscle",
+    "stronger_leaner": "Get stronger and leaner",
     "energy": "Improve daily energy and vitality",
     "control": "Regain structure and control",
-    "health": "Improve long-term health markers"
+    "health": "Improve long-term health markers",
+    "long term health": "Improve long-term health markers",
+    "long_term_health": "Improve long-term health markers",
   };
   
-  return focusMap[focus] || "General health improvement";
+  const result = focusMap[normalized];
+  if (!result) {
+    console.error(`[deriveUserConstraints] Unknown primaryFocus: "${focus}". Falling back to health.`);
+    return "Improve long-term health markers";
+  }
+  return result;
 }
 
 /**
