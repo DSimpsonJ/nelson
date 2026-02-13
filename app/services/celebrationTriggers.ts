@@ -68,8 +68,8 @@ export interface CelebrationItem {
     const celebrations: CelebrationItem[] = [];
   
     const behaviorNames = [
-      { key: 'nutrition_pattern', label: 'Nutrition Pattern' },
-      { key: 'energy_balance', label: 'Energy Balance' },
+      { key: 'nutrition_quality', label: 'Nutrition Pattern' },
+      { key: 'portion_control', label: 'Energy Balance' },
       { key: 'protein', label: 'Protein' },
       { key: 'hydration', label: 'Hydration' },
       { key: 'sleep', label: 'Sleep' },

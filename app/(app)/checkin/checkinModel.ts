@@ -10,7 +10,7 @@ export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
 
   return [
     {
-      id: 'nutrition_pattern',
+      id: 'nutrition_quality',
       title: 'Nutrition Quality',
       prompt: 'How nutrient-rich were your meals yesterday?',
       tooltip:
@@ -21,7 +21,7 @@ export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
       icon: '',
     },
     {
-      id: 'energy_balance',
+      id: 'portion_control',
       title: 'Portion Control',
       prompt: 'How well did your intake align with your goal?',
       tooltip:

@@ -1,8 +1,8 @@
 // Canonical check-in types - single source of truth
 
 export type BehaviorId = 
-  | 'nutrition_pattern'
-  | 'energy_balance'
+  | 'nutrition_quality'    // NEW
+  | 'portion_control'      // NEW
   | 'protein'
   | 'hydration'
   | 'sleep'

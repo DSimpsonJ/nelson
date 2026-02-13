@@ -226,8 +226,8 @@ function detectSolidWeekPerformance(weekData: any[]): {
   const eliteWeek: string[] = [];
   
   const behaviorNames = [
-    { key: 'nutrition_pattern', label: 'Nutrition Pattern' },
-    { key: 'energy_balance', label: 'Energy Balance' },
+    { key: 'nutrition_quality', label: 'Nutrition Pattern' },
+    { key: 'portion_control', label: 'Energy Balance' },
     { key: 'protein', label: 'Protein' },
     { key: 'hydration', label: 'Hydration' },
     { key: 'sleep', label: 'Sleep' },
@@ -270,7 +270,7 @@ function compareWeekToWeek(
   currentWeek: Array<{ behaviorGrades: Array<{ name: string; grade: number }> }>,
   previousWeek: Array<{ behaviorGrades: Array<{ name: string; grade: number }> }>
 ): Array<{ behavior: string; currentAvg: number; previousAvg: number; delta: number; direction: 'up' | 'down' | 'flat' }> {
-  const behaviors = ['nutrition_pattern', 'energy_balance', 'protein', 'hydration', 'sleep', 'movement'];
+  const behaviors = ['nutrition_quality', 'portion_control', 'protein', 'hydration', 'sleep', 'movement'];
   const comparisons = [];
 
   for (const behavior of behaviors) {

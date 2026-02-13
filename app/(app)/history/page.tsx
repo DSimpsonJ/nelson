@@ -191,8 +191,8 @@ export default function HistoryPage() {
               }
 
               const behaviors = [
-                { key: "nutrition_pattern", name: "Nutrition Pattern" },
-                { key: "energy_balance", name: "Energy Balance" },
+                { key: "nutrition_quality", name: "Nutrition Pattern" },
+                { key: "portion_control", name: "Energy Balance" },
                 { key: "protein", name: "Protein" },
                 { key: "hydration", name: "Hydration" },
                 { key: "sleep", name: "Sleep" },
@@ -290,8 +290,8 @@ export default function HistoryPage() {
                       const isExpanded = expandedDate === dateStr;
 
                       const behaviorOrder = [
-                        { key: 'nutrition_pattern', label: 'Nutrition Pattern' },
-                        { key: 'energy_balance', label: 'Energy Balance' },
+                        { key: 'nutrition_quality', label: 'Nutrition Pattern' },
+                        { key: 'portion_control', label: 'Energy Balance' },
                         { key: 'protein', label: 'Protein' },
                         { key: 'hydration', label: 'Hydration' },
                         { key: 'sleep', label: 'Sleep' },

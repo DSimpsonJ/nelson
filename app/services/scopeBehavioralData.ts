@@ -60,7 +60,7 @@ interface WeekOverWeekChange {
  * to specific behavior names in weekOverWeekChanges and dayPatterns.
  */
 const LIMITER_TO_BEHAVIORS: Record<string, string[]> = {
-  'nutrition': ['nutrition pattern', 'energy balance', 'nutrition_pattern', 'protein'],
+  'nutrition': ['nutrition pattern', 'energy balance', 'nutrition_quality', 'protein'],
   'recovery': ['sleep'],
   'consistency': ['movement', 'exercise'],
   'progression': [], // All behaviors are relevant for progression limiter

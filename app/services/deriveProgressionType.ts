@@ -76,8 +76,8 @@ export interface DayData {
  *    - COUNTS FOR PROGRESSION (unlike mindset which is signal only)
  * 
  * The 6 behaviors that count for progression:
- * 1. nutrition_pattern
- * 2. energy_balance
+ * 1. nutrition_quality
+ * 2. portion_control
  * 3. protein
  * 4. hydration
  * 5. sleep
@@ -96,8 +96,8 @@ export interface DayData {
 // ============================================================================
 
 const BEHAVIOR_NAMES = {
-  NUTRITION_PATTERN: 'nutrition_pattern',
-  ENERGY_BALANCE: 'energy_balance',
+  nutrition_quality: 'nutrition_quality',
+  portion_control: 'portion_control',
   PROTEIN: 'protein',
   HYDRATION: 'hydration',
   SLEEP: 'sleep',
@@ -107,14 +107,14 @@ const BEHAVIOR_NAMES = {
 
 const FOUNDATION_BEHAVIORS = [
   BEHAVIOR_NAMES.SLEEP,
-  BEHAVIOR_NAMES.NUTRITION_PATTERN,
+  BEHAVIOR_NAMES.nutrition_quality,
   BEHAVIOR_NAMES.HYDRATION
 ];
 
 // Behaviors that count for progression (mindset excluded - signal only)
 const PROGRESSION_BEHAVIORS = [
-  BEHAVIOR_NAMES.NUTRITION_PATTERN,
-  BEHAVIOR_NAMES.ENERGY_BALANCE,
+  BEHAVIOR_NAMES.nutrition_quality,
+  BEHAVIOR_NAMES.portion_control,
   BEHAVIOR_NAMES.PROTEIN,
   BEHAVIOR_NAMES.HYDRATION,
   BEHAVIOR_NAMES.SLEEP,
@@ -238,8 +238,8 @@ function calculateAllBehaviorAverages(
   weekData: DayData[]
 ): Record<string, number> {
   return {
-    [BEHAVIOR_NAMES.NUTRITION_PATTERN]: calculateBehaviorAverage(weekData, BEHAVIOR_NAMES.NUTRITION_PATTERN),
-    [BEHAVIOR_NAMES.ENERGY_BALANCE]: calculateBehaviorAverage(weekData, BEHAVIOR_NAMES.ENERGY_BALANCE),
+    [BEHAVIOR_NAMES.nutrition_quality]: calculateBehaviorAverage(weekData, BEHAVIOR_NAMES.nutrition_quality),
+    [BEHAVIOR_NAMES.portion_control]: calculateBehaviorAverage(weekData, BEHAVIOR_NAMES.portion_control),
     [BEHAVIOR_NAMES.PROTEIN]: calculateBehaviorAverage(weekData, BEHAVIOR_NAMES.PROTEIN),
     [BEHAVIOR_NAMES.HYDRATION]: calculateBehaviorAverage(weekData, BEHAVIOR_NAMES.HYDRATION),
     [BEHAVIOR_NAMES.SLEEP]: calculateBehaviorAverage(weekData, BEHAVIOR_NAMES.SLEEP),

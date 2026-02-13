@@ -226,8 +226,8 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
       evidencePoints: [
         `Exercise: ${exerciseDays}/7 days`,
         `Momentum: ${Math.round(currentMomentum)}%`,
-        `Nutrition average: ${Math.round(behaviorAverages.nutrition_pattern || 0)}%`,
-        `Energy balance average: ${Math.round(behaviorAverages.energy_balance || 0)}%`
+        `Nutrition average: ${Math.round(behaviorAverages.nutrition_quality || 0)}%`,
+        `Energy balance average: ${Math.round(behaviorAverages.portion_control || 0)}%`
       ],
       weekId,
       dateRange,
@@ -263,7 +263,7 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
   }
   
   // PRIORITY 6: Effort inconsistent (exercise good but other behaviors lag)
-  const nonExerciseBehaviors = ['nutrition_pattern', 'energy_balance', 'protein', 'hydration', 'sleep', 'mindset'];
+  const nonExerciseBehaviors = ['nutrition_quality', 'portion_control', 'protein', 'hydration', 'sleep', 'mindset'];
   const nonExerciseAvg = nonExerciseBehaviors.reduce((sum, name) => 
     sum + (behaviorAverages[name] || 0), 0
   ) / nonExerciseBehaviors.length;
@@ -274,7 +274,7 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
       evidencePoints: [
         `Exercise: ${exerciseDays}/7 days`,
         `Other behaviors average: ${Math.round(nonExerciseAvg)}%`,
-        `Nutrition: ${Math.round(behaviorAverages.nutrition_pattern || 0)}%`,
+        `Nutrition: ${Math.round(behaviorAverages.nutrition_quality || 0)}%`,
         `Sleep: ${Math.round(sleepAvg)}%`
       ],
       weekId,
@@ -352,7 +352,7 @@ return {
  */
 function calculateBehaviorAverages(days: DayData[]): Record<string, number> {
   const averages: Record<string, number> = {};
-  const behaviorNames = ['nutrition_pattern', 'energy_balance', 'protein', 'hydration', 'sleep', 'mindset', 'movement'];
+  const behaviorNames = ['nutrition_quality', 'portion_control', 'protein', 'hydration', 'sleep', 'mindset', 'movement'];
   
   for (const name of behaviorNames) {
     const grades = days

@@ -129,7 +129,7 @@ export async function deriveWeeklyConstraints(
   const nutritionScores = checkins
     .filter(c => c.behaviorGrades)
     .flatMap(c => c.behaviorGrades.filter(b => 
-      b.name === 'nutrition_pattern' || b.name === 'energy_balance'
+      b.name === 'nutrition_quality' || b.name === 'portion_control'
     ))
     .map(b => b.grade);
   
@@ -267,7 +267,7 @@ export async function deriveWeeklyConstraintsFromPattern(
     const nutritionScores = checkins
       .filter(c => c.behaviorGrades)
       .flatMap(c => c.behaviorGrades.filter(b => 
-        b.name === 'nutrition_pattern' || b.name === 'energy_balance'
+        b.name === 'nutrition_quality' || b.name === 'portion_control'
       ))
       .map(b => b.grade);
     
@@ -464,7 +464,7 @@ function deriveDominantLimiter(checkins: CheckInData[]): DominantLimiter {
       } else if (b.name === 'protein') {
         categoryScores.protein += b.grade;
         counts.protein++;
-      } else if (b.name === 'nutrition_pattern' || b.name === 'energy_balance') {
+      } else if (b.name === 'nutrition_quality' || b.name === 'portion_control') {
         categoryScores.nutrition += b.grade;
         counts.nutrition++;
       }

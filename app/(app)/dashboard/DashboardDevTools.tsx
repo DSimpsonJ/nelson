@@ -310,8 +310,8 @@ export default function DashboardDevTools({
         
         // Create momentum document with behaviorGrades (correct structure)
         const behaviorGrades = [
-          { name: 'nutrition_pattern', grade: i % 4 === 0 ? 0 : (i % 3 === 0 ? 50 : 80) },
-          { name: 'energy_balance', grade: i % 5 === 0 ? 50 : 80 },
+          { name: 'nutrition_quality', grade: i % 4 === 0 ? 0 : (i % 3 === 0 ? 50 : 80) },
+          { name: 'portion_control', grade: i % 5 === 0 ? 50 : 80 },
           { name: 'protein', grade: 80 },
           { name: 'hydration', grade: i % 4 === 0 ? 50 : 80 },
           { name: 'sleep', grade: i % 3 === 0 ? 50 : 80 },

@@ -182,8 +182,8 @@ export async function checkMilestones(
       
       // Check if all behaviors are elite or solid
       const allBehaviors = [
-        'nutrition_pattern',
-        'energy_balance', 
+        'nutrition_quality',
+        'portion_control', 
         'protein',
         'hydration',
         'sleep',

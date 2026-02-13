@@ -53,8 +53,8 @@ export interface DayOfWeekPattern {
   
     // Analyze each behavior
     const behaviors = [
-      'nutrition_pattern',
-      'energy_balance', 
+      'nutrition_quality',
+      'portion_control', 
       'protein',
       'hydration',
       'sleep',
@@ -246,8 +246,8 @@ export interface DayOfWeekPattern {
    */
   function formatBehaviorName(behavior: string): string {
     const names: Record<string, string> = {
-      nutrition_pattern: 'Nutrition',
-      energy_balance: 'Energy Balance',
+      nutrition_quality: 'Nutrition',
+      portion_control: 'Energy Balance',
       protein: 'Protein',
       hydration: 'Hydration',
       sleep: 'Sleep',

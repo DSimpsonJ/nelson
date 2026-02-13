@@ -304,8 +304,8 @@ export function isSolidDay(
   exerciseCompleted: boolean
 ): boolean {
   const requiredBehaviors = [
-    'nutrition_pattern',
-    'energy_balance',
+    'nutrition_quality',
+    'portion_control',
     'protein',
     'hydration',
     'sleep',
