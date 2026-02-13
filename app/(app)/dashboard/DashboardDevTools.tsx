@@ -354,6 +354,93 @@ export default function DashboardDevTools({
 >
   10 Test Check-Ins
 </button>
+{/* Test Reward Milestones */}
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    try {
+      // Show selection dialog
+      const milestone = prompt(
+        "Enter check-in count to test:\n\n" +
+        "3 = Burst\n" +
+        "10 = Confetti\n" +
+        "15 = Burst\n" +
+        "20 = Confetti\n" +
+        "25 = Fireworks\n" +
+        "30, 35, 40, 45, 50 = various\n\n" +
+        "Or test momentum thresholds:\n" +
+        "80 = First 80% (Confetti)\n" +
+        "90 = First 90% (Confetti)\n" +
+        "100 = First 100% (Fireworks)"
+      );
+      
+      if (!milestone) return;
+      
+      const count = parseInt(milestone);
+      if (isNaN(count)) {
+        showToast({ message: "Invalid number", type: "error" });
+        return;
+      }
+      
+      // Set totalRealCheckIns to one less than target
+      const targetCount = count - 1;
+      
+      // Update today's momentum doc to have the target count
+      const today = getLocalDate();
+      const momentumRef = doc(db, "users", email, "momentum", today);
+      const momentumSnap = await getDoc(momentumRef);
+      
+      if (momentumSnap.exists()) {
+        // Update existing
+        await setDoc(momentumRef, {
+          totalRealCheckIns: targetCount,
+        }, { merge: true });
+      } else {
+        // Create minimal doc
+        await setDoc(momentumRef, {
+          date: today,
+          totalRealCheckIns: targetCount,
+          momentumScore: count >= 80 ? count - 5 : 65, // For momentum threshold tests
+          checkinCompleted: false,
+          checkinType: "real",
+          accountAgeDays: targetCount,
+          currentStreak: targetCount,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      
+      // For momentum threshold tests, also set milestone state
+      if (count >= 80) {
+        const milestoneRef = doc(db, "users", email, "momentum", "milestone_state");
+        await setDoc(milestoneRef, {
+          hasEverHit80Momentum: count > 80,
+          hasEverHit90Momentum: count > 90,
+          hasEverHit100Momentum: false,
+          hasEverHitSolidMomentum: false,
+          maxConsecutiveDaysEver: 0,
+        });
+      }
+      
+      showToast({ 
+        message: `Set to ${targetCount} check-ins. Next check-in will trigger #${count} reward!`, 
+        type: "success" 
+      });
+      
+      // Clear today's check-in so user can do a fresh one
+      setTodayMomentum(null);
+      setCheckinSubmitted(false);
+      
+    } catch (err) {
+      console.error("Setup failed:", err);
+      showToast({ message: "Setup failed", type: "error" });
+    }
+  }}
+  className="bg-pink-600 hover:bg-pink-700 text-white rounded-md py-1 text-sm"
+>
+  🎉 Test Reward Milestones
+</button>
 {/* Clear All Coaching */}
 <button
   onClick={async () => {

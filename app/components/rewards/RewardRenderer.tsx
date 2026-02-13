@@ -52,6 +52,7 @@ export default function RewardRenderer({
         <Confetti 
           intensity={reward.intensity} 
           text={reward.text}
+          secondaryText={reward.secondaryText}
           onComplete={handleComplete}
         />
       )}
@@ -60,6 +61,7 @@ export default function RewardRenderer({
         <Burst 
           intensity={reward.intensity} 
           text={reward.text}
+          secondaryText={reward.secondaryText}
           onComplete={handleComplete}
         />
       )}
@@ -68,6 +70,7 @@ export default function RewardRenderer({
         <Fireworks 
           intensity={reward.intensity} 
           text={reward.text}
+          secondaryText={reward.secondaryText}
           onComplete={handleComplete}
         />
       )}

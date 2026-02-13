@@ -9,21 +9,19 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 
 export interface MilestoneState {
-  hasEverHitSolidMomentum: boolean;
   maxConsecutiveDaysEver: number;
-  lastCelebrationDate: string | null;
-  celebrationHistory: {
-    solid_threshold_crossed?: string; // ISO date when first achieved
-    pattern_confirmed_30?: string;
-    pattern_maintained_30?: string[]; // array of dates for each 30-day block
-  };
+  hasEverHitSolidMomentum: boolean;
+  hasEverHit80Momentum: boolean;
+  hasEverHit90Momentum: boolean;
+  hasEverHit100Momentum: boolean;
 }
 
 const DEFAULT_STATE: MilestoneState = {
-  hasEverHitSolidMomentum: false,
   maxConsecutiveDaysEver: 0,
-  lastCelebrationDate: null,
-  celebrationHistory: {},
+  hasEverHitSolidMomentum: false,
+  hasEverHit80Momentum: false,
+  hasEverHit90Momentum: false,
+  hasEverHit100Momentum: false,
 };
 
 /**
@@ -53,10 +51,6 @@ export async function updateMilestoneState(
   const updated: MilestoneState = {
     ...current,
     ...updates,
-    celebrationHistory: {
-      ...current.celebrationHistory,
-      ...updates.celebrationHistory,
-    },
   };
   
   await setDoc(stateRef, updated);

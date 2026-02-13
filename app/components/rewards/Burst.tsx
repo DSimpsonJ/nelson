@@ -4,14 +4,16 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 
 export default function Burst({ 
-    intensity, 
-    text,
-    onComplete 
-  }: { 
-    intensity: string; 
-    text: string;
-    onComplete?: () => void;
-  }) {
+  intensity, 
+  text,
+  secondaryText,
+  onComplete 
+}: { 
+  intensity: string; 
+  text: string;
+  secondaryText?: string;
+  onComplete?: () => void;
+}) {
     const [replayKey, setReplayKey] = useState(0);
   
     const handleReplay = () => {
@@ -72,7 +74,7 @@ export default function Burst({
             {text}
           </h2>
           <p className="text-gray-600 text-sm mb-6">
-            The past has passed, let's keep our eyes on the road ahead.
+            {secondaryText || "Keep going."}
           </p>
         </motion.div>
 

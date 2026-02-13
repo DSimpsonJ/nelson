@@ -103,37 +103,42 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
           </motion.svg>
         </motion.div>
 
-        {/* Success Text */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.5 }}
-          className="text-center"
-        >
-<h1 className="text-3xl font-bold text-white mb-3">
-  Check-in complete.
-</h1>
-{reward ? (
-  <p className="text-white/70 text-lg">
-    {reward.text}
-  </p>
-) : (
-  <p className="text-white/70 text-lg">
-    Momentum has been updated.
-  </p>
-)}
-      
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.8, duration: 0.3 }}
-            onClick={onComplete}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-xl transition-colors"
+        {/* Success Text - Show for ring animation and fallback */}
+        {(!reward || reward.animation === "none" || reward.animation === "ring") && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+            className="text-center"
           >
-            Continue
-          </motion.button>
-        </motion.div>
-
+            <h1 className="text-3xl font-bold text-white mb-3">
+              Check-in complete.
+            </h1>
+            {reward && reward.animation === "ring" ? (
+              <p className="text-white/70 text-lg mb-6">
+                {reward.text}
+              </p>
+            ) : (
+              <p className="text-white/70 text-lg mb-6">
+                Momentum has been updated.
+              </p>
+            )}
+          
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.8, duration: 0.3 }}
+              onClick={onComplete}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-xl transition-colors"
+            >
+              Continue
+            </motion.button>
+          </motion.div>
+        )}
+{/* Render celebration animations for burst/confetti/fireworks/hero */}
+{reward && ["burst", "confetti", "fireworks", "hero"].includes(reward.animation) && (
+          <RewardRenderer reward={reward} onComplete={onComplete} />
+        )}
         {/* Pulse rings */}
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}

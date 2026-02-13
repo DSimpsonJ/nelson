@@ -18,19 +18,22 @@
 // ============================================================================
 
 export type RewardEventType =
-  // Completion (fallback only)
-  | "session_complete"
+  // Acknowledgement
+  | "check_in_logged"
   
-  // Positive Acknowledgment (forward progress, no celebration)
-  | "early_consistency"        // first time hitting 3 OR 7 consecutive days
-  | "mid_consistency"          // first time hitting 14 OR 21 consecutive days
-  | "solid_day"                // all foundations solid+ including exercise
-  | "progress_signal"          // includes 100% momentum, general forward delta
+  // Check-in milestones
+  | "milestone_burst"
+  | "milestone_confetti"
+  | "milestone_fireworks"
   
-  // Celebration (rare, boundary-based)
-  | "solid_threshold_crossed"  // first time momentum crosses >= 80%
-  | "pattern_confirmed_30"     // first 30 consecutive days
-  | "pattern_maintained_30";   // each additional 30-day block thereafter
+  // Performance celebrations (first-time only)
+  | "first_80_momentum"
+  | "first_90_momentum"
+  | "first_100_momentum"
+  
+  // Performance celebrations (repeatable)
+  | "perfect_day"
+  | "solid_week";
 
 export type ResponseClass = "completion" | "positive" | "celebration";
 
@@ -42,25 +45,27 @@ export interface RewardPayload {
   animation: PayloadAnimation;
   intensity: PayloadIntensity;
   text: string;
+  secondaryText: string;
   shareable: boolean;
 }
 
 export interface RewardContext {
+  totalRealCheckIns: number;
   momentum: number;
-  previousMomentum: number;
-  consecutiveDays: number;
-  maxConsecutiveDaysEver: number;
-  hasEverHitSolidMomentum: boolean;
-  daysSinceLastCheckin: number;
-  isSolidDay: boolean;
+  hasEverHit80Momentum: boolean;
+  hasEverHit90Momentum: boolean;
+  hasEverHit100Momentum: boolean;
+  isPerfectDay: boolean;
+  isSolidWeek: boolean;
 }
 
 export interface RewardResult {
   event: RewardEventType | null;
   payload: RewardPayload | null;
   stateUpdates?: {
-    hasEverHitSolidMomentum?: true;
-    maxConsecutiveDaysEver?: number;
+    hasEverHit80Momentum?: true;
+    hasEverHit90Momentum?: true;
+    hasEverHit100Momentum?: true;
   };
 }
 
@@ -72,73 +77,135 @@ const RESPONSE_CONFIG: Record<RewardEventType, {
   class: ResponseClass;
   animation: PayloadAnimation;
   intensity: PayloadIntensity;
-  text: string;
+  primaryText: string;
+  secondaryText: string;
   shareable: boolean;
+  dynamic?: (ctx: RewardContext) => { primaryText: string; secondaryText: string };
 }> = {
-  // COMPLETION
-  session_complete: {
-    class: "completion",
-    animation: "none",
-    intensity: "small",
-    text: "Momentum has been updated.",
-    shareable: false,
-  },
-  
-  // POSITIVE ACKNOWLEDGMENT
-  early_consistency: {
+  // ACKNOWLEDGEMENT
+  check_in_logged: {
     class: "positive",
-    animation: "pulse",
+    animation: "ring",
     intensity: "small",
-    text: "Momentum is building.",
+    primaryText: "Check-in logged.",
+    secondaryText: "",
     shareable: false,
   },
   
-  mid_consistency: {
+  // CHECK-IN MILESTONES - BURST
+  milestone_burst: {
     class: "positive",
-    animation: "pulse",
-    intensity: "small",
-    text: "This was a strong execution.",
+    animation: "burst",
+    intensity: "medium",
+    primaryText: "", // Dynamic
+    secondaryText: "Momentum is building.",
     shareable: false,
+    dynamic: (ctx) => ({
+      primaryText: `That's ${ctx.totalRealCheckIns} check-ins!`,
+      secondaryText: "Momentum is building.",
+    }),
   },
   
-  solid_day: {
-    class: "positive",
-    animation: "pulse",
-    intensity: "small",
-    text: "Solid day. All foundations plus exercise completed.",
-    shareable: false,
-  },
-  
-  progress_signal: {
-    class: "positive",
-    animation: "pulse",
-    intensity: "small",
-    text: "Forward progress.",
-    shareable: false,
-  },
-  
-  // CELEBRATIONS
-  solid_threshold_crossed: {
+  // CHECK-IN MILESTONES - CONFETTI
+  milestone_confetti: {
     class: "celebration",
-    animation: "hero",
+    animation: "confetti",
     intensity: "large",
-    text: "80% momentum achieved. This pattern is real.",
+    primaryText: "", // Dynamic
+    secondaryText: "This is real progress.",
+    shareable: true,
+    dynamic: (ctx) => {
+      if (ctx.totalRealCheckIns === 10) {
+        return {
+          primaryText: "That's 10 check-ins!",
+          secondaryText: "Double digits. Keep going.",
+        };
+      }
+      return {
+        primaryText: `That's ${ctx.totalRealCheckIns} check-ins!`,
+        secondaryText: "This is real progress.",
+      };
+    },
+  },
+  
+  // CHECK-IN MILESTONES - FIREWORKS
+  milestone_fireworks: {
+    class: "celebration",
+    animation: "fireworks",
+    intensity: "large",
+    primaryText: "", // Dynamic
+    secondaryText: "You've built something here.",
+    shareable: true,
+    dynamic: (ctx) => {
+      if (ctx.totalRealCheckIns === 25) {
+        return {
+          primaryText: "That's 25 check-ins!",
+          secondaryText: "You've built something here.",
+        };
+      }
+      if (ctx.totalRealCheckIns === 50) {
+        return {
+          primaryText: "That's 50 check-ins!",
+          secondaryText: "This pattern is undeniable.",
+        };
+      }
+      if (ctx.totalRealCheckIns === 100) {
+        return {
+          primaryText: "That's 100 check-ins!",
+          secondaryText: "This is who you are now.",
+        };
+      }
+      return {
+        primaryText: `That's ${ctx.totalRealCheckIns} check-ins!`,
+        secondaryText: "The pattern continues.",
+      };
+    },
+  },
+  
+  // FIRST-TIME MOMENTUM MILESTONES
+  first_80_momentum: {
+    class: "celebration",
+    animation: "confetti",
+    intensity: "large",
+    primaryText: "You hit 80% momentum!",
+    secondaryText: "This pattern is real.",
     shareable: true,
   },
   
-  pattern_confirmed_30: {
+  first_90_momentum: {
     class: "celebration",
-    animation: "hero",
+    animation: "confetti",
     intensity: "large",
-    text: "30 consecutive check-ins. Pattern established.",
+    primaryText: "You hit 90% momentum!",
+    secondaryText: "This is excellence.",
     shareable: true,
   },
   
-  pattern_maintained_30: {
+  first_100_momentum: {
     class: "celebration",
-    animation: "hero",
+    animation: "fireworks",
     intensity: "large",
-    text: "Another 30-day cycle complete. The pattern has been maintained.",
+    primaryText: "Perfect momentum!",
+    secondaryText: "This is who you are now.",
+    shareable: true,
+  },
+  
+  // REPEATABLE PERFORMANCE CELEBRATIONS
+  perfect_day: {
+    class: "celebration",
+    animation: "confetti",
+    intensity: "large",
+    primaryText: "Perfect day!",
+    secondaryText: "All behaviors elite.",
+    shareable: true,
+  },
+  
+  solid_week: {
+    class: "celebration",
+    animation: "fireworks",
+    intensity: "large",
+    primaryText: "Solid week complete!",
+    secondaryText: "Seven days of execution.",
     shareable: true,
   },
 };
@@ -148,70 +215,116 @@ const RESPONSE_CONFIG: Record<RewardEventType, {
 // ============================================================================
 
 const PRIORITY: RewardEventType[] = [
-  // Celebrations (highest priority)
-  "solid_threshold_crossed",
-  "pattern_confirmed_30",
-  "pattern_maintained_30",
+  // Performance celebrations - fireworks (highest priority)
+  "solid_week",
+  "first_100_momentum",
+  "milestone_fireworks",
   
-  // Positive acknowledgment
-  "mid_consistency",
-  "early_consistency",
-  "solid_day",
-  "progress_signal",
+  // Performance celebrations - confetti
+  "first_90_momentum",
+  "first_80_momentum",
+  "perfect_day",
+  "milestone_confetti",
   
-  // Completion (lowest priority)
-  "session_complete",
+  // Milestone celebrations - burst
+  "milestone_burst",
+  
+  // Acknowledgement (fallback)
+  "check_in_logged",
 ];
 
 // ============================================================================
 // ELIGIBILITY FUNCTIONS (Pure Boolean Logic)
 // ============================================================================
 
-function eligibleSolidThreshold(ctx: RewardContext): boolean {
-  return (
-    ctx.momentum >= 80 &&
-    ctx.previousMomentum < 80 &&
-    !ctx.hasEverHitSolidMomentum
-  );
+// ============================================================================
+// MILESTONE MAP
+// ============================================================================
+
+const MILESTONE_MAP: Record<number, 'burst' | 'confetti' | 'fireworks'> = {
+  // Block 1 (1-25)
+  3: 'burst',
+  10: 'confetti',
+  15: 'burst',
+  20: 'confetti',
+  25: 'fireworks',
+  
+  // Block 2 (26-50)
+  30: 'burst',
+  35: 'burst',
+  40: 'confetti',
+  45: 'burst',
+  50: 'fireworks',
+};
+
+function getCelebrationLevel(totalCheckIns: number): 'burst' | 'confetti' | 'fireworks' | null {
+  // Direct match in milestone map
+  if (MILESTONE_MAP[totalCheckIns]) {
+    return MILESTONE_MAP[totalCheckIns];
+  }
+  
+  // Every 50 thereafter = fireworks (75, 100, 150, 200...)
+  if (totalCheckIns > 50 && totalCheckIns % 50 === 0) {
+    return 'fireworks';
+  }
+  
+  // Pattern repeats every 25 check-ins after first 50
+  if (totalCheckIns > 50) {
+    const positionIn25 = ((totalCheckIns - 50) % 25);
+    const offset = 50 + positionIn25;
+    
+    // Map to equivalent position in 26-50 block
+    const equivalentCheckIn = 25 + (positionIn25 + 1);
+    if (MILESTONE_MAP[equivalentCheckIn]) {
+      return MILESTONE_MAP[equivalentCheckIn];
+    }
+  }
+  
+  return null;
 }
 
-function eligiblePatternConfirmed30(ctx: RewardContext): boolean {
-  return ctx.consecutiveDays === 30;
+// ============================================================================
+// ELIGIBILITY FUNCTIONS
+// ============================================================================
+
+// Check-in milestones
+function eligibleMilestoneBurst(ctx: RewardContext): boolean {
+  return getCelebrationLevel(ctx.totalRealCheckIns) === 'burst';
 }
 
-function eligiblePatternMaintained30(ctx: RewardContext): boolean {
-  return ctx.consecutiveDays > 30 && ctx.consecutiveDays % 30 === 0;
+function eligibleMilestoneConfetti(ctx: RewardContext): boolean {
+  return getCelebrationLevel(ctx.totalRealCheckIns) === 'confetti';
 }
 
-function eligibleEarlyConsistency(ctx: RewardContext): boolean {
-  return (
-    (ctx.consecutiveDays === 3 || ctx.consecutiveDays === 7) &&
-    ctx.maxConsecutiveDaysEver < ctx.consecutiveDays
-  );
+function eligibleMilestoneFireworks(ctx: RewardContext): boolean {
+  return getCelebrationLevel(ctx.totalRealCheckIns) === 'fireworks';
 }
 
-function eligibleMidConsistency(ctx: RewardContext): boolean {
-  return (
-    (ctx.consecutiveDays === 14 || ctx.consecutiveDays === 21) &&
-    ctx.maxConsecutiveDaysEver < ctx.consecutiveDays
-  );
+// First-time momentum milestones
+function eligibleFirst80Momentum(ctx: RewardContext): boolean {
+  return ctx.momentum >= 80 && !ctx.hasEverHit80Momentum;
 }
 
-function eligibleReturnToPattern(ctx: RewardContext): boolean {
-  return ctx.daysSinceLastCheckin > 1 && ctx.consecutiveDays === 1;
+function eligibleFirst90Momentum(ctx: RewardContext): boolean {
+  return ctx.momentum >= 90 && !ctx.hasEverHit90Momentum;
 }
 
-function eligibleSolidDay(ctx: RewardContext): boolean {
-  return ctx.isSolidDay;
+function eligibleFirst100Momentum(ctx: RewardContext): boolean {
+  return ctx.momentum >= 100 && !ctx.hasEverHit100Momentum;
 }
 
-function eligibleProgressSignal(ctx: RewardContext): boolean {
-  const delta = ctx.momentum - ctx.previousMomentum;
-  return delta >= 5; // Meaningful progress only (5% threshold)
+// Repeatable performance celebrations
+function eligiblePerfectDay(ctx: RewardContext): boolean {
+  return ctx.isPerfectDay;
 }
 
-function eligibleSessionComplete(): boolean {
-  return true; // Always eligible as fallback
+function eligibleSolidWeek(ctx: RewardContext): boolean {
+  return ctx.isSolidWeek;
+}
+
+// Fallback
+function eligibleCheckInLogged(): boolean {
+  return true;
 }
 
 // ============================================================================
@@ -219,22 +332,25 @@ function eligibleSessionComplete(): boolean {
 // ============================================================================
 
 function assertValidPayload(event: RewardEventType, config: typeof RESPONSE_CONFIG[RewardEventType]): void {
-  // Positive acknowledgment cannot use celebration animations
-  if (config.class === "positive" && ["burst", "hero", "fireworks"].includes(config.animation)) {
-    throw new Error(`[RewardEngine] Positive acknowledgment cannot use celebration animation: ${event}`);
-  }
+  const validAnimations: Record<RewardEventType, PayloadAnimation[]> = {
+    check_in_logged: ["ring"],
+    milestone_burst: ["burst"],
+    milestone_confetti: ["confetti"],
+    milestone_fireworks: ["fireworks"],
+    first_80_momentum: ["confetti"],
+    first_90_momentum: ["confetti"],
+    first_100_momentum: ["fireworks"],
+    perfect_day: ["confetti"],
+    solid_week: ["fireworks"],
+  };
   
-  // Celebrations cannot use completion/positive animations
-  if (config.class === "celebration" && ["none", "pulse", "ring"].includes(config.animation)) {
-    throw new Error(`[RewardEngine] Celebration cannot use non-celebration animation: ${event}`);
-  }
-  
-  // Completion must be silent
-  if (config.class === "completion" && config.animation !== "none") {
-    throw new Error(`[RewardEngine] Completion acknowledgment must have animation="none": ${event}`);
+  const allowedAnimations = validAnimations[event];
+  if (!allowedAnimations.includes(config.animation)) {
+    throw new Error(
+      `[RewardEngine] ${event} must use one of: ${allowedAnimations.join(", ")}. Got: ${config.animation}`
+    );
   }
 }
-
 // Validate all configs at module load time
 Object.entries(RESPONSE_CONFIG).forEach(([event, config]) => {
   assertValidPayload(event as RewardEventType, config);
@@ -247,16 +363,18 @@ Object.entries(RESPONSE_CONFIG).forEach(([event, config]) => {
 export function resolveReward(ctx: RewardContext): RewardResult {
   // Build eligibility map
   const eligibilityMap: Record<RewardEventType, boolean> = {
-    solid_threshold_crossed: eligibleSolidThreshold(ctx),
-    pattern_confirmed_30: eligiblePatternConfirmed30(ctx),
-    pattern_maintained_30: eligiblePatternMaintained30(ctx),
+    solid_week: eligibleSolidWeek(ctx),
+    first_100_momentum: eligibleFirst100Momentum(ctx),
+    milestone_fireworks: eligibleMilestoneFireworks(ctx),
     
-    mid_consistency: eligibleMidConsistency(ctx),
-    early_consistency: eligibleEarlyConsistency(ctx),
-    solid_day: eligibleSolidDay(ctx),
-    progress_signal: eligibleProgressSignal(ctx),
+    first_90_momentum: eligibleFirst90Momentum(ctx),
+    first_80_momentum: eligibleFirst80Momentum(ctx),
+    perfect_day: eligiblePerfectDay(ctx),
+    milestone_confetti: eligibleMilestoneConfetti(ctx),
     
-    session_complete: eligibleSessionComplete(),
+    milestone_burst: eligibleMilestoneBurst(ctx),
+    
+    check_in_logged: eligibleCheckInLogged(),
   };
   
   // Find highest priority eligible event
@@ -264,15 +382,22 @@ export function resolveReward(ctx: RewardContext): RewardResult {
     if (eligibilityMap[event]) {
       const config = RESPONSE_CONFIG[event];
       
-      // Build state updates if needed
+      // Use dynamic text if available, otherwise use static
+      const { primaryText, secondaryText } = config.dynamic 
+        ? config.dynamic(ctx)
+        : { primaryText: config.primaryText, secondaryText: config.secondaryText };
+      
+      // Build state updates for first-time achievements
       const stateUpdates: RewardResult['stateUpdates'] = {};
       
-      if (event === "solid_threshold_crossed") {
-        stateUpdates.hasEverHitSolidMomentum = true;
+      if (event === "first_80_momentum") {
+        stateUpdates.hasEverHit80Momentum = true;
       }
-      
-      if (event === "early_consistency" || event === "mid_consistency") {
-        stateUpdates.maxConsecutiveDaysEver = ctx.consecutiveDays;
+      if (event === "first_90_momentum") {
+        stateUpdates.hasEverHit90Momentum = true;
+      }
+      if (event === "first_100_momentum") {
+        stateUpdates.hasEverHit100Momentum = true;
       }
       
       return {
@@ -280,7 +405,8 @@ export function resolveReward(ctx: RewardContext): RewardResult {
         payload: {
           animation: config.animation,
           intensity: config.intensity,
-          text: config.text,
+          text: primaryText,
+          secondaryText: secondaryText,
           shareable: config.shareable,
         },
         stateUpdates: Object.keys(stateUpdates).length > 0 ? stateUpdates : undefined,
@@ -288,7 +414,7 @@ export function resolveReward(ctx: RewardContext): RewardResult {
     }
   }
   
-  // Should never reach here due to session_complete fallback
+  // Should never reach here due to check_in_logged fallback
   return {
     event: null,
     payload: null,

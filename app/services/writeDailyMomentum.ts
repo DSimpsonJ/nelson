@@ -24,7 +24,60 @@ import {
   getDaysSinceLastCheckin 
 } from './milestoneState';
 import { findLastRealCheckin, getLastRealValue } from "@/app/utils/findLastRealCheckin";
-
+// Helper to check if this completes a solid week
+async function checkSolidWeek(
+  email: string, 
+  todayDate: string, 
+  todayRatings: Record<string, string>,
+  todayExerciseCompleted: boolean
+): Promise<boolean> {
+  // Check if today is solid
+  const requiredBehaviors = [
+    'nutrition_quality',
+    'portion_control',
+    'protein',
+    'hydration',
+    'sleep',
+    'mindset',
+    'movement'
+  ];
+  
+  const todayIsSolid = requiredBehaviors.every(id => {
+    const rating = todayRatings[id];
+    return rating === 'elite' || rating === 'solid';
+  }) && todayExerciseCompleted;
+  
+  if (!todayIsSolid) return false;
+  
+  // Check previous 6 days
+  const today = new Date(todayDate + "T00:00:00");
+  
+  for (let i = 1; i <= 6; i++) {
+    const checkDate = new Date(today);
+    checkDate.setDate(checkDate.getDate() - i);
+    const dateKey = checkDate.toLocaleDateString("en-CA");
+    
+    const dayRef = doc(db, "users", email, "momentum", dateKey);
+    const daySnap = await getDoc(dayRef);
+    
+    if (!daySnap.exists()) return false;
+    
+    const dayData = daySnap.data();
+    
+    // Skip gap-fill days
+    if (dayData.checkinType === "gap_fill") return false;
+    
+    // Check if day was solid
+    const dayIsSolid = requiredBehaviors.every(id => {
+      const rating = dayData.behaviorRatings?.[id];
+      return rating === 'elite' || rating === 'solid';
+    }) && dayData.exerciseCompleted;
+    
+    if (!dayIsSolid) return false;
+  }
+  
+  return true;
+}
 // ============================================================================
 // CANONICAL SCHEMA
 // ============================================================================
@@ -461,38 +514,26 @@ await setDoc(docRef, finalDoc);
 
 // ===== REWARD ENGINE INTEGRATION =====
 
-// Get milestone state
+// Get milestone state for first-time momentum tracking
 const milestoneState = await getMilestoneState(input.email);
 
-// Calculate days since last check-in
-const daysSinceLastCheckin = await getDaysSinceLastCheckin(input.email, input.date);
+// Calculate if this is a perfect day (all behaviors elite + exercise)
+const isPerfectDay = input.behaviorRatings 
+  ? Object.values(input.behaviorRatings).every(rating => rating === 'elite') && finalDoc.exerciseCompleted
+  : false;
 
-// Calculate if this is a solid day
-const isSolid = isSolidDay(
-  input.behaviorRatings || {},
-  finalDoc.exerciseCompleted
-);
-
-// Get previous momentum for reward context
-const yesterday = new Date(input.date + "T00:00:00");
-yesterday.setDate(yesterday.getDate() - 1);
-const yesterdayKey = yesterday.toLocaleDateString("en-CA");
-const yesterdayRef = doc(db, "users", input.email, "momentum", yesterdayKey);
-const yesterdaySnap = await getDoc(yesterdayRef);
-
-const previousMomentum = yesterdaySnap.exists() 
-  ? (yesterdaySnap.data().momentumScore || 0)
-  : 0;
+// Calculate if this completes a solid week (7 consecutive days, all behaviors solid+ each day)
+const isSolidWeek = await checkSolidWeek(input.email, input.date, input.behaviorRatings || {}, finalDoc.exerciseCompleted);
 
 // Build reward context
 const rewardContext: RewardContext = {
+  totalRealCheckIns: finalDoc.totalRealCheckIns,
   momentum: finalDoc.momentumScore,
-  previousMomentum: previousMomentum,
-  consecutiveDays: finalDoc.currentStreak,
-  maxConsecutiveDaysEver: milestoneState.maxConsecutiveDaysEver,
-  hasEverHitSolidMomentum: milestoneState.hasEverHitSolidMomentum,
-  daysSinceLastCheckin,
-  isSolidDay: isSolid,
+  hasEverHit80Momentum: milestoneState.hasEverHit80Momentum || false,
+  hasEverHit90Momentum: milestoneState.hasEverHit90Momentum || false,
+  hasEverHit100Momentum: milestoneState.hasEverHit100Momentum || false,
+  isPerfectDay,
+  isSolidWeek,
 };
 
 // Resolve reward
@@ -501,7 +542,6 @@ const reward = resolveReward(rewardContext);
 // Update milestone state if needed
 if (reward.stateUpdates) {
   await updateMilestoneState(input.email, reward.stateUpdates);
-  
   console.log("[WriteDailyMomentum] Milestone state updated:", reward.stateUpdates);
 }
 

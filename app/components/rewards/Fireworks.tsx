@@ -7,10 +7,12 @@ import { motion } from "framer-motion";
 export default function Fireworks({ 
   intensity, 
   text,
+  secondaryText,
   onComplete 
 }: { 
   intensity: string; 
   text: string;
+  secondaryText?: string;
   onComplete?: () => void;
 }) {
   const fireFireworks = useCallback(() => {
@@ -78,7 +80,7 @@ export default function Fireworks({
 
         <div className="text-5xl mb-4">🎆</div>
         <h3 className="text-2xl font-bold text-gray-900 mb-4">{text}</h3>
-        <p className="text-sm text-gray-600 mb-6">This is excellence.</p>
+        <p className="text-sm text-gray-600 mb-6">{secondaryText || "Keep going."}</p>
         
         <button
           onClick={onComplete}

@@ -7,10 +7,12 @@ import { motion } from "framer-motion";
 export default function Confetti({ 
   intensity, 
   text,
+  secondaryText,
   onComplete 
 }: { 
   intensity: string; 
   text: string;
+  secondaryText?: string;
   onComplete?: () => void;
 }) {
   const fireConfetti = useCallback(() => {
@@ -64,7 +66,7 @@ export default function Confetti({
 
         <div className="text-5xl mb-4">🎉</div>
         <h3 className="text-2xl font-bold text-gray-900 mb-4">{text}</h3>
-        <p className="text-sm text-gray-600 mb-6">Keep going!</p>
+        <p className="text-sm text-gray-600 mb-6">{secondaryText || "Keep going."}</p>
         
         <button
           onClick={onComplete}
