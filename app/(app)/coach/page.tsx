@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, orderBy, limit, getDocs, Timestamp, doc, getDoc } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs, Timestamp, doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
 import { motion } from "framer-motion";
@@ -83,6 +83,13 @@ const [hasAnsweredCalibration, setHasAnsweredCalibration] = useState(false); // 
   
       const current = summaries.find(s => s.status === "generated");
       setCurrentWeek(current || null);
+      // Mark coaching as viewed
+if (current) {
+  const weekRef = doc(db, "users", email, "weeklySummaries", current.weekId);
+  await updateDoc(weekRef, {
+    viewedAt: Timestamp.now()
+  });
+}
   
       // Check if user already answered calibration for this week
       if (current) {

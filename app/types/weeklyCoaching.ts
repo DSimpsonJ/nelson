@@ -154,6 +154,7 @@ export interface WeeklySummaryRecord {
   
   /** Total lifetime check-ins at time of generation */
   totalLifetimeCheckIns: number;
+  viewedAt?: string;
 }
 
 // ============================================================================
