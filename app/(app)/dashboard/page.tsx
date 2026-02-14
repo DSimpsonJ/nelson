@@ -61,6 +61,7 @@ import { resolveReward, type RewardPayload }
 from "@/app/services/rewardEngine";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import LevelUpSlider from "@/app/components/LevelUpSlider";
+import { WeightCard } from '@/app/components/WeightCard';
 
 /** ---------- Types ---------- */
 
@@ -1393,7 +1394,7 @@ useEffect(() => {
   <div className="flex justify-between items-start">
     <div className="flex flex-col">
     <h1 className="text-2xl font-bold text-white">
-    Hey {profile?.firstName || "there"}.
+    Hey {profile?.firstName || "there"}, welcome back.
   </h1>
   
   {/* Context-Based Message */}
@@ -1418,7 +1419,7 @@ useEffect(() => {
     </p>
   ) : (
     <p className="text-base text-white/60">
-      Welcome back. Time to check in.
+      Time to check in.
     </p>
   )}
 
@@ -1593,7 +1594,7 @@ useEffect(() => {
         </p>
 
         <p className="text-sm text-white/60 text-center mt-2">
-  This is your long game: showing up daily and building momentum.
+  Show up daily and build momentum.
 </p>
       </>
     ) : (
@@ -1683,14 +1684,23 @@ useEffect(() => {
   </div>
 </motion.div>
 )}
-
 {/* ===== COACH ACCESS ===== */}
-<motion.div variants={itemVariants} className="mb-6">
+<motion.div variants={itemVariants} className="mb-4">
   <CoachAccess
     userEmail={getEmail() || ''}
     onNavigate={() => router.push("/coach")}
   />
 </motion.div>
+
+{/* Weight Card */}
+<motion.div variants={itemVariants} className="mb-4">
+  <WeightCard />
+</motion.div>
+
+{/* FUTURE: Learn Card - Same compact styling as Weight */}
+{/* <motion.div variants={itemVariants} className="mb-6">
+  <LearnCard />
+</motion.div> */}
 
 {/* ===== HISTORY ACCESS - LAST ITEM ===== */}
 <motion.div variants={itemVariants}>
