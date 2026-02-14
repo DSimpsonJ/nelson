@@ -66,8 +66,10 @@ const checkInCount = momentumSnapshot.docs.filter(
         if (latest.status === "generated") {
           setLatestCoaching(latest);
           
-          // Can generate new if current week doesn't have coaching yet
-          setCanGenerateNew(latest.weekId !== currentWeekId && checkInCount >= 10);
+          // Only show green if current week coaching exists AND hasn't been viewed
+          const isCurrentWeek = latest.weekId === currentWeekId;
+          const notYetViewed = !(latest as any).viewedAt;
+          setCanGenerateNew(isCurrentWeek && notYetViewed);
         }
       } else {
         // No coaching exists at all
