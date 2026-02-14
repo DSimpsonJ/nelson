@@ -32,7 +32,8 @@ export type RewardEventType =
   | "first_100_momentum"
   
   // Performance celebrations (repeatable)
-  | "perfect_day"
+  | "elite_day"
+  | "solid_day"
   | "solid_week";
 
 export type ResponseClass = "completion" | "positive" | "celebration";
@@ -55,7 +56,8 @@ export interface RewardContext {
   hasEverHit80Momentum: boolean;
   hasEverHit90Momentum: boolean;
   hasEverHit100Momentum: boolean;
-  isPerfectDay: boolean;
+  isEliteDay: boolean;
+  isSolidDay: boolean;
   isSolidWeek: boolean;
 }
 
@@ -190,15 +192,24 @@ const RESPONSE_CONFIG: Record<RewardEventType, {
     shareable: true,
   },
   
-  // REPEATABLE PERFORMANCE CELEBRATIONS
-  perfect_day: {
-    class: "celebration",
-    animation: "confetti",
-    intensity: "large",
-    primaryText: "Perfect day!",
-    secondaryText: "All behaviors elite.",
-    shareable: true,
-  },
+ // REPEATABLE PERFORMANCE CELEBRATIONS
+ elite_day: {
+  class: "celebration",
+  animation: "confetti",
+  intensity: "large",
+  primaryText: "Elite day!",
+  secondaryText: "All behaviors elite. Exceptional execution.",
+  shareable: true,
+},
+
+solid_day: {
+  class: "positive",
+  animation: "burst",
+  intensity: "medium",
+  primaryText: "Solid day!",
+  secondaryText: "All behaviors solid or better.",
+  shareable: false,
+},
   
   solid_week: {
     class: "celebration",
@@ -223,10 +234,11 @@ const PRIORITY: RewardEventType[] = [
   // Performance celebrations - confetti
   "first_90_momentum",
   "first_80_momentum",
-  "perfect_day",
+  "elite_day",
   "milestone_confetti",
   
   // Milestone celebrations - burst
+  "solid_day",
   "milestone_burst",
   
   // Acknowledgement (fallback)
@@ -313,9 +325,12 @@ function eligibleFirst100Momentum(ctx: RewardContext): boolean {
   return ctx.momentum >= 100 && !ctx.hasEverHit100Momentum;
 }
 
-// Repeatable performance celebrations
-function eligiblePerfectDay(ctx: RewardContext): boolean {
-  return ctx.isPerfectDay;
+function eligibleEliteDay(ctx: RewardContext): boolean {
+  return ctx.isEliteDay;
+}
+
+function eligibleSolidDay(ctx: RewardContext): boolean {
+  return ctx.isSolidDay;
 }
 
 function eligibleSolidWeek(ctx: RewardContext): boolean {
@@ -340,7 +355,8 @@ function assertValidPayload(event: RewardEventType, config: typeof RESPONSE_CONF
     first_80_momentum: ["confetti"],
     first_90_momentum: ["confetti"],
     first_100_momentum: ["fireworks"],
-    perfect_day: ["confetti"],
+    elite_day: ["confetti"],
+    solid_day: ["burst"],
     solid_week: ["fireworks"],
   };
   
@@ -369,9 +385,10 @@ export function resolveReward(ctx: RewardContext): RewardResult {
     
     first_90_momentum: eligibleFirst90Momentum(ctx),
     first_80_momentum: eligibleFirst80Momentum(ctx),
-    perfect_day: eligiblePerfectDay(ctx),
+    elite_day: eligibleEliteDay(ctx),
     milestone_confetti: eligibleMilestoneConfetti(ctx),
     
+    solid_day: eligibleSolidDay(ctx),
     milestone_burst: eligibleMilestoneBurst(ctx),
     
     check_in_logged: eligibleCheckInLogged(),

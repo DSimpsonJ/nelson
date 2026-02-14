@@ -517,9 +517,14 @@ await setDoc(docRef, finalDoc);
 // Get milestone state for first-time momentum tracking
 const milestoneState = await getMilestoneState(input.email);
 
-// Calculate if this is a perfect day (all behaviors elite + exercise)
-const isPerfectDay = input.behaviorRatings 
+// Calculate if this is an elite day (all behaviors elite + exercise)
+const isEliteDay = input.behaviorRatings 
   ? Object.values(input.behaviorRatings).every(rating => rating === 'elite') && finalDoc.exerciseCompleted
+  : false;
+
+// Calculate if this is a solid day (all behaviors solid+ + exercise)
+const isSolidDay = input.behaviorRatings 
+  ? Object.values(input.behaviorRatings).every(rating => rating === 'elite' || rating === 'solid') && finalDoc.exerciseCompleted && !isEliteDay
   : false;
 
 // Calculate if this completes a solid week (7 consecutive days, all behaviors solid+ each day)
@@ -532,7 +537,8 @@ const rewardContext: RewardContext = {
   hasEverHit80Momentum: milestoneState.hasEverHit80Momentum || false,
   hasEverHit90Momentum: milestoneState.hasEverHit90Momentum || false,
   hasEverHit100Momentum: milestoneState.hasEverHit100Momentum || false,
-  isPerfectDay,
+  isEliteDay,
+  isSolidDay,
   isSolidWeek,
 };
 

@@ -42,8 +42,8 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
         exit={{ opacity: 0 }}
         className="relative rounded-2xl p-12 flex flex-col items-center justify-center min-h-[400px] overflow-hidden"
       >
-        {/* Particles */}
-        {showParticles && particles.map((particle) => (
+        {/* Particles - only show for ring animation */}
+        {(!reward || reward.animation === "none" || reward.animation === "ring") && showParticles && particles.map((particle) => (
           <motion.div
             key={particle.id}
             initial={{ 
@@ -71,37 +71,39 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
           />
         ))}
 
-        {/* Checkmark Circle */}
-        <motion.div
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ 
-            type: "spring", 
-            stiffness: 200, 
-            damping: 15,
-            delay: 0.1
-          }}
-          className="relative w-32 h-32 rounded-full bg-green-500 flex items-center justify-center mb-6 shadow-2xl"
-        >
-          {/* Checkmark SVG */}
-          <motion.svg
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            width="64"
-            height="64"
-            viewBox="0 0 64 64"
-            fill="none"
+       {/* Checkmark Circle - only show for ring animation */}
+       {(!reward || reward.animation === "none" || reward.animation === "ring") && (
+          <motion.div
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ 
+              type: "spring", 
+              stiffness: 200, 
+              damping: 15,
+              delay: 0.1
+            }}
+            className="relative w-32 h-32 rounded-full bg-green-500 flex items-center justify-center mb-6 shadow-2xl"
           >
-            <motion.path
-              d="M16 32L28 44L48 20"
-              stroke="white"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </motion.svg>
-        </motion.div>
+            {/* Checkmark SVG */}
+            <motion.svg
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              width="64"
+              height="64"
+              viewBox="0 0 64 64"
+              fill="none"
+            >
+              <motion.path
+                d="M16 32L28 44L48 20"
+                stroke="white"
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </motion.svg>
+          </motion.div>
+        )}
 
         {/* Success Text - Show for ring animation and fallback */}
         {(!reward || reward.animation === "none" || reward.animation === "ring") && (
@@ -139,25 +141,27 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
 {reward && ["burst", "confetti", "fireworks", "hero"].includes(reward.animation) && (
           <RewardRenderer reward={reward} onComplete={onComplete} />
         )}
-        {/* Pulse rings */}
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ 
-            scale: [0.8, 1.2, 1.4], 
-            opacity: [0.6, 0.3, 0] 
-          }}
-          transition={{ 
-            duration: 1.5, 
-            repeat: Infinity,
-            repeatDelay: 0.5
-          }}
-          className="absolute w-40 h-40 rounded-full border-4 border-green-500"
-          style={{ 
-            left: '50%', 
-            top: '35%',
-            transform: 'translate(-50%, -50%)'
-          }}
-        />
+       {/* Pulse rings - only show for ring animation */}
+       {(!reward || reward.animation === "none" || reward.animation === "ring") && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ 
+              scale: [0.8, 1.2, 1.4], 
+              opacity: [0.6, 0.3, 0] 
+            }}
+            transition={{ 
+              duration: 1.5, 
+              repeat: Infinity,
+              repeatDelay: 0.5
+            }}
+            className="absolute w-40 h-40 rounded-full border-4 border-green-500"
+            style={{ 
+              left: '50%', 
+              top: '35%',
+              transform: 'translate(-50%, -50%)'
+            }}
+          />
+        )}
           </motion.div>
     </>
   );
