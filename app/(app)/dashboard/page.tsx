@@ -62,6 +62,8 @@ from "@/app/services/rewardEngine";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import LevelUpSlider from "@/app/components/LevelUpSlider";
 import { WeightCard } from '@/app/components/WeightCard';
+import { Inter } from 'next/font/google'
+const inter = Inter({ subsets: ['latin'], weight: ['500', '700'] })
 
 /** ---------- Types ---------- */
 
@@ -1389,7 +1391,7 @@ useEffect(() => {
 {hasCompletedCheckin() && historyStats.currentStreak > 0 && (
   <div className="bg-slate-800/20 backdrop-blur-sm rounded-lg py-3 px-4 mb-4">
    <p className="text-xl text-white/70 text-center">
-      Hey {profile?.firstName || "there"}, you're at {historyStats.currentStreak} consecutive check-ins.
+      Hey {profile?.firstName || "there"}, you've logged {historyStats.currentStreak} consecutive check-ins.
     </p>
   </div>
 )}
@@ -1459,11 +1461,11 @@ useEffect(() => {
         ease: "easeInOut"
       }}
     />
-    <motion.div 
+   <motion.div 
       className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500 rounded-full blur-2xl"
       animate={{
         scale: [1.2, 1, 1.2],
-        opacity: [0.5, 0.8, 0.5],
+        opacity: [0.35, 0.56, 0.35],
       }}
       transition={{
         duration: 4,
@@ -1477,7 +1479,7 @@ useEffect(() => {
   <div className="relative">
   <div className="flex items-center justify-between mb-2">
       <div>
-        <h2 className="text-[32px] font-medium text-white/85" style={{ letterSpacing: '0.02em' }}>Momentum</h2>
+      <h2 className={`text-[24px] font-medium text-white/85 ${inter.className}`} style={{ letterSpacing: '0.05em' }}>Momentum</h2>
       </div>
       
       {/* Only show percentage if NOT Day 1 */}
@@ -1520,36 +1522,38 @@ useEffect(() => {
                 ? 'bg-gradient-to-r from-amber-500 to-orange-500'
                 : todayMomentum.momentumScore >= 60
                 ? 'bg-gradient-to-r from-orange-400/80 to-amber-400/80'
-                : 'bg-gradient-to-r from-gray-400 to-gray-500'
+                : todayMomentum.momentumScore >= 40
+                ? 'bg-gradient-to-r from-orange-400/80 to-amber-400/80'
+                : 'bg-gradient-to-r from-orange-300/60 to-amber-300/60'
             }`}
           />
         </div>
         
         {/* Trend layer */}
-        <div className="text-sm font-medium text-white/85 mb-2">
-          {todayMomentum.momentumDelta >= 5 ? (
-            <div className="flex items-center gap-1">
-              <span className="text-base">↗</span>
-              <span>+{todayMomentum.momentumDelta} Building</span>
+        <div className="flex items-center justify-between text-base font-medium mb-2">
+          <div className="text-white/85">
+            {todayMomentum.momentumDelta >= 5 ? (
+              <div className="flex items-center gap-1">
+                <span className="text-base">↗</span>
+                <span>+{todayMomentum.momentumDelta} · Building</span>
+              </div>
+            ) : todayMomentum.momentumDelta <= -5 ? (
+              <div className="flex items-center gap-1">
+                <span className="text-base">↘</span>
+                <span>{todayMomentum.momentumDelta} · Cooling</span>
+              </div>
+            ) : (
+              <span>Steady</span>
+            )}
+          </div>
+          
+          {/* Commitment badge - right-aligned, same line */}
+          {currentFocus?.target && (
+            <div className="text-white/70">
+              Exercise · {currentFocus.target} min+
             </div>
-          ) : todayMomentum.momentumDelta <= -5 ? (
-            <div className="flex items-center gap-1">
-              <span className="text-base">↘</span>
-              <span>{todayMomentum.momentumDelta} Cooling</span>
-            </div>
-          ) : (
-            <span>Steady</span>
           )}
         </div>
-        
-        {/* Commitment badge - centered */}
-        {currentFocus?.target && (
-          <div className="text-center">
-            <span className="text-base text-white/50 font-normal">
-              Exercise · {currentFocus.target} min+
-            </span>
-          </div>
-        )}
       </>
     ) : (
       /* NO CHECK-IN STATE */

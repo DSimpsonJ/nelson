@@ -102,20 +102,16 @@ const checkInCount = momentumSnapshot.docs.filter(
         onClick={onNavigate}
         className="w-full bg-gradient-to-br from-green-900/40 to-green-800/30 border border-green-700/50 rounded-xl p-5 text-left hover:from-green-900/50 hover:to-green-800/40 transition-all group"
       >
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">⚡</div>
-            <div>
-              <div className="text-white font-semibold text-lg">New Coaching Available</div>
-              <div className="text-white/60 text-xs">
-                Ready to generate this week's coaching
-              </div>
-            </div>
-          </div>
-          <div className="text-white/40 group-hover:text-white/60 transition-colors">
-            →
+        <div className="flex items-start justify-between mb-2">
+        <div>
+          <div className="text-white font-semibold text-lg">Weekly Coaching</div>
+          <div className="text-white/60 text-xs">
+            {formatWeekId(latestCoaching?.weekId || "")}
           </div>
         </div>
+        <div className="text-white/40 group-hover:text-white/60 transition-colors">
+        </div>
+      </div>
 
         <div className="bg-green-900/30 rounded-lg p-3 border border-green-800/50">
           <p className="text-white/90 text-sm">
@@ -130,11 +126,11 @@ const checkInCount = momentumSnapshot.docs.filter(
   return (
     <button
       onClick={onNavigate}
-     className="w-full bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-700/40 rounded-xl p-5 text-left hover:from-purple-900/40 hover:to-blue-900/40 transition-all group"
+     className="w-full bg-gradient-to-br from-blue-900/25 to-indigo-900/20 border border-blue-700/30 rounded-xl p-4 text-left hover:from-blue-900/30 hover:to-indigo-900/25 transition-all group"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className="text-2xl">🎯</div>
+          {/* Emoji removed for cleaner look */}
           <div>
             <div className="text-white font-semibold text-lg">Weekly Coaching</div>
             <div className="text-white/60 text-xs">
@@ -143,22 +139,18 @@ const checkInCount = momentumSnapshot.docs.filter(
           </div>
         </div>
         <div className="text-white/40 group-hover:text-white/60 transition-colors">
-          →
         </div>
       </div>
 
       {latestCoaching?.coaching?.progression && (
-        <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-800/40">
-          <div className="text-xs font-semibold text-purple-300 uppercase tracking-wide mb-1">
-            This Week's Focus
-          </div>
-          <p className="text-white/90 text-sm leading-relaxed line-clamp-2">
+        <div className="mt-2">
+          <p className="text-white/105 text-sm leading-relaxed line-clamp-2">
             {latestCoaching.coaching.progression.text}
           </p>
         </div>
       )}
 
-      <div className="mt-3 text-xs text-white/50 text-center">
+      <div className="mt-3 text-xs text-white/60 text-center">
         Tap to read full coaching
       </div>
     </button>
