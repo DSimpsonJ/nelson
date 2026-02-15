@@ -130,7 +130,7 @@ const checkInCount = momentumSnapshot.docs.filter(
   return (
     <button
       onClick={onNavigate}
-      className="w-full bg-gradient-to-br from-blue-900/40 to-blue-800/30 border border-blue-700/50 rounded-xl p-5 text-left hover:from-blue-900/50 hover:to-blue-800/40 transition-all group"
+     className="w-full bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-700/40 rounded-xl p-5 text-left hover:from-purple-900/40 hover:to-blue-900/40 transition-all group"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -148,8 +148,8 @@ const checkInCount = momentumSnapshot.docs.filter(
       </div>
 
       {latestCoaching?.coaching?.progression && (
-        <div className="bg-blue-900/30 rounded-lg p-3 border border-blue-800/50">
-          <div className="text-xs font-semibold text-blue-300 uppercase tracking-wide mb-1">
+        <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-800/40">
+          <div className="text-xs font-semibold text-purple-300 uppercase tracking-wide mb-1">
             This Week's Focus
           </div>
           <p className="text-white/90 text-sm leading-relaxed line-clamp-2">

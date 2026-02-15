@@ -1384,62 +1384,15 @@ useEffect(() => {
         variants={containerVariants}
         className="max-w-3xl mx-auto space-y-6"
       >
-       {/* 1. Welcome Header */}
-<motion.div
-  variants={itemVariants}
-  className="bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 mb-6"
->
-<div className="flex flex-col mb-4">
-  {/* Left side: Greeting + Message */}
-  <div className="flex justify-between items-start">
-    <div className="flex flex-col">
-    <h1 className="text-2xl font-bold text-white">
-    Hey {profile?.firstName || "there"}, welcome back.
-  </h1>
-  
-  {/* Context-Based Message */}
-  {showWelcomeMessage ? (
-    <div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
-      <p className="font-semibold">Welcome to your Dashboard.</p>
-      <p>This is where you check in once per day and reflect on yesterday's actions.</p>
-      <p>Momentum builds from patterns, not motivation.</p>
-      <p>When there's new learning available, you'll see a small indicator on Learn.</p>
-      <p>When you're done, put the phone down and go live your life.</p>
-    </div>
-  ) : missedDays > 0 && !hasCompletedCheckin() ? (
-    <p className="text-base text-white/60">
-      {missedDays >= 7 
-        ? "It's been a while. Let's rebuild your momentum."
-        : `It's been ${missedDays} ${missedDays === 1 ? "day" : "days"}. Let's get back to it.`
-      }
+      {/* Compact Greeting Strip - Only shows after check-in */}
+<motion.div variants={itemVariants}>
+{hasCompletedCheckin() && historyStats.currentStreak > 0 && (
+  <div className="bg-slate-800/20 backdrop-blur-sm rounded-lg py-3 px-4 mb-4">
+   <p className="text-xl text-white/70 text-center">
+      Hey {profile?.firstName || "there"}, you're at {historyStats.currentStreak} consecutive check-ins.
     </p>
-  ) : hasCompletedCheckin() ? (
-    <p className="text-base text-white/60">
-      Today's check-in has been recorded.
-    </p>
-  ) : (
-    <p className="text-base text-white/60">
-      Time to check in.
-    </p>
-  )}
-
-  {/* Consecutive Check-ins */}
-  {historyStats.currentStreak > 0 && missedDays === 0 && (
-    <p className="text-base text-white/60">
-      That's {historyStats.currentStreak} consecutive check-ins.
-    </p>
-  )}
-  
-  
-  {/* Exercise Commitment */}
-  {currentFocus?.target && (
-    <p className="text-base text-amber-400 font-semibold">
-      Exercise Commitment: {currentFocus.target} Minutes+ Daily
-    </p>
-  )}
-</div>
-</div>
-</div>
+  </div>
+)}
 
   {/* Level-Up Prompt */}
   {levelUpEligible && completedLast7Days >= 5 && (
@@ -1485,7 +1438,6 @@ useEffect(() => {
       )}
     </div>
   )}
-
 </motion.div>
 
 {/* Momentum Engine */}
@@ -1494,7 +1446,7 @@ useEffect(() => {
   className="rounded-xl shadow-lg p-4 mb-6 transition-all duration-500 relative overflow-visible bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
 >
   {/* Animated gradient orbs */}
-  <div className="absolute inset-0 opacity-40 pointer-events-none">
+  <div className="absolute inset-0 opacity-25 pointer-events-none">
     <motion.div 
       className="absolute top-0 right-0 w-48 h-48 bg-blue-500 rounded-full blur-2xl"
       animate={{
@@ -1523,14 +1475,14 @@ useEffect(() => {
   </div>
 
   <div className="relative">
-    <div className="flex items-center justify-between mb-2">
+  <div className="flex items-center justify-between mb-2">
       <div>
-        <h2 className="text-2xl font-bold text-white">Momentum</h2>
+        <h2 className="text-[32px] font-medium text-white/85" style={{ letterSpacing: '0.02em' }}>Momentum</h2>
       </div>
       
       {/* Only show percentage if NOT Day 1 */}
       {todayMomentum && todayMomentum.accountAgeDays > 1 && (
-        <div className="text-4xl font-black tracking-tight text-white">
+        <div className="text-[56px] font-bold text-white leading-none" style={{ letterSpacing: '-0.02em' }}>
           {todayMomentum.momentumScore}%
         </div>
       )}
@@ -1554,48 +1506,50 @@ useEffect(() => {
     ) : currentFocus && todayMomentum ? (
       /* NORMAL STATE - Days 2+ */
       <>
-        {/* Trend Arrow */}
-        {todayMomentum.momentumDelta !== 0 && (
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <span className={
-              todayMomentum.momentumTrend === 'up' ? 'text-xl text-green-400' :
-              todayMomentum.momentumTrend === 'down' ? 'text-xl text-red-400' :
-              'text-xl text-slate-400'
-            }>
-              {todayMomentum.momentumTrend === 'up' ? '↑' :
-               todayMomentum.momentumTrend === 'down' ? '↓' : '→'}
-            </span>
-            <span className="text-white/70 text-sm">
-              {todayMomentum.momentumDelta > 0 ? '+' : ''}{todayMomentum.momentumDelta} points
-            </span>
-          </div>
-        )}
         
-        {/* Progress bar with glow */}
-        <div className="relative h-2.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm mb-2">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${todayMomentum.momentumScore}%` }}
-            transition={{ duration: 1.2, ease: "easeOut" }}
-            className={`absolute h-full rounded-full ${
-              todayMomentum.momentumScore >= 80
-                ? 'bg-gradient-to-r from-red-400 to-orange-400 shadow-lg shadow-red-500/50'
+       {/* Progress bar - refined warm palette */}
+       <div className="relative h-[10px] bg-white/[0.15] rounded-full overflow-hidden backdrop-blur-sm mb-2">
+          <div
+            style={{ width: `${todayMomentum.momentumScore}%` }}
+            className={`absolute h-full rounded-full transition-all duration-300 ${
+              todayMomentum.momentumScore === 100
+                ? 'bg-gradient-to-r from-orange-400 to-orange-300'
+                : todayMomentum.momentumScore >= 90
+                ? 'bg-gradient-to-r from-orange-600 to-orange-500'
+                : todayMomentum.momentumScore >= 80
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500'
                 : todayMomentum.momentumScore >= 60
-                ? 'bg-gradient-to-r from-amber-400 to-yellow-400 shadow-lg shadow-amber-500/50'
-                : todayMomentum.momentumScore >= 40
-                ? 'bg-gradient-to-r from-blue-400 to-cyan-400 shadow-lg shadow-blue-500/50'
-                : 'bg-gradient-to-r from-gray-300 to-gray-400'
+                ? 'bg-gradient-to-r from-orange-400/80 to-amber-400/80'
+                : 'bg-gradient-to-r from-gray-400 to-gray-500'
             }`}
           />
         </div>
         
-        <p className="text-base font-medium text-center text-white/90">
-          {getEnhancedMessage()}
-        </p>
-
-        <p className="text-sm text-white/60 text-center mt-2">
-  Show up daily and build momentum.
-</p>
+        {/* Trend layer */}
+        <div className="text-sm font-medium text-white/85 mb-2">
+          {todayMomentum.momentumDelta >= 5 ? (
+            <div className="flex items-center gap-1">
+              <span className="text-base">↗</span>
+              <span>+{todayMomentum.momentumDelta} Building</span>
+            </div>
+          ) : todayMomentum.momentumDelta <= -5 ? (
+            <div className="flex items-center gap-1">
+              <span className="text-base">↘</span>
+              <span>{todayMomentum.momentumDelta} Cooling</span>
+            </div>
+          ) : (
+            <span>Steady</span>
+          )}
+        </div>
+        
+        {/* Commitment badge - centered */}
+        {currentFocus?.target && (
+          <div className="text-center">
+            <span className="text-base text-white/50 font-normal">
+              Exercise · {currentFocus.target} min+
+            </span>
+          </div>
+        )}
       </>
     ) : (
       /* NO CHECK-IN STATE */
@@ -1673,17 +1627,7 @@ useEffect(() => {
     }
   `}</style>
 </motion.div>
-) : (
-  <motion.div variants={itemVariants} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 mb-6">
-  <div className="flex items-center gap-3">
-    <div className="text-4xl">✓</div>
-    <div>
-      <p className="text-white font-semibold text-lg">Check-in complete</p>
-      <p className="text-white/60 text-sm">You showed up today. Keep the pattern going.</p>
-    </div>
-  </div>
-</motion.div>
-)}
+) : null}
 {/* ===== COACH ACCESS ===== */}
 <motion.div variants={itemVariants} className="mb-4">
   <CoachAccess
@@ -1692,8 +1636,8 @@ useEffect(() => {
   />
 </motion.div>
 
-{/* Weight Card */}
-<motion.div variants={itemVariants} className="mb-4">
+{/* Weight Card - Muted */}
+<motion.div variants={itemVariants} className="mb-4 opacity-50">
   <WeightCard />
 </motion.div>
 
@@ -1703,7 +1647,7 @@ useEffect(() => {
 </motion.div> */}
 
 {/* ===== HISTORY ACCESS - LAST ITEM ===== */}
-<motion.div variants={itemVariants}>
+<motion.div variants={itemVariants} className="opacity-50">
   <HistoryAccess
     onNavigate={() => router.push("/history")}
     currentStreak={historyStats.currentStreak}

@@ -11,6 +11,11 @@ export default function HistoryPage() {
   const { loading, allHistory, currentWindow, accountAgeDays } = useMomentumHistory();
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [expandedNote, setExpandedNote] = useState<string | null>(null);
+  
+  // Month navigation state - initialize to current month
+  const now = new Date();
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1); // 1-12
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -120,7 +125,7 @@ export default function HistoryPage() {
                             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 shadow-lg">
                               <p className="text-xs text-white/60">{formatMD(p.date)}</p>
                               <p className="text-sm font-bold text-white">
-                                {p.current ?? "—"}%
+                                {p.current ?? "â€”"}%
                               </p>
                               {p.currentType === "gap_fill" && (
                                 <p className="text-xs text-white/40">Gap day</p>
@@ -262,8 +267,9 @@ export default function HistoryPage() {
           {/* Section 4: Calendar */}
           <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6 relative z-20 overflow-visible">
             {(() => {
-              const latestDate = allHistory[allHistory.length - 1]?.date || new Date().toLocaleDateString("en-CA");
-              const [year, month] = latestDate.split("-").map(Number);
+              // Use selected month instead of latest date
+              const year = selectedYear;
+              const month = selectedMonth;
 
               const firstDay = new Date(year, month - 1, 1).getDay();
               const daysInMonth = new Date(year, month, 0).getDate();
@@ -273,6 +279,29 @@ export default function HistoryPage() {
               const monthDocs = allHistory.filter(d => d.date >= monthStart && d.date <= monthEnd);
 
               const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+              // Navigation helpers
+              const goToPreviousMonth = () => {
+                if (selectedMonth === 1) {
+                  setSelectedMonth(12);
+                  setSelectedYear(selectedYear - 1);
+                } else {
+                  setSelectedMonth(selectedMonth - 1);
+                }
+              };
+
+              const goToNextMonth = () => {
+                if (selectedMonth === 12) {
+                  setSelectedMonth(1);
+                  setSelectedYear(selectedYear + 1);
+                } else {
+                  setSelectedMonth(selectedMonth + 1);
+                }
+              };
+
+              // Disable next button if we're at current month
+              const now = new Date();
+              const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1;
 
               const renderCalendar = () => {
                 const weeks = [];
@@ -441,9 +470,33 @@ export default function HistoryPage() {
 
               return (
                 <>
-                  <h2 className="text-lg font-semibold text-white mb-4">
-                    {monthNames[month - 1]} {year}
-                  </h2>
+                  {/* Month header with navigation */}
+                  <div className="flex items-center justify-between mb-4">
+                    <button
+                      onClick={goToPreviousMonth}
+                      className="p-2 text-white/60 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
+                      aria-label="Previous month"
+                    >
+                      <span className="text-xl">←</span>
+                    </button>
+                    
+                    <h2 className="text-lg font-semibold text-white">
+                      {monthNames[month - 1]} {year}
+                    </h2>
+                    
+                    <button
+                      onClick={goToNextMonth}
+                      disabled={isCurrentMonth}
+                      className={`p-2 rounded-lg transition-colors ${
+                        isCurrentMonth 
+                          ? 'text-white/20 cursor-not-allowed' 
+                          : 'text-white/60 hover:text-white hover:bg-slate-700/50'
+                      }`}
+                      aria-label="Next month"
+                    >
+                      <span className="text-xl">→</span>
+                    </button>
+                  </div>
 
                   <div style={{ overflowAnchor: 'none' }} className="overflow-visible">
                     <div className="grid grid-cols-7 gap-1 mb-2">
