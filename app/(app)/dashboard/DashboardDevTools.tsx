@@ -378,6 +378,17 @@ export default function DashboardDevTools({
 >
   🗑️ Clear All Coaching
 </button>
+
+{/* Reset Animation Flag */}
+<button
+  onClick={() => {
+    sessionStorage.removeItem('lastMomentumAnimation');
+    window.location.reload();
+  }}
+  className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
+>
+  Reset Animation Flag
+</button>
             {/* Fresh Start */}
             <button
               onClick={async () => {

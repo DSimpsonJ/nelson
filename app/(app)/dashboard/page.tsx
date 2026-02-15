@@ -323,6 +323,10 @@ const [pendingReward, setPendingReward] = useState<any | null>(null);
   const [showMomentumTooltip, setShowMomentumTooltip] = useState(false);
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
   const [consistencyPercentage, setConsistencyPercentage] = useState<number>(0);
+  // Animated momentum score
+  const [displayedScore, setDisplayedScore] = useState(0);
+  // Track if animation has played this session
+  const [hasAnimated, setHasAnimated] = useState(false);
 
   
 
@@ -400,7 +404,44 @@ const [pendingReward, setPendingReward] = useState<any | null>(null);
 
     loadProfile();
   }, []);
-
+// Animate momentum score on load (only once per day)
+useEffect(() => {
+  if (!todayMomentum?.momentumScore) return;
+  
+  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const lastAnimatedDate = sessionStorage.getItem('lastMomentumAnimation');
+  
+  // If already animated today, show final value immediately
+  if (lastAnimatedDate === today) {
+    setDisplayedScore(todayMomentum.momentumScore);
+    setHasAnimated(true);
+    return;
+  }
+  
+  const targetScore = todayMomentum.momentumScore;
+  const duration = 2300; // milliseconds
+  const startTime = Date.now();
+  
+  const animate = () => {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    
+    // Easing function (ease-out)
+    const eased = 1 - Math.pow(1 - progress, 3);
+    
+    setDisplayedScore(Math.round(eased * targetScore));
+    
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      // Mark animation as complete for today
+      sessionStorage.setItem('lastMomentumAnimation', today);
+      setHasAnimated(true);
+    }
+  };
+  
+  requestAnimationFrame(animate);
+}, [todayMomentum?.momentumScore]);
   const loadRecentCheckins = async (email: string) => {
     const colRef = collection(db, "users", email, "checkins");
     const snaps = await withFirestoreError(getDocs(colRef), "check-ins", showToast);
@@ -1386,15 +1427,18 @@ useEffect(() => {
         variants={containerVariants}
         className="max-w-3xl mx-auto space-y-6"
       >
-      {/* Compact Greeting Strip - Only shows after check-in */}
+     {/* Compact Greeting Strip - Shows before and after check-in */}
 <motion.div variants={itemVariants}>
-{hasCompletedCheckin() && historyStats.currentStreak > 0 && (
   <div className="bg-slate-800/20 backdrop-blur-sm rounded-lg py-3 px-4 mb-4">
-   <p className="text-xl text-white/70 text-center">
-      Hey {profile?.firstName || "there"}, you've logged {historyStats.currentStreak} consecutive check-ins.
+    <p className="text-xl text-white/200 text-center">
+      Hey {profile?.firstName || "there"}.
+    </p>
+    <p className="text-base text-white/60 text-center mt-1">
+      {hasCompletedCheckin() && historyStats.currentStreak > 0
+        ? `You've logged ${historyStats.currentStreak} consecutive check-ins.`
+        : "Ready to check in?"}
     </p>
   </div>
-)}
 
   {/* Level-Up Prompt */}
   {levelUpEligible && completedLast7Days >= 5 && (
@@ -1485,8 +1529,8 @@ useEffect(() => {
       {/* Only show percentage if NOT Day 1 */}
       {todayMomentum && todayMomentum.accountAgeDays > 1 && (
         <div className="text-[56px] font-bold text-white leading-none" style={{ letterSpacing: '-0.02em' }}>
-          {todayMomentum.momentumScore}%
-        </div>
+        {displayedScore}%
+      </div>
       )}
     </div>
 
@@ -1511,9 +1555,11 @@ useEffect(() => {
         
        {/* Progress bar - refined warm palette */}
        <div className="relative h-[10px] bg-white/[0.15] rounded-full overflow-hidden backdrop-blur-sm mb-2">
-          <div
-            style={{ width: `${todayMomentum.momentumScore}%` }}
-            className={`absolute h-full rounded-full transition-all duration-300 ${
+       <motion.div
+            initial={{ width: hasAnimated ? `${todayMomentum.momentumScore}%` : 0 }}
+            animate={{ width: `${todayMomentum.momentumScore}%` }}
+            transition={{ duration: hasAnimated ? 0 : 2.7, ease: [0.22, 1, 0.36, 1] }}
+            className={`absolute h-full rounded-full ${
               todayMomentum.momentumScore === 100
                 ? 'bg-gradient-to-r from-orange-400 to-orange-300'
                 : todayMomentum.momentumScore >= 90
