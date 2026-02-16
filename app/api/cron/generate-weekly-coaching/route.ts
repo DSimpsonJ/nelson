@@ -28,20 +28,28 @@ import { db } from '@/app/firebase/config';
  * If today is Monday, we want last week (previous Monday-Sunday).
  * 
  * Week format: YYYY-Www (e.g., "2026-W06")
- * Week runs Monday-Sunday
+ * Week runs Monday-Sunday (ISO 8601)
  */
 function getPreviousWeekId(): string {
   const now = new Date();
   
-  // Go back 7 days to get into the previous week
-  const lastWeek = new Date(now);
-  lastWeek.setDate(now.getDate() - 7);
+  // Simple approach: Get current ISO week, subtract 1
   
-  // Get ISO week number
-  const yearStart = new Date(lastWeek.getFullYear(), 0, 1);
-  const weekNum = Math.ceil((((lastWeek.getTime() - yearStart.getTime()) / 86400000) + yearStart.getDay() + 1) / 7);
+  // Find Monday of current week
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
   
-  return `${lastWeek.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  // Go back 7 days to last Monday
+  monday.setDate(monday.getDate() - 7);
+  
+  // ISO week calculation
+  const yearStart = new Date(monday.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((monday.getTime() - yearStart.getTime()) / 86400000);
+  const weekNum = Math.ceil((dayOfYear + yearStart.getDay() + 1) / 7);
+  
+  return `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }
 
 /**
@@ -176,9 +184,9 @@ export async function GET(request: NextRequest) {
     });
 
     if (result.success) {
-      console.log(`[Cron] ✓ Success: ${email}`);
+      console.log(`[Cron] âœ“ Success: ${email}`);
     } else {
-      console.error(`[Cron] ✗ Failed: ${email} - ${result.error}`);
+      console.error(`[Cron] âœ— Failed: ${email} - ${result.error}`);
     }
   }
 
