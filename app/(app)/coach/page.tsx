@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, orderBy, limit, getDocs, Timestamp, doc, getDoc } from "firebase/firestore";
+import { collection, setDoc, query, orderBy, limit, getDocs, Timestamp, doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
 import { motion } from "framer-motion";
@@ -83,6 +83,13 @@ const [hasAnsweredCalibration, setHasAnsweredCalibration] = useState(false); // 
   
       const current = summaries.find(s => s.status === "generated");
       setCurrentWeek(current || null);
+      // Mark current week coaching as viewed
+      if (current && current.weekId) {
+        const weekRef = doc(db, "users", email, "weeklySummaries", current.weekId);
+        await setDoc(weekRef, {
+          viewedAt: Timestamp.now()
+        }, { merge: true });
+      }
   
       // Check if user already answered calibration for this week
       if (current) {
@@ -283,7 +290,7 @@ const [hasAnsweredCalibration, setHasAnsweredCalibration] = useState(false); // 
           <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 shadow-xl border border-blue-500/50">
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs font-bold text-blue-200 uppercase tracking-wider">
-                🎯 Weekly Focus
+                Weekly Focus
               </div>
               <div className="px-2 py-1 bg-blue-800/50 rounded text-xs font-medium text-blue-200 uppercase">
                 {coaching.progression.type}
@@ -422,7 +429,7 @@ function HistoricalWeekCard({ week }: { week: WeeklySummaryRecord }) {
         <div className="px-4 pb-4 space-y-3 border-t border-slate-700/30 pt-3">
           <div className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-3">
             <div className="text-xs font-semibold text-blue-300 uppercase tracking-wide mb-1">
-              🎯 Focus • {week.coaching.progression.type}
+               Focus • {week.coaching.progression.type}
             </div>
             <p className="text-white/90 text-sm leading-relaxed">
               {week.coaching.progression.text}

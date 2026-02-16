@@ -446,6 +446,54 @@ export default function DashboardDevTools({
             >
               Fresh Start
             </button>
+            {/* Trigger Coaching For All Users */}
+            <button
+  onClick={async () => {
+    try {
+      const email = getEmail();
+      if (!email) {
+        showToast({ message: "Not logged in", type: "error" });
+        return;
+      }
+
+      // Calculate previous week ID (same logic as cron)
+      const now = new Date();
+      const day = now.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diff);
+      monday.setDate(monday.getDate() - 7);
+      
+      const yearStart = new Date(monday.getFullYear(), 0, 1);
+      const dayOfYear = Math.floor((monday.getTime() - yearStart.getTime()) / 86400000);
+      const weekNum = Math.ceil((dayOfYear + yearStart.getDay() + 1) / 7);
+      const weekId = `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+
+      showToast({ message: `Generating coaching for ${weekId}...`, type: "success" });
+
+      const response = await fetch('/api/generate-weekly-coaching', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, weekId })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        showToast({ message: `Generated coaching for ${weekId}`, type: "success" });
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        showToast({ message: `Failed: ${data.error}`, type: "error" });
+      }
+    } catch (err) {
+      console.error('Coaching generation failed:', err);
+      showToast({ message: "Generation failed - check console", type: "error" });
+    }
+  }}
+  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
+>
+  🔄 Trigger Weekly Coaching Now
+</button>
           </div>
         </details>
       </div>
