@@ -409,7 +409,7 @@ useEffect(() => {
   if (!todayMomentum?.momentumScore) return;
   
   const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-  const lastAnimatedDate = sessionStorage.getItem('lastMomentumAnimation');
+  const lastAnimatedDate = localStorage.getItem('lastMomentumAnimation');
   
   // If already animated today, show final value immediately
   if (lastAnimatedDate === today) {
@@ -435,7 +435,7 @@ useEffect(() => {
       requestAnimationFrame(animate);
     } else {
       // Mark animation as complete for today
-      sessionStorage.setItem('lastMomentumAnimation', today);
+      localStorage.setItem('lastMomentumAnimation', today);
       setHasAnimated(true);
     }
   };
