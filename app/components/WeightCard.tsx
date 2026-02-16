@@ -108,7 +108,7 @@ export function WeightCard() {
             onClick={() => setShowModal(true)}
             className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
           >
-            Log Weight
+            UPDATE
           </button>
         </div>
 
