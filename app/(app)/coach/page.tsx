@@ -472,10 +472,24 @@ function HistoricalReviewLine({
 }
 
 function formatWeekId(weekId: string): string {
-  const [year, week] = weekId.split('-W').map(Number);
-  const jan1 = new Date(year, 0, 1);
-  const weekStart = new Date(jan1.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
-  const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
+  if (!weekId) return "";
+  
+  const [year, weekStr] = weekId.split('-W');
+  const weekNum = parseInt(weekStr);
+  
+  // Get first Monday of the year
+  const jan1 = new Date(parseInt(year), 0, 1);
+  const jan1Day = jan1.getDay();
+  const firstMonday = new Date(parseInt(year), 0, 1);
+  firstMonday.setDate(1 + ((jan1Day === 0 ? -6 : 1) - jan1Day));
+  
+  // Calculate the Monday of the target week
+  const weekStart = new Date(firstMonday);
+  weekStart.setDate(firstMonday.getDate() + (weekNum - 1) * 7);
+  
+  // Get Sunday (6 days after Monday)
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
   
   const monthStart = weekStart.toLocaleDateString('en-US', { month: 'short' });
   const monthEnd = weekEnd.toLocaleDateString('en-US', { month: 'short' });

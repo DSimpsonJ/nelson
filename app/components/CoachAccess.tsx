@@ -136,27 +136,27 @@ const checkInCount = momentumSnapshot.docs.filter(
         {/* Subtle animated glow on left edge */}
         <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-blue-400/0 via-blue-400/60 to-blue-400/0 animate-[pulse_3s_ease-in-out_infinite]" />
         
-        {/* Top status indicator */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-blue-400 animate-[pulse_3s_ease-in-out_infinite]" />
-            <span className="text-blue-300/90 text-xs font-medium uppercase tracking-wider">New Intelligence</span>
-          </div>
-        </div>
+        {/* Top status indicator + CTA */}
+<div className="flex items-center justify-between mb-3">
+  <div className="flex items-center gap-2">
+    <div className="w-2 h-2 rounded-full bg-blue-400 animate-[pulse_3s_ease-in-out_infinite]" />
+    <span className="text-blue-300/90 text-xs font-medium uppercase tracking-wider">
+      New Intelligence
+    </span>
+  </div>
 
-        {/* Main content */}
-        <div className="mb-2">
-          <div className="text-white font-semibold text-lg mb-1">Weekly Coaching</div>
-          <div className="flex items-center justify-between">
-            <p className="text-white/70 text-sm">
-              New coaching is available. Tap to read.
-            </p>
-            <div className="flex items-center gap-2 text-blue-400 text-xs group-hover:text-blue-300 transition-colors font-medium">
-              <span>Read briefing</span>
-              <span>→</span>
-            </div>
-          </div>
-        </div>
+  <div className="flex items-center gap-2 text-blue-300/90 text-xs group-hover:text-blue-300 transition-colors font-medium uppercase tracking-wider">
+    <span>view</span>
+  </div>
+</div>
+
+{/* Main content */}
+<div className="mb-2">
+  <div className="text-white font-semibold text-lg">
+    Weekly Coaching
+  </div>
+</div>
+
       </button>
     );
   }
