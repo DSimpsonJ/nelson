@@ -61,6 +61,9 @@ import { resolveReward, type RewardPayload }
 from "@/app/services/rewardEngine";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import LevelUpSlider from "@/app/components/LevelUpSlider";
+import { WeightCard } from '@/app/components/WeightCard';
+import { Inter } from 'next/font/google'
+const inter = Inter({ subsets: ['latin'], weight: ['500', '700'] })
 
 /** ---------- Types ---------- */
 
@@ -320,6 +323,10 @@ const [pendingReward, setPendingReward] = useState<any | null>(null);
   const [showMomentumTooltip, setShowMomentumTooltip] = useState(false);
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
   const [consistencyPercentage, setConsistencyPercentage] = useState<number>(0);
+  // Animated momentum score
+  const [displayedScore, setDisplayedScore] = useState(0);
+  // Track if animation has played this session
+  const [hasAnimated, setHasAnimated] = useState(false);
 
   
 
@@ -397,7 +404,44 @@ const [pendingReward, setPendingReward] = useState<any | null>(null);
 
     loadProfile();
   }, []);
-
+// Animate momentum score on load (only once per day)
+useEffect(() => {
+  if (!todayMomentum?.momentumScore) return;
+  
+  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const lastAnimatedDate = sessionStorage.getItem('lastMomentumAnimation');
+  
+  // If already animated today, show final value immediately
+  if (lastAnimatedDate === today) {
+    setDisplayedScore(todayMomentum.momentumScore);
+    setHasAnimated(true);
+    return;
+  }
+  
+  const targetScore = todayMomentum.momentumScore;
+  const duration = 2300; // milliseconds
+  const startTime = Date.now();
+  
+  const animate = () => {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    
+    // Easing function (ease-out)
+    const eased = 1 - Math.pow(1 - progress, 3);
+    
+    setDisplayedScore(Math.round(eased * targetScore));
+    
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      // Mark animation as complete for today
+      sessionStorage.setItem('lastMomentumAnimation', today);
+      setHasAnimated(true);
+    }
+  };
+  
+  requestAnimationFrame(animate);
+}, [todayMomentum?.momentumScore]);
   const loadRecentCheckins = async (email: string) => {
     const colRef = collection(db, "users", email, "checkins");
     const snaps = await withFirestoreError(getDocs(colRef), "check-ins", showToast);
@@ -1383,62 +1427,18 @@ useEffect(() => {
         variants={containerVariants}
         className="max-w-3xl mx-auto space-y-6"
       >
-       {/* 1. Welcome Header */}
-<motion.div
-  variants={itemVariants}
-  className="bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 mb-6"
->
-<div className="flex flex-col mb-4">
-  {/* Left side: Greeting + Message */}
-  <div className="flex justify-between items-start">
-    <div className="flex flex-col">
-    <h1 className="text-2xl font-bold text-white">
-    Hey {profile?.firstName || "there"}.
-  </h1>
-  
-  {/* Context-Based Message */}
-  {showWelcomeMessage ? (
-    <div className="text-base text-white/90 leading-relaxed mt-3 space-y-2">
-      <p className="font-semibold">Welcome to your Dashboard.</p>
-      <p>This is where you check in once per day and reflect on yesterday's actions.</p>
-      <p>Momentum builds from patterns, not motivation.</p>
-      <p>When there's new learning available, you'll see a small indicator on Learn.</p>
-      <p>When you're done, put the phone down and go live your life.</p>
-    </div>
-  ) : missedDays > 0 && !hasCompletedCheckin() ? (
-    <p className="text-base text-white/60">
-      {missedDays >= 7 
-        ? "It's been a while. Let's rebuild your momentum."
-        : `It's been ${missedDays} ${missedDays === 1 ? "day" : "days"}. Let's get back to it.`
-      }
+     {/* Compact Greeting Strip - Shows before and after check-in */}
+<motion.div variants={itemVariants}>
+  <div className="bg-slate-800/20 backdrop-blur-sm rounded-lg py-3 px-4 mb-4">
+    <p className="text-xl text-white/200 text-center">
+      Hey {profile?.firstName || "there"}.
     </p>
-  ) : hasCompletedCheckin() ? (
-    <p className="text-base text-white/60">
-      Today's check-in has been recorded.
+    <p className="text-base text-white/60 text-center mt-1">
+      {hasCompletedCheckin() && historyStats.currentStreak > 0
+        ? `You've logged ${historyStats.currentStreak} consecutive check-ins.`
+        : "Ready to check in?"}
     </p>
-  ) : (
-    <p className="text-base text-white/60">
-      Welcome back. Time to check in.
-    </p>
-  )}
-
-  {/* Consecutive Check-ins */}
-  {historyStats.currentStreak > 0 && missedDays === 0 && (
-    <p className="text-base text-white/60">
-      That's {historyStats.currentStreak} consecutive check-ins.
-    </p>
-  )}
-  
-  
-  {/* Exercise Commitment */}
-  {currentFocus?.target && (
-    <p className="text-base text-amber-400 font-semibold">
-      Exercise Commitment: {currentFocus.target} Minutes+ Daily
-    </p>
-  )}
-</div>
-</div>
-</div>
+  </div>
 
   {/* Level-Up Prompt */}
   {levelUpEligible && completedLast7Days >= 5 && (
@@ -1484,7 +1484,6 @@ useEffect(() => {
       )}
     </div>
   )}
-
 </motion.div>
 
 {/* Momentum Engine */}
@@ -1493,7 +1492,7 @@ useEffect(() => {
   className="rounded-xl shadow-lg p-4 mb-6 transition-all duration-500 relative overflow-visible bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
 >
   {/* Animated gradient orbs */}
-  <div className="absolute inset-0 opacity-40 pointer-events-none">
+  <div className="absolute inset-0 opacity-25 pointer-events-none">
     <motion.div 
       className="absolute top-0 right-0 w-48 h-48 bg-blue-500 rounded-full blur-2xl"
       animate={{
@@ -1506,11 +1505,11 @@ useEffect(() => {
         ease: "easeInOut"
       }}
     />
-    <motion.div 
+   <motion.div 
       className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500 rounded-full blur-2xl"
       animate={{
         scale: [1.2, 1, 1.2],
-        opacity: [0.5, 0.8, 0.5],
+        opacity: [0.35, 0.56, 0.35],
       }}
       transition={{
         duration: 4,
@@ -1522,16 +1521,16 @@ useEffect(() => {
   </div>
 
   <div className="relative">
-    <div className="flex items-center justify-between mb-2">
+  <div className="flex items-center justify-between mb-2">
       <div>
-        <h2 className="text-2xl font-bold text-white">Momentum</h2>
+      <h2 className={`text-[24px] font-medium text-white/85 ${inter.className}`} style={{ letterSpacing: '0.05em' }}>Momentum</h2>
       </div>
       
       {/* Only show percentage if NOT Day 1 */}
       {todayMomentum && todayMomentum.accountAgeDays > 1 && (
-        <div className="text-4xl font-black tracking-tight text-white">
-          {todayMomentum.momentumScore}%
-        </div>
+        <div className="text-[56px] font-bold text-white leading-none" style={{ letterSpacing: '-0.02em' }}>
+        {displayedScore}%
+      </div>
       )}
     </div>
 
@@ -1553,48 +1552,54 @@ useEffect(() => {
     ) : currentFocus && todayMomentum ? (
       /* NORMAL STATE - Days 2+ */
       <>
-        {/* Trend Arrow */}
-        {todayMomentum.momentumDelta !== 0 && (
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <span className={
-              todayMomentum.momentumTrend === 'up' ? 'text-xl text-green-400' :
-              todayMomentum.momentumTrend === 'down' ? 'text-xl text-red-400' :
-              'text-xl text-slate-400'
-            }>
-              {todayMomentum.momentumTrend === 'up' ? '↑' :
-               todayMomentum.momentumTrend === 'down' ? '↓' : '→'}
-            </span>
-            <span className="text-white/70 text-sm">
-              {todayMomentum.momentumDelta > 0 ? '+' : ''}{todayMomentum.momentumDelta} points
-            </span>
-          </div>
-        )}
         
-        {/* Progress bar with glow */}
-        <div className="relative h-2.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm mb-2">
-          <motion.div
-            initial={{ width: 0 }}
+       {/* Progress bar - refined warm palette */}
+       <div className="relative h-[10px] bg-white/[0.15] rounded-full overflow-hidden backdrop-blur-sm mb-2">
+       <motion.div
+            initial={{ width: hasAnimated ? `${todayMomentum.momentumScore}%` : 0 }}
             animate={{ width: `${todayMomentum.momentumScore}%` }}
-            transition={{ duration: 1.2, ease: "easeOut" }}
+            transition={{ duration: hasAnimated ? 0 : 2.7, ease: [0.22, 1, 0.36, 1] }}
             className={`absolute h-full rounded-full ${
-              todayMomentum.momentumScore >= 80
-                ? 'bg-gradient-to-r from-red-400 to-orange-400 shadow-lg shadow-red-500/50'
+              todayMomentum.momentumScore === 100
+                ? 'bg-gradient-to-r from-orange-400 to-orange-300'
+                : todayMomentum.momentumScore >= 90
+                ? 'bg-gradient-to-r from-orange-600 to-orange-500'
+                : todayMomentum.momentumScore >= 80
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500'
                 : todayMomentum.momentumScore >= 60
-                ? 'bg-gradient-to-r from-amber-400 to-yellow-400 shadow-lg shadow-amber-500/50'
+                ? 'bg-gradient-to-r from-orange-400/80 to-amber-400/80'
                 : todayMomentum.momentumScore >= 40
-                ? 'bg-gradient-to-r from-blue-400 to-cyan-400 shadow-lg shadow-blue-500/50'
-                : 'bg-gradient-to-r from-gray-300 to-gray-400'
+                ? 'bg-gradient-to-r from-orange-400/80 to-amber-400/80'
+                : 'bg-gradient-to-r from-orange-300/60 to-amber-300/60'
             }`}
           />
         </div>
         
-        <p className="text-base font-medium text-center text-white/90">
-          {getEnhancedMessage()}
-        </p>
-
-        <p className="text-sm text-white/60 text-center mt-2">
-  This is your long game: showing up daily and building momentum.
-</p>
+        {/* Trend layer */}
+        <div className="flex items-center justify-between text-base font-medium mb-2">
+          <div className="text-white/85">
+            {todayMomentum.momentumDelta >= 5 ? (
+              <div className="flex items-center gap-1">
+                <span className="text-base">↗</span>
+                <span>+{todayMomentum.momentumDelta} · Building</span>
+              </div>
+            ) : todayMomentum.momentumDelta <= -5 ? (
+              <div className="flex items-center gap-1">
+                <span className="text-base">↘</span>
+                <span>{todayMomentum.momentumDelta} · Cooling</span>
+              </div>
+            ) : (
+              <span>Steady</span>
+            )}
+          </div>
+          
+          {/* Commitment badge - right-aligned, same line */}
+          {currentFocus?.target && (
+            <div className="text-white/70">
+              Exercise · {currentFocus.target} min+
+            </div>
+          )}
+        </div>
       </>
     ) : (
       /* NO CHECK-IN STATE */
@@ -1672,28 +1677,27 @@ useEffect(() => {
     }
   `}</style>
 </motion.div>
-) : (
-  <motion.div variants={itemVariants} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 mb-6">
-  <div className="flex items-center gap-3">
-    <div className="text-4xl">✓</div>
-    <div>
-      <p className="text-white font-semibold text-lg">Check-in complete</p>
-      <p className="text-white/60 text-sm">You showed up today. Keep the pattern going.</p>
-    </div>
-  </div>
-</motion.div>
-)}
-
+) : null}
 {/* ===== COACH ACCESS ===== */}
-<motion.div variants={itemVariants} className="mb-6">
+<motion.div variants={itemVariants} className="mb-4">
   <CoachAccess
     userEmail={getEmail() || ''}
     onNavigate={() => router.push("/coach")}
   />
 </motion.div>
 
+{/* Weight Card - Muted */}
+<motion.div variants={itemVariants} className="mb-4 opacity-50">
+  <WeightCard />
+</motion.div>
+
+{/* FUTURE: Learn Card - Same compact styling as Weight */}
+{/* <motion.div variants={itemVariants} className="mb-6">
+  <LearnCard />
+</motion.div> */}
+
 {/* ===== HISTORY ACCESS - LAST ITEM ===== */}
-<motion.div variants={itemVariants}>
+<motion.div variants={itemVariants} className="opacity-50">
   <HistoryAccess
     onNavigate={() => router.push("/history")}
     currentStreak={historyStats.currentStreak}

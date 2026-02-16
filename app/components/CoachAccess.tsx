@@ -2,9 +2,7 @@
  * CoachAccess Component
  * 
  * Entry point to weekly coaching from dashboard.
- * Shows GREEN when new coaching available (Monday morning, unviewed)
- * Shows BLUE when coaching has been viewed
- * Shows GREY when insufficient check-ins
+ * Shows when coaching is available, stays subtle when not.
  */
 
 "use client";
@@ -29,8 +27,8 @@ function getCurrentWeekId(): string {
 }
 
 export default function CoachAccess({ userEmail, onNavigate }: CoachAccessProps) {
-  const [currentWeekCoaching, setCurrentWeekCoaching] = useState<WeeklySummaryRecord | null>(null);
-  const [isNewCoaching, setIsNewCoaching] = useState(false); // Has coaching but not viewed
+  const [latestCoaching, setLatestCoaching] = useState<WeeklySummaryRecord | null>(null);
+  const [canGenerateNew, setCanGenerateNew] = useState(false);
   const [totalCheckIns, setTotalCheckIns] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -40,46 +38,42 @@ export default function CoachAccess({ userEmail, onNavigate }: CoachAccessProps)
 
   const checkCoachingStatus = async () => {
     if (!userEmail) return;
-  
+
     try {
-      // Count check-ins from momentum collection
-      const momentumRef = collection(db, "users", userEmail, "momentum");
-      const momentumSnapshot = await getDocs(momentumRef);
-      const checkInCount = momentumSnapshot.docs.filter(
-        doc => doc.id.match(/^\d{4}-\d{2}-\d{2}$/)
-      ).length;
+      // Get user's total check-in count
+      const userDocRef = doc(db, "users", userEmail);
+      const userDoc = await getDoc(userDocRef);
+      const userData = userDoc.data();
+      
+   // Count check-ins from momentum collection (where they actually are)
+const momentumRef = collection(db, "users", userEmail, "momentum");
+const momentumSnapshot = await getDocs(momentumRef);
+// Only count documents with YYYY-MM-DD format (not currentFocus, etc.)
+const checkInCount = momentumSnapshot.docs.filter(
+  doc => doc.id.match(/^\d{4}-\d{2}-\d{2}$/)
+).length;
       setTotalCheckIns(checkInCount);
-  
-      // Get current week's coaching specifically
-      const currentWeekId = getCurrentWeekId();
-      const currentWeekDocRef = doc(db, "users", userEmail, "weeklySummaries", currentWeekId);
-      const currentWeekDoc = await getDoc(currentWeekDocRef);
-  
-      if (currentWeekDoc.exists()) {
-        const coaching = currentWeekDoc.data() as WeeklySummaryRecord;
-        
-        if (coaching.status === "generated") {
-          setCurrentWeekCoaching(coaching);
-          setIsNewCoaching(!(coaching as any).viewedAt);
-          return; // Found current week, we're done
-        }
-      }
-  
-      // No current week coaching - check for most recent previous coaching
+
+      // Get most recent coaching
       const summariesRef = collection(db, "users", userEmail, "weeklySummaries");
       const q = query(summariesRef, orderBy("generatedAt", "desc"), limit(1));
       const snapshot = await getDocs(q);
-  
+
+      const currentWeekId = getCurrentWeekId();
+
       if (!snapshot.empty) {
-        const mostRecent = snapshot.docs[0].data() as WeeklySummaryRecord;
-        if (mostRecent.status === "generated") {
-          setCurrentWeekCoaching(mostRecent); // Show most recent coaching
-          setIsNewCoaching(false); // It's old, so not "new"
+        const latest = snapshot.docs[0].data() as WeeklySummaryRecord;
+        if (latest.status === "generated") {
+          setLatestCoaching(latest);
+          
+          // Only show green if current week coaching exists AND hasn't been viewed
+          const isCurrentWeek = latest.weekId === currentWeekId;
+          const notYetViewed = !(latest as any).viewedAt;
+          setCanGenerateNew(isCurrentWeek && notYetViewed);
         }
       } else {
         // No coaching exists at all
-        setCurrentWeekCoaching(null);
-        setIsNewCoaching(false);
+        setCanGenerateNew(checkInCount >= 10);
       }
     } catch (error) {
       console.error("Failed to check coaching:", error);
@@ -90,96 +84,73 @@ export default function CoachAccess({ userEmail, onNavigate }: CoachAccessProps)
 
   if (loading) return null;
 
-  // No coaching for current week + insufficient check-ins = grey locked state
-  if (!currentWeekCoaching && totalCheckIns < 6) {
+  // No coaching ever generated, not enough check-ins
+  if (!latestCoaching && totalCheckIns < 10) {
     return (
       <div className="bg-slate-800/20 border border-slate-700/30 rounded-xl p-5 text-center">
-        <div className="text-2xl mb-2">🔒</div>
-        <p className="text-white/60 text-sm mb-1">Weekly Coaching Locked</p>
-        <p className="text-white/40 text-xs">
-          Complete {6 - totalCheckIns} more check-ins this week to unlock coaching
-        </p>
+        <div className="text-2xl mb-2">🎯</div>
+        <p className="text-white/60 text-sm mb-1">Weekly coaching unlocks at 10 check-ins</p>
+        <p className="text-white/40 text-xs">Keep showing up to unlock your first coaching</p>
       </div>
     );
   }
 
-  // No coaching for current week but has enough check-ins = show coming soon
-  if (!currentWeekCoaching && totalCheckIns >= 6) {
-    return (
-      <div className="bg-slate-800/20 border border-slate-700/30 rounded-xl p-5 text-center">
-        <div className="text-2xl mb-2">⏳</div>
-        <p className="text-white/60 text-sm mb-1">Coaching Generates Monday</p>
-        <p className="text-white/40 text-xs">
-          You've completed {totalCheckIns} check-ins - coaching will be ready Monday at 3am
-        </p>
-      </div>
-    );
-  }
-
-  // New coaching available (GREEN CARD)
-  if (isNewCoaching) {
+  // Can generate new coaching this week
+  if (canGenerateNew) {
     return (
       <button
         onClick={onNavigate}
         className="w-full bg-gradient-to-br from-green-900/40 to-green-800/30 border border-green-700/50 rounded-xl p-5 text-left hover:from-green-900/50 hover:to-green-800/40 transition-all group"
       >
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">⚡</div>
-            <div>
-              <div className="text-white font-semibold text-lg">New Coaching Available</div>
-              <div className="text-white/60 text-xs">
-                Tap to view this week's personalized assessment
-              </div>
-            </div>
-          </div>
-          <div className="text-white/40 group-hover:text-white/60 transition-colors">
-            →
+        <div className="flex items-start justify-between mb-2">
+        <div>
+          <div className="text-white font-semibold text-lg">Weekly Coaching</div>
+          <div className="text-white/60 text-xs">
+            {formatWeekId(latestCoaching?.weekId || "")}
           </div>
         </div>
+        <div className="text-white/40 group-hover:text-white/60 transition-colors">
+        </div>
+      </div>
 
         <div className="bg-green-900/30 rounded-lg p-3 border border-green-800/50">
           <p className="text-white/90 text-sm">
-            Your weekly coaching is ready. Tap to see what's working and what needs attention.
+            Tap to generate your personalized coaching based on this week's check-ins
           </p>
         </div>
       </button>
     );
   }
 
-  // Coaching already viewed (BLUE CARD)
+  // Show most recent coaching (can still click to view)
   return (
     <button
       onClick={onNavigate}
-      className="w-full bg-gradient-to-br from-blue-900/40 to-blue-800/30 border border-blue-700/50 rounded-xl p-5 text-left hover:from-blue-900/50 hover:to-blue-800/40 transition-all group"
+     className="w-full bg-gradient-to-br from-blue-900/25 to-indigo-900/20 border border-blue-700/30 rounded-xl p-4 text-left hover:from-blue-900/30 hover:to-indigo-900/25 transition-all group"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className="text-2xl">🎯</div>
+          {/* Emoji removed for cleaner look */}
           <div>
             <div className="text-white font-semibold text-lg">Weekly Coaching</div>
             <div className="text-white/60 text-xs">
-              {formatWeekId(currentWeekCoaching?.weekId || "")}
+              {formatWeekId(latestCoaching?.weekId || "")}
             </div>
           </div>
         </div>
         <div className="text-white/40 group-hover:text-white/60 transition-colors">
-          →
         </div>
       </div>
 
-      {currentWeekCoaching?.coaching?.progression && (
-        <div className="bg-blue-900/30 rounded-lg p-3 border border-blue-800/50">
-          <div className="text-xs font-semibold text-blue-300 uppercase tracking-wide mb-1">
-            This Week's Focus
-          </div>
-          <p className="text-white/90 text-sm leading-relaxed line-clamp-2">
-            {currentWeekCoaching.coaching.progression.text}
+      {latestCoaching?.coaching?.progression && (
+        <div className="mt-2">
+          <p className="text-white/105 text-sm leading-relaxed line-clamp-2">
+            {latestCoaching.coaching.progression.text}
           </p>
         </div>
       )}
 
-      <div className="mt-3 text-xs text-white/50 text-center">
+      <div className="mt-3 text-xs text-white/60 text-center">
         Tap to read full coaching
       </div>
     </button>
