@@ -47,7 +47,7 @@ export default function AgePage() {
         onboardingStep: "sex",
       });
 
-      router.push("/onboarding/intake/sex");
+      router.push("/onboarding/intake/weight");
     } catch (err) {
       console.error("Error saving age:", err);
       setError("Something went wrong. Please try again.");
@@ -72,14 +72,14 @@ export default function AgePage() {
         transition={{ duration: 0.5 }}
         className="relative z-10 w-full max-w-lg"
       >
-        <IntakeProgress current={1} total={6} />
+        <IntakeProgress current={1} total={4} />
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-3">
             How old are you?
           </h1>
           <p className="text-white/60">
-            This helps personalize your recovery and movement guidance.
+          Used for recovery estimates.
           </p>
         </div>
 

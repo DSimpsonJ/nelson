@@ -83,19 +83,16 @@ export default function PromisePage() {
           className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-2xl p-8 shadow-2xl mb-8"
         >
           <p className="text-xl text-white leading-relaxed mb-6">
-          I’m here to help you discover what actually works.
-Small, consistent actions backed by real science.
+            I'll help you build consistency you can sustain.
           </p>
           <p className="text-xl text-white leading-relaxed">
-          You check in honestly,
-          I'll help you see the patterns.{" "}
+            You check in honestly. Nelson analyzes the patterns.{" "}
             <span className="text-amber-300 font-semibold">
-            Over time, momentum becomes visible.
+              Over time, momentum becomes visible.
             </span>
           </p>
         </motion.div>
 
-        {/* Visual loop explanation */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -113,18 +110,18 @@ Small, consistent actions backed by real science.
 
           <div className="flex flex-col items-center">
             <div className="w-14 h-14 bg-blue-600/20 border-2 border-blue-600/50 rounded-full flex items-center justify-center mb-2">
-              <span className="text-2xl">📈</span>
+              <span className="text-2xl">🔍</span>
             </div>
-            <span className="text-white/80 text-xs font-medium">Build Momentum</span>
+            <span className="text-white/80 text-xs font-medium">Patterns Emerge</span>
           </div>
 
           <div className="text-amber-500/60 text-2xl">→</div>
 
           <div className="flex flex-col items-center">
             <div className="w-14 h-14 bg-amber-500/20 border-2 border-amber-500/50 rounded-full flex items-center justify-center mb-2">
-              <span className="text-2xl">⬆️</span>
+              <span className="text-2xl">⚡</span>
             </div>
-            <span className="text-white/80 text-xs font-medium">Level Up</span>
+            <span className="text-white/80 text-xs font-medium">Momentum Grows</span>
           </div>
         </motion.div>
 

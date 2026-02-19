@@ -118,9 +118,9 @@ const checkInCount = momentumSnapshot.docs.filter(
   if (!latestCoaching && totalCheckIns < 10) {
     return (
       <div className="bg-slate-800/20 border border-slate-700/30 rounded-xl p-5 text-center">
-        <div className="text-2xl mb-2">ðŸŽ¯</div>
+        <div className="text-6xl mb-2 text-white/20">•</div>
         <p className="text-white/60 text-sm mb-1">Weekly coaching unlocks at 10 check-ins</p>
-        <p className="text-white/40 text-xs">Keep showing up to unlock your first coaching</p>
+        <p className="text-white/40 text-xs">Keep showing up to unlock your first briefing</p>
       </div>
     );
   }

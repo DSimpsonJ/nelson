@@ -66,20 +66,49 @@ export default function NamePage() {
     <main className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-lg text-center">
         <div className="mb-10">
-          <motion.div
-            className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6"
-            initial={{ scale: 0, rotate: 0 }}
-            animate={{ 
-              scale: 1,
-              rotate: [0, 14, -8, 14, -4, 10, 0]
-            }}
-            transition={{ 
-              scale: { duration: 0.5, ease: "backOut" },
-              rotate: { duration: 1.5, ease: "easeInOut", delay: 0.5 }
-            }}
-          >
-            <span className="text-3xl">👋</span>
-          </motion.div>
+         {/* Container for hand + particles */}
+<div className="relative mb-6">
+  {/* Floating particles behind hand */}
+  <div className="absolute inset-0 pointer-events-none">
+    {[...Array(6)].map((_, i) => (
+      <motion.div
+        key={i}
+        className="absolute w-2 h-2 rounded-full bg-blue-400/30"
+        style={{
+          left: `${20 + Math.random() * 60}%`,
+          top: `${20 + Math.random() * 60}%`,
+        }}
+        animate={{
+          y: [-20, 20, -20],
+          opacity: [0.2, 0.6, 0.2],
+        }}
+        transition={{
+          duration: 3 + Math.random() * 2,
+          repeat: Infinity,
+          delay: Math.random() * 2,
+          ease: "easeInOut"
+        }}
+      />
+    ))}
+  </div>
+
+  {/* Waving hand on top */}
+  <motion.div
+    animate={{ 
+      rotate: [0, 14, -8, 14, 0],
+      scale: [1, 1.05, 1, 1.05, 1]
+    }}
+    transition={{
+      duration: 2.5,
+      repeat: Infinity,
+      repeatDelay: 1,
+      ease: "easeInOut"
+    }}
+    className="text-8xl relative z-10"
+  >
+    👋
+  </motion.div>
+</div>
 
           <motion.h1 
             className="text-3xl font-bold text-white mb-4"
@@ -87,7 +116,7 @@ export default function NamePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.5 }}
           >
-            Hey, I'm Nelson.
+            Hi, I'm Nelson.
           </motion.h1>
 
           <motion.p 

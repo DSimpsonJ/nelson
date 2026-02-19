@@ -14,8 +14,8 @@ type Rating = "elite" | "solid" | "not-great" | "off";
 
 interface CheckInData {
   exercise: boolean | null;
-  nutritionPattern: Rating | null;
-  energyBalance: Rating | null;
+  nutrition_quality: Rating | null;
+  portion_control: Rating | null;
   protein: Rating | null;
   hydration: Rating | null;
   sleep: Rating | null;
@@ -43,8 +43,8 @@ export default function CheckInPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [checkInData, setCheckInData] = useState<CheckInData>({
     exercise: null,
-    nutritionPattern: null,
-    energyBalance: null,
+    nutrition_quality: null,
+    portion_control: null,
     protein: null,
     hydration: null,
     sleep: null,
@@ -94,80 +94,87 @@ export default function CheckInPage() {
       },
     },
     {
-      id: "nutritionPattern" as keyof CheckInData,
-      title: "Nutrition Pattern (Quality)",
-      description: "This measures the quality of what you ate. How structured and intentional were your food choices?",
+      id: "nutrition_quality" as keyof CheckInData,
+      title: "Nutrition Quality",
+      description: "How nutrient rich were your food choices yesterday?",
+      microcopy: "(Think overall quality, not one meal.)",
       examples: {
-        elite: "All whole foods. Every meal was planned and clean. No processed foods, no convenience eating, no deviation.",
-        solid: "Mostly whole foods and intentional choices throughout the day. No fast food or junk. Quality stayed consistent, even with some flexibility.",
-        notGreat: "Mix of whole foods and processed convenience items. Quality wasn't the priority.",
-        off: "Fast food, heavy snacking, desserts, or unstructured eating. Health wasn't part of the decision-making.",
+        elite: "All whole foods. Every meal intentional. No processed or convenience eating.",
+        solid: "Mostly whole foods. Intentional choices. Some flexibility, but quality stayed high.",
+        notGreat: "Mixed quality. Some whole foods, some convenience or processed items.",
+        off: "Fast food, heavy snacking, desserts, or unstructured eating. Health wasn’t a factor.",
       },
     },
     {
-      id: "energyBalance" as keyof CheckInData,
-      title: "Energy Balance (Quantity)",
-      description: "This measures how much you ate. Were your portions aligned with your goals?",
+      id: "portion_control" as keyof CheckInData,
+      title: "Portion Control",
+      description: "Did your intake align with your goals?",
+      microcopy: "(Consider the quantity of your meals overall.)",
       examples: {
-        elite: "Portions precisely aligned with your goals. You ate with intention and stopped at the right point. No extremes.",
-        solid: "Ate appropriately for your goals. Maybe slightly over or under, but nothing extreme. Portions stayed reasonable.",
-        notGreat: "Noticeably overate or underate. Portions didn't match what you intended.",
-        off: "Way off target in either direction. Portions were unstructured or reactive, not aligned with your goals.",
+        elite: "Fully aligned with your goals. You ate with control and stopped as planned.",
+        solid: "Generally aligned with your goals. Portions felt balanced.",
+        notGreat: "Noticeably over or underate. Portions didn’t match your intention.",
+        off: "Way off target in either direction. Unstructured and misaligned with your goals.",
       },
     },
     {
       id: "protein" as keyof CheckInData,
       title: "Protein Intake",
-      description: `Your target range is based on your body weight (${proteinRange}). Did you pay attention to protein yesterday?`,
+      description: `Your target range is ${proteinRange}. `,
+      microcopy: "(How closely did you pay attention to protein yesterday?)",
       examples: {
-        elite: "Protein was a clear priority. You intentionally hit the upper end of your target range and knew you were there.",
-        solid: "Included protein at every meal and stayed within your target range. You were confident you got enough.",
-        notGreat: "Got some protein, but it wasn't a priority and you likely missed your target range.",
-        off: "Didn't think about protein at all. No attention to the target.",
+        elite: "Protein was a clear priority. You intentionally hit the upper end of your range.",
+        solid: "Included protein at every meal and stayed within your target range.",
+        notGreat: "Got some protein, but likely missed your target range.",
+        off: "Didn't prioritize protein. No attention to the target.",
       },
     },
     {
       id: "hydration" as keyof CheckInData,
       title: "Hydration",
-      description: "Hydration isn't just volume. It's what you drank and why.",
+      description: "Daily fluid choices.",
+      microcopy: "(What you drank and why.)",
       examples: {
-        elite: "Stayed hydrated all day with intentional beverage choices. 64+ oz primarily from water. No soda, alcohol, or unnecessary liquid calories.",
-        solid: "Stayed hydrated and supported health. Mostly water. Minimal caloric beverages that did not drive intake.",
-        notGreat: "Got fluids, but beverage choices worked against hydration or goals. Significant reliance on caloric drinks or inconsistent water intake.",
-        off: "Hydration was neglected or counterproductive. Little water, heavy alcohol or sugary drinks, signs of dehydration.",
+        elite: "Hydrated intentionally all day. 64+ oz, mostly water. No alcohol or liquid calories.",
+        solid: "Stayed hydrated with mostly water. Minimal caloric drinks.",
+        notGreat: "Some fluids, but inconsistent water and relied on caloric drinks.",
+        off: "Little to no water. Heavy alcohol or sugary drinks. Hydration was neglected.",
       },
     },
     {
         id: "sleep" as keyof CheckInData,
         title: "Sleep",
         description: "Did your choices support good sleep?",
+        microcopy: "(Schedule, duration, and wind-down.)",
         examples: {
-          elite: "Consistent bedtime/wake time (±30 min), 7+ hours of sleep opportunity, intentional wind-down routine. Woke feeling fully restored.",
-          solid: "Mostly consistent schedule, 7+ hours of sleep opportunity, some wind-down routine. Woke feeling pretty good.",
-          notGreat: "Inconsistent schedule OR under 7 hours of opportunity. Woke feeling tired.",
-          off: "Random schedule, inadequate sleep opportunity, no routine. Woke feeling wrecked.",
+          elite: "Consistent schedule, 7+ hours in bed, intentional wind-down. Woke fully restored.",
+          solid: "Mostly consistent schedule, 7+ hours in bed. Woke feeling good.",
+          notGreat: "Inconsistent schedule OR under 7 hours in bed. Woke tired.",
+          off: "Late, short, or chaotic sleep. Woke exhausted.",
         },
       },
     {
       id: "mindset" as keyof CheckInData,
       title: "Mental State",
       description: "How much mental capacity did you have yesterday?",
+      microcopy: "(Clarity, energy, and emotional control.)",
       examples: {
-        elite: "Clear, focused, and mentally strong. High energy, optimistic, good emotional regulation.",
-        solid: "Good and steady. Normal energy and mental clarity. It was a good day.",
-        notGreat: "Distracted, irritable, or running on low energy. You white-knuckled your way through it.",
-        off: "Mentally taxed or overwhelmed. It was a tough day and capacity was low.",
+        elite: "Clear, focused, high energy. Emotionally steady and resilient.",
+        solid: "Stable and capable. Normal energy and clarity. It was a good day.",
+        notGreat: "Low energy, distracted, or irritable. Pushed through.",
+        off: "Overwhelmed or mentally drained. Capacity was very low.",
       },
     },
     {
         id: "bonusMovement" as keyof CheckInData,
-        title: "Bonus Movement",
-        description: "Outside of exercise, did you intentionally add extra movement yesterday?",
+        title: "Bonus Activity",
+        description: "Outside of exercise, did you add extra movement?",
+        microcopy: "(Stairs, walking, parking far, active choices.)",
         examples: {
-          elite: "You looked for movement opportunities all day and took them. Stairs, extra walking, active errands.",
-          solid: "You added one or two intentional movement opportunities beyond your normal routine.",
-          notGreat: "You moved through the day as usual, but didn't intentionally add extra movement.",
-          off: "Movement stayed minimal and you didn't add anything beyond what was required.",
+          elite: "Sought movement all day. Took every reasonable opportunity.",
+          solid: "Added one or two intentional movement choices.",
+          notGreat: "Moved as usual. No intentional additions.",
+          off: "Minimized movement beyond what was required.",
         },
       },
   ];
@@ -242,8 +249,8 @@ export default function CheckInPage() {
   
      // Convert ratings to behavior grades
 const behaviorGrades = [
-    { name: "Nutrition Pattern", grade: getRatingGrade(data.nutritionPattern) },
-    { name: "Energy Balance", grade: getRatingGrade(data.energyBalance) },
+    { name: "Nutrition Quality", grade: getRatingGrade(data.nutrition_quality) },
+    { name: "Portion Control", grade: getRatingGrade(data.portion_control) },
     { name: "Protein", grade: getRatingGrade(data.protein) },
     { name: "Hydration", grade: getRatingGrade(data.hydration) },
     { name: "Sleep", grade: getRatingGrade(data.sleep) },
@@ -286,7 +293,7 @@ await setDoc(
   // ==========================================================
   
       // Redirect to celebration
-      router.push("/dashboard");
+      router.push("/onboarding/activate/celebration");
     } catch (err) {
       console.error("Error submitting check-in:", err);
       console.error("Full error details:", JSON.stringify(err, null, 2));
@@ -347,11 +354,15 @@ await setDoc(
             <h1 className="text-3xl font-bold text-white mb-3 text-center">
               {currentCategory.title}
             </h1>
-
-            <p className="text-white/70 text-center mb-8">
+            <p className="text-white/70 text-center mb-1">
               {currentCategory.description}
             </p>
 
+            {currentCategory.microcopy && (
+              <p className="text-white/60 text-sm text-center mb-4 italic">
+                {currentCategory.microcopy}
+              </p>
+            )}
             {/* Rating options */}
             {currentCategory.isExercise ? (
               <div className="flex gap-4 justify-center">
@@ -389,7 +400,6 @@ await setDoc(
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-white font-semibold text-lg">Elite</span>
-                    <span className="text-lg">✓✓</span>
                   </div>
                   <p className="text-white/60 text-sm">
                     {currentCategory.examples.elite}
@@ -417,7 +427,6 @@ await setDoc(
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-white font-semibold text-lg">Not Great</span>
-                    <span className="text-2xl">😐</span>
                   </div>
                   <p className="text-white/60 text-sm">
                     {currentCategory.examples.notGreat}
@@ -431,7 +440,6 @@ await setDoc(
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-white font-semibold text-lg">Off</span>
-                    <span className="text-2xl">🔍</span>
                   </div>
                   <p className="text-white/60 text-sm">
                     {currentCategory.examples.off}

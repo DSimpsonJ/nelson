@@ -53,7 +53,6 @@ import RewardRenderer from "@/app/components/rewards/RewardRenderer";
 import CheckinSuccessAnimation from "@/app/components/rewards/CheckinSuccessAnimation";
 import { detectAndHandleMissedCheckIns } from '@/app/services/missedCheckIns';
 import { selectMomentumMessage } from '@/app/services/messagingGuide';
-import MomentumTooltip from '@/app/components/MomentumTooltip';
 import HistoryAccess from "@/app/components/HistoryAccess";
 import CoachAccess from "@/app/components/CoachAccess";
 import { NelsonLogo, NelsonLogoAnimated  } from '@/app/components/logos';
@@ -63,6 +62,7 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import LevelUpSlider from "@/app/components/LevelUpSlider";
 import { WeightCard } from '@/app/components/WeightCard';
 import { Inter } from 'next/font/google'
+import NotificationPrompt from "@/app/components/NotificationPrompt";
 const inter = Inter({ subsets: ['latin'], weight: ['500', '700'] })
 
 /** ---------- Types ---------- */
@@ -320,7 +320,6 @@ export default function DashboardPage() {
   const [levelUpNextStep, setLevelUpNextStep] = useState<string>("");
 const [pendingReward, setPendingReward] = useState<any | null>(null);
   const [checkinSuccess, setCheckinSuccess] = useState(false);
-  const [showMomentumTooltip, setShowMomentumTooltip] = useState(false);
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
   const [consistencyPercentage, setConsistencyPercentage] = useState<number>(0);
   // Animated momentum score
@@ -620,21 +619,6 @@ if (todayMomentumSnap.exists()) {
     setCheckinSubmitted(true);
   }
 }
-// ===== NEW: Check if we should show momentum tooltip =====
-if (userSnap.exists() && todayMomentumSnap.exists()) {
-  const userData = userSnap.data();
-  const momentumData = todayMomentumSnap.data();
-  const hasSeenTooltip = userData.hasSeenMomentumTooltip ?? false;
-  
-  // Show tooltip after 5 seconds if:
-  // 1. User hasn't seen it
-  // 2. User is on Day 1 (accountAgeDays === 1)
-  if (!hasSeenTooltip && momentumData.accountAgeDays === 1) {
-    setTimeout(() => {
-      setShowMomentumTooltip(true);
-    }, 13000); // 13 seconds
-  }
-}
 // =========================================================
       const momentumColRef = collection(db, "users", email, "momentum");
       const momentumSnaps = await getDocs(momentumColRef);
@@ -860,25 +844,6 @@ if (promptSnap.exists()) {
   setLoading(false);
 }
 };
-  const handleDismissMomentumTooltip = async () => {
-    setShowMomentumTooltip(false);
-    
-    try {
-      const email = getEmail();
-      if (!email) return;
-      
-      // Store flag in Firebase
-      const userRef = doc(db, "users", email);
-      await setDoc(userRef, {
-        hasSeenMomentumTooltip: true,
-        momentumTooltipSeenAt: new Date().toISOString()
-      }, { merge: true });
-      
-      console.log("[Dashboard] Momentum tooltip dismissed");
-    } catch (err) {
-      console.error("Error dismissing tooltip:", err);
-    }
-  };
   const calculateNutritionScore = (
     energyBalance: string,
     eatingPattern: string,
@@ -1614,12 +1579,6 @@ useEffect(() => {
       </p>
     )}
   </div>
-
-  {/* Momentum Tooltip (appears after 13 seconds on Day 1) */}
-  <MomentumTooltip 
-    isVisible={showMomentumTooltip}
-    onDismiss={handleDismissMomentumTooltip}
-  />
 </motion.div>
        {/* 3. Daily Check-in */}
 {checkinSuccess ? (
@@ -1880,6 +1839,7 @@ useEffect(() => {
           />
         )}
 </motion.div>
+<NotificationPrompt />
 </motion.main>
   );
 }
