@@ -114,16 +114,29 @@ const checkInCount = momentumSnapshot.docs.filter(
 
   if (loading) return null;
 
-  // No coaching ever generated, not enough check-ins
-  if (!latestCoaching && totalCheckIns < 10) {
-    return (
-      <div className="bg-slate-800/20 border border-slate-700/30 rounded-xl p-5 text-center">
-        <div className="text-6xl mb-2 text-white/20">•</div>
-        <p className="text-white/60 text-sm mb-1">Weekly coaching unlocks at 10 check-ins</p>
-        <p className="text-white/40 text-xs">Keep showing up to unlock your first briefing</p>
+// No coaching yet — first briefing arrives Monday
+if (!latestCoaching) {
+  return (
+    <div className="w-full bg-gradient-to-br from-blue-900/25 to-indigo-900/20 border border-blue-700/30 rounded-xl p-4 text-left">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div>
+            <div className="text-white font-semibold text-lg">Weekly Coaching</div>
+            <div className="text-white/60 text-xs">First briefing arrives Monday</div>
+          </div>
+        </div>
+        <div className="px-3 py-1 rounded-md bg-white/10 text-white/90 text-xs font-medium uppercase tracking-wider">
+          Tracking
+        </div>
       </div>
-    );
-  }
+      <div className="mt-2">
+        <p className="text-white/90 text-sm leading-relaxed">
+          Keep checking in honestly. The more data, the better the insight.
+        </p>
+      </div>
+    </div>
+  );
+}
 
   // New coaching available this week (green card)
   if (canGenerateNew) {

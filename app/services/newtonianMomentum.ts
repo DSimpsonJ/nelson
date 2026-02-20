@@ -57,13 +57,13 @@ function calculateWeightedAverage(todayScore: number, last4Days: number[]): numb
   const day2 = history[2];
   const yesterday = history[3];
   
-  // Weights: 13.3%, 13.3%, 13.3%, 30%, 30%
+   // Weights: 8%, 14%, 18%, 26%, 34% (today-weighted, recency bias)
   const weighted = 
-    (day4 * 0.133) +
-    (day3 * 0.133) +
-    (day2 * 0.133) +
-    (yesterday * 0.30) +
-    (todayScore * 0.30);
+    (day4 * 0.08) +
+    (day3 * 0.14) +
+    (day2 * 0.18) +
+    (yesterday * 0.26) +
+    (todayScore * 0.34);
   
   return Math.round(weighted);
 }
@@ -229,8 +229,14 @@ return {
 export function calculateDailyScore(behaviorGrades: BehaviorGrade[]): number {
   if (behaviorGrades.length === 0) return 0;
   
-  const total = behaviorGrades.reduce((sum, behavior) => sum + behavior.grade, 0);
-  const average = total / behaviorGrades.length;
+  // Mindset is tracked for coaching context but excluded from score calculation
+  // It is a mental state, not a behavior — anxiety on a strong day shouldn't penalize momentum
+  const scoringBehaviors = behaviorGrades.filter(b => b.name !== 'mindset');
+  
+  if (scoringBehaviors.length === 0) return 0;
+  
+  const total = scoringBehaviors.reduce((sum, behavior) => sum + behavior.grade, 0);
+  const average = total / scoringBehaviors.length;
   
   return Math.round(average);
 }

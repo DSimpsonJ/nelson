@@ -1,7 +1,7 @@
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 
-type Article = {
+export type Article = {
   slug: string;
   title: string;
   format: "read" | "watch";
@@ -96,5 +96,26 @@ export const hasUnreadEligibleArticles = async (
   } catch (error) {
     console.error("Error checking for unread articles:", error);
     return false;
+  }
+};
+/**
+ * Get the first unread eligible article for a user.
+ * Used for the learn banner on the dashboard.
+ */
+export const getFirstUnreadArticle = async (
+  firstCheckinDate: string | null,
+  readLearnSlugs: string[] = []
+): Promise<Article | null> => {
+  if (!firstCheckinDate) return null;
+
+  try {
+    const accountAgeDays = calculateAccountAge(firstCheckinDate);
+    const allArticles = await fetchPublishedArticles();
+    const eligible = getEligibleArticles(allArticles, accountAgeDays);
+
+    return eligible.find(article => !readLearnSlugs.includes(article.slug)) ?? null;
+  } catch (error) {
+    console.error("[LearnBanner] Error fetching first unread article:", error);
+    return null;
   }
 };
