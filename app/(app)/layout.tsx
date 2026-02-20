@@ -24,6 +24,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Check auth and commitment on mount and pathname changes
   useEffect(() => {
     checkCommitmentStatus();
+    if (authReady && commitmentChecked && user) {
+      checkForNewContent();
+    }
   }, [pathname]);
 
   const checkCommitmentStatus = async () => {
@@ -84,13 +87,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [authReady, commitmentChecked, user]);
 
-  useEffect(() => {
-    // If user visits any Learn page, clear the dot
-    if (pathname?.startsWith("/learn")) {
-      markLearnVisited();
-    }
-  }, [pathname]);
-
   const checkForNewContent = async () => {
     try {
       const userEmail = user?.email;
@@ -128,22 +124,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error("Error checking for new content:", error);
-    }
-  };
-
-  const markLearnVisited = async () => {
-    try {
-      const userEmail = user?.email;
-      if (!userEmail) return;
-
-      const userRef = doc(db, "users", userEmail);
-      await setDoc(userRef, {
-        lastLearnVisit: new Date().toISOString(),
-      }, { merge: true });
-
-      setShowLearnDot(false);
-    } catch (error) {
-      console.error("Error marking Learn visited:", error);
     }
   };
 

@@ -45,6 +45,7 @@ import { detectDayOfWeekPatterns, DayOfWeekAnalysis } from '@/app/services/detec
 import { buildScopedSystemPrompt } from '@/app/services/buildScopedSystemPrompt';
 import { validateConstraintAlignment } from '@/app/services/validateConstraintAlignment';
 import { detectCelebrations, CelebrationResult } from '@/app/services/celebrationTriggers';
+import { buildEarlyUserPrompt, calculateEarlyBehaviorAverages } from '@/app/services/buildEarlyUserPrompt';
 
 // Import from your existing Firebase config
 import { db } from '@/app/firebase/config';
@@ -462,19 +463,60 @@ const performanceAcknowledgment = celebrationResult ? celebrationResult.promptTe
 const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
     // Check if coaching eligible
     if (!pattern.canCoach) {
-      // Store skipped record
-      const skipReason = pattern.primaryPattern === 'insufficient_data' 
-        ? 'insufficient_data' 
-        : 'building_foundation';
+      console.log(`[Coaching] Early user path: ${pattern.primaryPattern}`);
+
+      // Fetch whatever week data exists for behavior averages
+      const { start, end } = pattern.dateRange;
+      const earlyMomentumRef = collection(db, 'users', email, 'momentum');
+      const earlyQ = query(
+        earlyMomentumRef,
+        where('date', '>=', start),
+        where('date', '<=', end),
+        where('checkinType', '==', 'real'),
+        orderBy('date', 'asc')
+      );
+      const earlySnap = await getDocs(earlyQ);
+      const earlyWeekData = earlySnap.docs.map(d => d.data());
+
+      const earlyBehaviorAverages = calculateEarlyBehaviorAverages(earlyWeekData);
+
+      const earlyPrompt = buildEarlyUserPrompt({
+        checkInsThisWeek: pattern.realCheckInsThisWeek,
+        totalLifetimeCheckIns: pattern.totalLifetimeCheckIns,
+        behaviorAverages: earlyBehaviorAverages,
+        patternType: pattern.primaryPattern as 'insufficient_data' | 'building_foundation',
+      });
+
+      const earlyMessage = await anthropic.messages.create({
+        model: MODEL_CONFIG.model,
+        max_tokens: 600,
+        temperature: 0.5,
+        system: earlyPrompt,
+        messages: [{ role: 'user', content: 'Generate coaching for this early user. Respond with ONLY the JSON object.' }]
+      });
+
+      const earlyTextContent = earlyMessage.content.find(block => block.type === 'text');
+      if (!earlyTextContent || earlyTextContent.type !== 'text') {
+        throw new Error('No text content in early user API response');
+      }
+
+      let earlyCoaching;
+      try {
+        earlyCoaching = JSON.parse(earlyTextContent.text);
+      } catch {
+        console.error('[Coaching] Early user JSON parse failed:', earlyTextContent.text);
+        throw new Error('Failed to parse early user coaching output');
+      }
 
       const summaryRecord: WeeklySummaryRecord = {
         weekId: pattern.weekId,
         patternType: pattern.primaryPattern,
-        canCoach: false,
-        skipReason,
+        canCoach: true,
+        skipReason: null,
         evidencePoints: pattern.evidencePoints,
-        modelVersion: 'none',
-        status: 'skipped',
+        modelVersion: MODEL_VERSION,
+        status: 'generated',
+        coaching: earlyCoaching,
         generatedAt: Timestamp.now(),
         daysAnalyzed: pattern.daysAnalyzed,
         realCheckInsThisWeek: pattern.realCheckInsThisWeek,
@@ -483,7 +525,7 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
 
       await storeWeeklySummary(email, summaryRecord);
 
-      console.log(`[Coaching] Skipped: ${skipReason}`);
+      console.log(`[Coaching] Early user coaching generated and stored`);
 
       return NextResponse.json<GenerateWeeklyCoachingResponse>({
         success: true,

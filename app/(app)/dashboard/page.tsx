@@ -53,9 +53,9 @@ import RewardRenderer from "@/app/components/rewards/RewardRenderer";
 import CheckinSuccessAnimation from "@/app/components/rewards/CheckinSuccessAnimation";
 import { detectAndHandleMissedCheckIns } from '@/app/services/missedCheckIns';
 import { selectMomentumMessage } from '@/app/services/messagingGuide';
-import MomentumTooltip from '@/app/components/MomentumTooltip';
 import HistoryAccess from "@/app/components/HistoryAccess";
 import CoachAccess from "@/app/components/CoachAccess";
+import LearnBanner from "@/app/components/LearnBanner";
 import { NelsonLogo, NelsonLogoAnimated  } from '@/app/components/logos';
 import { resolveReward, type RewardPayload } 
 from "@/app/services/rewardEngine";
@@ -63,6 +63,7 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import LevelUpSlider from "@/app/components/LevelUpSlider";
 import { WeightCard } from '@/app/components/WeightCard';
 import { Inter } from 'next/font/google'
+import NotificationPrompt from "@/app/components/NotificationPrompt";
 const inter = Inter({ subsets: ['latin'], weight: ['500', '700'] })
 
 /** ---------- Types ---------- */
@@ -320,9 +321,10 @@ export default function DashboardPage() {
   const [levelUpNextStep, setLevelUpNextStep] = useState<string>("");
 const [pendingReward, setPendingReward] = useState<any | null>(null);
   const [checkinSuccess, setCheckinSuccess] = useState(false);
-  const [showMomentumTooltip, setShowMomentumTooltip] = useState(false);
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
   const [consistencyPercentage, setConsistencyPercentage] = useState<number>(0);
+  const [firstCheckinDate, setFirstCheckinDate] = useState<string | null>(null);
+  const [readLearnSlugs, setReadLearnSlugs] = useState<string[]>([]);
   // Animated momentum score
   const [displayedScore, setDisplayedScore] = useState(0);
   // Track if animation has played this session
@@ -513,7 +515,8 @@ if (gapInfo.hadGap) {
         const userData = userSnap.data();
         firstName = userData.firstName ?? "there";
         isActivated = userData.isActivated ?? false; // 🆕 Load activation status
-        hasSeenWelcome = userData.hasSeenDashboardWelcome ?? false;  // ← ADD THIS
+        hasSeenWelcome = userData.hasSeenDashboardWelcome ?? false;
+        setReadLearnSlugs(userData.readLearnSlugs ?? []);
       }
 // ===== NEW: Show welcome if first time =====
 if (!hasSeenWelcome) {
@@ -620,21 +623,6 @@ if (todayMomentumSnap.exists()) {
     setCheckinSubmitted(true);
   }
 }
-// ===== NEW: Check if we should show momentum tooltip =====
-if (userSnap.exists() && todayMomentumSnap.exists()) {
-  const userData = userSnap.data();
-  const momentumData = todayMomentumSnap.data();
-  const hasSeenTooltip = userData.hasSeenMomentumTooltip ?? false;
-  
-  // Show tooltip after 5 seconds if:
-  // 1. User hasn't seen it
-  // 2. User is on Day 1 (accountAgeDays === 1)
-  if (!hasSeenTooltip && momentumData.accountAgeDays === 1) {
-    setTimeout(() => {
-      setShowMomentumTooltip(true);
-    }, 13000); // 13 seconds
-  }
-}
 // =========================================================
       const momentumColRef = collection(db, "users", email, "momentum");
       const momentumSnaps = await getDocs(momentumColRef);
@@ -686,6 +674,7 @@ const currentStreak = todayMomentumSnap.exists()
 const metadataRef = doc(db, "users", email, "metadata", "accountInfo");
 const metadataSnap = await getDoc(metadataRef);
 const firstCheckinDate = metadataSnap.data()?.firstCheckinDate;
+setFirstCheckinDate(firstCheckinDate ?? null);
 
 if (!firstCheckinDate) {
   console.error("No firstCheckinDate found");
@@ -860,25 +849,6 @@ if (promptSnap.exists()) {
   setLoading(false);
 }
 };
-  const handleDismissMomentumTooltip = async () => {
-    setShowMomentumTooltip(false);
-    
-    try {
-      const email = getEmail();
-      if (!email) return;
-      
-      // Store flag in Firebase
-      const userRef = doc(db, "users", email);
-      await setDoc(userRef, {
-        hasSeenMomentumTooltip: true,
-        momentumTooltipSeenAt: new Date().toISOString()
-      }, { merge: true });
-      
-      console.log("[Dashboard] Momentum tooltip dismissed");
-    } catch (err) {
-      console.error("Error dismissing tooltip:", err);
-    }
-  };
   const calculateNutritionScore = (
     energyBalance: string,
     eatingPattern: string,
@@ -1434,8 +1404,10 @@ useEffect(() => {
       Hey {profile?.firstName || "there"}.
     </p>
     <p className="text-base text-white/60 text-center mt-1">
-      {hasCompletedCheckin() && historyStats.currentStreak > 0
-        ? `You've logged ${historyStats.currentStreak} consecutive check-ins.`
+    {hasCompletedCheckin() && historyStats.currentStreak > 0
+        ? historyStats.currentStreak === 1
+          ? "Check in again tomorrow to keep your run going."
+          : `You've logged ${historyStats.currentStreak} consecutive check-ins.`
         : "Ready to check in?"}
     </p>
   </div>
@@ -1526,8 +1498,8 @@ useEffect(() => {
       <h2 className={`text-[24px] font-medium text-white/85 ${inter.className}`} style={{ letterSpacing: '0.05em' }}>Momentum</h2>
       </div>
       
-      {/* Only show percentage if NOT Day 1 */}
-      {todayMomentum && todayMomentum.accountAgeDays > 1 && (
+      {/* Always show percentage even on Day 1 */}
+      {todayMomentum && todayMomentum.momentumScore > 0 && (
         <div className="text-[56px] font-bold text-white leading-none" style={{ letterSpacing: '-0.02em' }}>
         {displayedScore}%
       </div>
@@ -1535,7 +1507,7 @@ useEffect(() => {
     </div>
 
     {/* DAY 1 STATE - Simple */}
-    {todayMomentum && todayMomentum.accountAgeDays === 1 ? (
+    {todayMomentum && todayMomentum.accountAgeDays === 1 && !todayMomentum.momentumScore ? (
       <div className="py-4">
         {/* Empty progress bar */}
         <div className="relative h-2.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm mb-4">
@@ -1614,12 +1586,6 @@ useEffect(() => {
       </p>
     )}
   </div>
-
-  {/* Momentum Tooltip (appears after 13 seconds on Day 1) */}
-  <MomentumTooltip 
-    isVisible={showMomentumTooltip}
-    onDismiss={handleDismissMomentumTooltip}
-  />
 </motion.div>
        {/* 3. Daily Check-in */}
 {checkinSuccess ? (
@@ -1678,6 +1644,13 @@ useEffect(() => {
   `}</style>
 </motion.div>
 ) : null}
+{/* ===== LEARN BANNER ===== */}
+<LearnBanner
+  userEmail={getEmail() || ''}
+  firstCheckinDate={firstCheckinDate}
+  readLearnSlugs={readLearnSlugs}
+/>
+
 {/* ===== COACH ACCESS ===== */}
 <motion.div variants={itemVariants} className="mb-4">
   <CoachAccess
@@ -1690,11 +1663,6 @@ useEffect(() => {
 <motion.div variants={itemVariants} className="mb-4 opacity-50">
   <WeightCard />
 </motion.div>
-
-{/* FUTURE: Learn Card - Same compact styling as Weight */}
-{/* <motion.div variants={itemVariants} className="mb-6">
-  <LearnCard />
-</motion.div> */}
 
 {/* ===== HISTORY ACCESS - LAST ITEM ===== */}
 <motion.div variants={itemVariants} className="opacity-50">
@@ -1880,6 +1848,7 @@ useEffect(() => {
           />
         )}
 </motion.div>
+<NotificationPrompt />
 </motion.main>
   );
 }

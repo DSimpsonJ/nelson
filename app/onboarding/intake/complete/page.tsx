@@ -13,7 +13,7 @@ export default function IntakeCompletePage() {
 
       {/* Progress bar */}
       <div className="absolute top-8 left-0 right-0 px-6">
-      <IntakeProgress current={6} total={6} />
+      <IntakeProgress current={4} total={4} />
       </div>
 
       <motion.div
@@ -46,19 +46,19 @@ export default function IntakeCompletePage() {
 >
   <div className="space-y-6 text-white/90 leading-relaxed">
     <p className="text-lg">
-      First, you'll set a <span className="text-amber-400 font-semibold">daily commitment</span>. This is an action you're agreeing to repeat.
+      First, you'll set a <span className="text-amber-400 font-semibold">daily movement commitment</span>.
     </p>
 
     <div className="h-px bg-white/10" />
 
     <p className="text-base">
-      Each day, you'll check in across key areas to report what actually happened yesterday. Those inputs are important, but <span className="font-semibold">the commitment is your only promise</span>.
+    This is the minimum you’ll do (even on your worst days). <span className="font-semibold"><br></br>It’s not a goal, it’s your floor.</span>
     </p>
 
     <div className="h-px bg-white/10" />
 
-    <p className="text-base text-white/80">
-      Momentum builds when your commitment and your check-in stay aligned over time.
+    <p className="text-lg text-white/90">
+    Keep it realistic. Momentum starts here.
     </p>
   </div>
 </motion.div>
@@ -67,7 +67,7 @@ export default function IntakeCompletePage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
-          onClick={() => router.push("/onboarding/intake/movement-education")}
+          onClick={() => router.push("/onboarding/setup/movement-commitment")}
           className="w-full max-w-xs mx-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-lg transition-all duration-200"
         >
           Continue

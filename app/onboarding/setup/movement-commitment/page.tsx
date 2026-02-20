@@ -62,7 +62,7 @@ export default function MovementCommitmentPage() {
         { merge: true }
       );
 
-      router.push("/onboarding/setup/plan");
+      router.push("/onboarding/setup/identity");
     } catch (err) {
       console.error("Error saving movement commitment:", err);
       setLoading(false);
@@ -117,9 +117,9 @@ export default function MovementCommitmentPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="text-white/70 text-center mb-10"
+          className="text-white/70 text-center mb-8"
         >
-          To build momentum, you'll commit to a minimum amount of movement each day. Pick a level you can sustain on your busiest, lowest-energy days. You can always do more. This is your floor.
+          Pick an amount you can complete on your worst days. Walking, cycling, dancing, calisthenics, resistance training — the type doesn't matter. <br></br><span className="text-amber-400 font-semibold">What matters is that it happens.</span>
         </motion.p>
 
         {/* Time options */}

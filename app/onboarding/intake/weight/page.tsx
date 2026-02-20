@@ -20,33 +20,38 @@ export default function WeightPage() {
   }, [router]);
 
   const handleContinue = async () => {
-    const weightNum = parseInt(weight);
+    const weightNum = parseFloat(weight); // Changed from parseInt to parseFloat
     
     if (!weight || isNaN(weightNum)) {
       setError("Please enter your weight.");
       return;
     }
-
+  
     if (weightNum < 50 || weightNum > 700) {
       setError("Please enter a valid weight.");
       return;
     }
-
+  
     setLoading(true);
     setError("");
-
+  
     try {
       const email = getEmail();
       if (!email) {
         router.replace("/");
         return;
       }
-
+  
+      // Save to user doc (for protein calculations)
       await updateDoc(doc(db, "users", email), {
         weight: weightNum,
         onboardingStep: "movement",
       });
-
+  
+      // Also log to weight history (for dashboard card)
+      const { logWeight } = await import("@/app/services/weightService");
+      await logWeight(email, weightNum);
+  
       router.push("/onboarding/intake/focus");
     } catch (err) {
       console.error("Error saving weight:", err);
@@ -72,14 +77,14 @@ export default function WeightPage() {
         transition={{ duration: 0.5 }}
         className="relative z-10 w-full max-w-lg"
       >
-        <IntakeProgress current={3} total={6} />
+        <IntakeProgress current={2} total={4} />
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-3">
             What's your current weight?
           </h1>
           <p className="text-white/60">
-            This helps me personalize your protein targets. I won't use it for calories or weight-loss tracking, but you can if you like.
+          Used to personalize protein targets.
           </p>
         </div>
 

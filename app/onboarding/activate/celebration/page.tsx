@@ -11,8 +11,8 @@ export default function CelebrationPage() {
   useEffect(() => {
     // Auto-advance after 3 seconds
     const timer = setTimeout(() => {
-      router.push("/onboarding/activate/commitment");
-    }, 7000);
+      router.push("/dashboard");
+    }, 6000);
 
     return () => clearTimeout(timer);
   }, [router]);

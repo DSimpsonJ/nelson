@@ -79,7 +79,7 @@ export default function FocusPage() {
         transition={{ duration: 0.5 }}
         className="relative z-10 w-full max-w-lg"
       >
-        <IntakeProgress current={5} total={6} />
+        <IntakeProgress current={3} total={4} />
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-3">

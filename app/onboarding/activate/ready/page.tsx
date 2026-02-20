@@ -21,7 +21,7 @@ export default function ReadyPage() {
           transition={{ delay: 0.2, duration: 0.5 }}
           className="text-7xl mb-8"
         >
-          🚀
+          
         </motion.div>
 
         <motion.h1
@@ -39,7 +39,7 @@ export default function ReadyPage() {
   transition={{ delay: 0.5 }}
   className="text-xl text-white/80 mb-12"
 >
-  Let's do your first check-in.
+  Let's complete your first check-in.
 </motion.p>
 
 <motion.div
@@ -49,10 +49,10 @@ export default function ReadyPage() {
   className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/30 rounded-xl p-6 mb-10 max-w-xs mx-auto"
 >
   <p className="text-white/90 text-center mb-3">
-    Today includes a little guidance.
+    This one includes brief guidance.
   </p>
   <p className="text-white/90 text-center">
-    After this, <span className="text-amber-300 font-semibold">it's quick and repeatable.</span>
+    After today, <span className="text-amber-300 font-semibold"><br></br>check-ins take about a minute.</span>
   </p>
 </motion.div>
 

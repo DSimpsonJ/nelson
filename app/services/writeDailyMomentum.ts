@@ -261,26 +261,32 @@ async function calculateStreak(email: string, date: string): Promise<{
 }
 
 function applyRampCap(score: number, checkInCount: number): { score: number; message: string } {
-  if (checkInCount <= 2) {
-    return {
-      score: Math.min(score, 30),
-      message: "Building a foundation"
-    };
+  let cap: number;
+  let message: string;
+
+  if (checkInCount <= 1) {
+    cap = 10;
+    message = "Building a foundation";
+  } else if (checkInCount <= 2) {
+    cap = 20;
+    message = "Building a foundation";
+  } else if (checkInCount <= 5) {
+    cap = 40;
+    message = "Finding your rhythm";
+  } else if (checkInCount <= 7) {
+    cap = 60;
+    message = "Finding your rhythm";
+  } else if (checkInCount <= 9) {
+    cap = 80;
+    message = "Momentum is forming";
+  } else {
+    return { score, message: "" };
   }
-  if (checkInCount <= 5) {
-    return {
-      score: Math.min(score, 60),
-      message: "Finding your rhythm"
-    };
-  }
-  if (checkInCount <= 9) {
-    return {
-      score: Math.min(score, 80),
-      message: "Momentum is forming"
-    };
-  }
-  
-  return { score, message: "" };
+
+  // Scale proportionally within the cap rather than always hitting the ceiling
+  // A 100 daily score hits the cap max. A 50 daily score hits 50% of the cap.
+  const scaled = Math.round((score / 100) * cap);
+  return { score: Math.min(scaled, cap), message };
 }
 
 async function deriveExerciseCompleted(
