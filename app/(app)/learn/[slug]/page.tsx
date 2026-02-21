@@ -14,6 +14,7 @@ type Article = {
   category: string;
   content: string;
   videoUrl?: string;
+  imageUrl?: string;
 };
 
 export default function LearnItemPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -110,6 +111,17 @@ export default function LearnItemPage({ params }: { params: Promise<{ slug: stri
         >
           ← Back to Learn
         </Link>
+
+        {/* Hero Image - Substack style */}
+        {article.imageUrl && (
+          <div className="mb-6 overflow-hidden rounded-xl">
+            <img
+              src={article.imageUrl}
+              alt={article.title}
+              className="w-full h-56 object-cover"
+            />
+          </div>
+        )}
 
         {/* Header */}
         <div className="mb-6">
