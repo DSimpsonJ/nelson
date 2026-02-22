@@ -12,78 +12,78 @@ export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
     {
       id: 'nutrition_quality',
       title: 'Nutrition Quality',
-      prompt: 'How nutrient-rich were your meals yesterday?',
+      prompt: 'How nutrient rich were your food choices yesterday?',
       tooltip:
-        'Elite: Planned and executed as intended with no meaningful deviation. ' +
-        'Solid: Intentional eating with minor, controlled deviation. ' +
-        'Not Great: Intent existed, but food choices were inconsistent or reactive. ' +
-        'Off: Little to no intentional structure. Mostly reactive or default eating.',
+        '**Elite:** All whole foods. Every meal intentional. No processed eating. ' +
+        '**Solid:** Mostly whole foods. Intentional choices with some flexibility. ' +
+        '**Not Great:** Mixed quality. Some whole foods, some convenience items. ' +
+        '**Off:** Fast food, heavy snacking, or unstructured eating.',
       icon: '',
     },
     {
       id: 'portion_control',
       title: 'Portion Control',
-      prompt: 'How well did your intake align with your goal?',
+      prompt: 'Did your intake align with your goals?',
       tooltip:
-        'Elite: Portions matched target as planned with high precision. ' +
-        'Solid: Minor, controlled deviation from target. ' +
-        'Not Great: Clear miss. Portions were meaningfully over or under target. ' +
-        'Off: Major deviation with little or no portion control.',
+        '**Elite:** Fully aligned with your goals. Ate with control and stopped as planned. ' +
+        '**Solid:** Generally aligned. Portions felt balanced. ' +
+        '**Not Great:** Noticeably over or underate. Didn\'t match intention. ' +
+        '**Off:** Way off target. Unstructured and misaligned.',
       icon: '',
     },
     {
       id: 'protein',
-  title: 'Protein',
-  prompt: `Did you pay attention to protein yesterday? (${proteinMin}-${proteinMax}g)`,
-  tooltip:
-    'Elite: High-precision awareness. You could state your protein intake within a narrow range of grams. ' +
-    'Solid: Protein was consciously prioritized and you are confident intake landed within the target range. ' +
-    'Not Great: Protein intent was present, but intake likely fell outside the target range. ' +
-    'Off: Little to no intentional attention to protein.',
-  icon: '',
+      title: 'Protein',
+      prompt: `Did you pay attention to protein yesterday? (${proteinMin}-${proteinMax}g)`,
+      tooltip:
+        '**Elite:** Protein was a clear priority. Intentionally hit the upper end of your range. ' +
+        '**Solid:** Included protein at every meal. Stayed within target range. ' +
+        '**Not Great:** Got some protein, but likely missed your target. ' +
+        '**Off:** Didn\'t prioritize protein. No attention to the target.',
+      icon: '',
     },
     {
       id: 'hydration',
       title: 'Hydration',
-      prompt: 'Did you stay hydrated yesterday? (64+ oz)',
+      prompt: 'Daily fluid choices.',
       tooltip:
-        'Elite: 64+ oz from water or non-caloric drinks only. ' +
-        'Solid: 64+ oz, mostly water with minimal caloric drinks. ' +
-        'Not Great: Below target or relied heavily on caloric drinks. ' +
-        'Off: Little to no intentional hydration.',
+        '**Elite:** Hydrated intentionally all day. 64+ oz, mostly water. No alcohol or liquid calories. ' +
+        '**Solid:** Stayed hydrated with mostly water. Minimal caloric drinks. ' +
+        '**Not Great:** Inconsistent water. Relied on caloric drinks. ' +
+        '**Off:** Little to no water. Heavy alcohol or sugary drinks.',
       icon: '',
     },
     {
       id: 'sleep',
       title: 'Sleep',
-      prompt: 'Did you set yourself up for quality sleep last night?',
+      prompt: 'Did your choices support good sleep?',
       tooltip:
-        'Elite: Consistent schedule (±30 min), 7+ hours in bed, intentional wind-down. ' +
-        'Solid: Mostly consistent schedule with a 7+ hour sleep opportunity. ' +
-        'Not Great: Inconsistent schedule **OR** insufficient sleep opportunity. ' +
-'Off: Highly inconsistent schedule **AND** inadequate sleep opportunity.',
+        '**Elite:** Consistent schedule, 7+ hours in bed, intentional wind-down. Woke fully restored. ' +
+        '**Solid:** Mostly consistent schedule, 7+ hours in bed. Woke feeling good. ' +
+        '**Not Great:** Inconsistent schedule OR under 7 hours. Woke tired. ' +
+        '**Off:** Late, short, or chaotic sleep. Woke exhausted.',
       icon: '',
     },
     {
       id: 'mindset',
       title: 'Mental State',
-      prompt: 'How steady and functional were you yesterday?',
+      prompt: 'How much mental capacity did you have yesterday?',
       tooltip:
-        'Elite: Clear focus and emotional steadiness throughout the day. ' +
-        'Solid: Generally steady with brief or manageable dips. ' +
-        'Not Great: Focus or emotional regulation was meaningfully disrupted. ' +
-        'Off: Mentally overwhelmed or emotionally taxed.',
+        '**Elite:** Clear, focused, high energy. Emotionally steady and resilient. ' +
+        '**Solid:** Stable and capable. Normal energy and clarity. A good day. ' +
+        '**Not Great:** Low energy, distracted, or irritable. Pushed through. ' +
+        '**Off:** Overwhelmed or mentally drained. Capacity was very low.',
       icon: '',
     },
     {
       id: 'movement',
       title: 'Bonus Activity',
-      prompt: 'Did you look for extra movement opportunities yesterday?',
+      prompt: 'Outside of exercise, did you add extra movement?',
       tooltip:
-        'Elite: Consistently sought and took extra movement opportunities. ' +
-        'Solid: Added one or two intentional movement opportunities. ' +
-        'Not Great: Movement was incidental with no intentional extras. ' +
-        'Off: Little to no intentional movement.',
+        '**Elite:** Sought movement all day. Took every reasonable opportunity. ' +
+        '**Solid:** Added one or two intentional movement choices. ' +
+        '**Not Great:** Moved as usual. No intentional additions. ' +
+        '**Off:** Minimized movement beyond what was required.',
       icon: '',
     },
   ];
