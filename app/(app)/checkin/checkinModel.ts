@@ -45,11 +45,11 @@ export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
     {
       id: 'hydration',
       title: 'Hydration',
-      prompt: 'Daily fluid choices.',
+      prompt: 'Did your fluid choices match your goals?',
       tooltip:
-        '**Elite:** Hydrated intentionally all day. 64+ oz, mostly water. No alcohol or liquid calories. ' +
+        '**Elite:** Hydrated intentionally all day. 64+ oz water. No alcohol or liquid calories. ' +
         '**Solid:** Stayed hydrated with mostly water. Minimal caloric drinks. ' +
-        '**Not Great:** Inconsistent water. Relied on caloric drinks. ' +
+        '**Not Great:** Inconsistent water and/or multiple caloric drinks. ' +
         '**Off:** Little to no water. Heavy alcohol or sugary drinks.',
       icon: '',
     },
@@ -58,10 +58,10 @@ export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
       title: 'Sleep',
       prompt: 'Did your choices support good sleep?',
       tooltip:
-        '**Elite:** Consistent schedule, 7+ hours in bed, intentional wind-down. Woke fully restored. ' +
+        '**Elite:** Consistent schedule, wind-down routine, 7+ hours in bed. Fully restored.' +
         '**Solid:** Mostly consistent schedule, 7+ hours in bed. Woke feeling good. ' +
         '**Not Great:** Inconsistent schedule OR under 7 hours. Woke tired. ' +
-        '**Off:** Late, short, or chaotic sleep. Woke exhausted.',
+        '**Off:** Late, short, or poor sleep. Woke exhausted.',
       icon: '',
     },
     {
@@ -81,7 +81,7 @@ export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
       prompt: 'Outside of exercise, did you add extra movement?',
       tooltip:
         '**Elite:** Sought movement all day. Took every reasonable opportunity. ' +
-        '**Solid:** Added one or two intentional movement choices. ' +
+        '**Solid:** Added one or two intentional extra movement choices. ' +
         '**Not Great:** Moved as usual. No intentional additions. ' +
         '**Off:** Minimized movement beyond what was required.',
       icon: '',
