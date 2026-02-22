@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface InfoTooltipProps {
   text: string;
@@ -37,16 +38,22 @@ export function InfoTooltip({ text }: InfoTooltipProps) {
           />
         </svg>
       </button>
-      {show && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center p-4">
+      {show && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50">
           <div
-            className="absolute inset-0 bg-black/20"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setShow(false)}
           />
-          <div className="relative w-full max-w-md max-h-[80vh] overflow-y-auto p-4 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white/80 shadow-xl">
-            {formatTooltipText(text)}
+          <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
+            <div
+              className="w-full max-w-md max-h-[80vh] overflow-y-auto p-6 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white/80 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {formatTooltipText(text)}
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

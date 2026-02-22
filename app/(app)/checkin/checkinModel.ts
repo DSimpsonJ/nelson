@@ -12,7 +12,7 @@ export function getBehaviors(userWeight?: number): BehaviorMetadata[] {
     {
       id: 'nutrition_quality',
       title: 'Nutrition Quality',
-      prompt: 'How nutrient rich were your food choices yesterday?',
+      prompt: 'How nutrient rich were your meals yesterday?',
       tooltip:
         '**Elite:** All whole foods. Every meal intentional. No processed eating. ' +
         '**Solid:** Mostly whole foods. Intentional choices with some flexibility. ' +
