@@ -1,10 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
 
 export default function ArticleAdminPage() {
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("nelsonUser");
+    if (!stored) { window.location.href = "/login"; return; }
+    const user = JSON.parse(stored);
+    if (user.email !== "dsimpsonj@gmail.com") { window.location.href = "/dashboard"; return; }
+    setAuthorized(true);
+  }, []);
+
+  if (!authorized) return null;
+
   const [slug, setSlug] = useState("");
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Calibration Basics");
