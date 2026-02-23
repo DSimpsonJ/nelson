@@ -6,6 +6,15 @@ import { db } from "@/app/firebase/config";
 
 export default function ArticleAdminPage() {
   const [authorized, setAuthorized] = useState(false);
+  const [slug, setSlug] = useState("");
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("Calibration Basics");
+  const [content, setContent] = useState("");
+  const [dayNumber, setDayNumber] = useState(1);
+  const [format, setFormat] = useState<"read" | "watch">("read");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [status, setStatus] = useState("");
+  const [deleteSlug, setDeleteSlug] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("nelsonUser");
@@ -16,16 +25,6 @@ export default function ArticleAdminPage() {
   }, []);
 
   if (!authorized) return null;
-
-  const [slug, setSlug] = useState("");
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Calibration Basics");
-  const [content, setContent] = useState("");
-  const [dayNumber, setDayNumber] = useState(1);
-  const [format, setFormat] = useState<"read" | "watch">("read");
-  const [videoUrl, setVideoUrl] = useState("");
-  const [status, setStatus] = useState("");
-  const [deleteSlug, setDeleteSlug] = useState("");
   
 
   const generateSlug = (title: string) => {
