@@ -155,7 +155,7 @@ const dateRange = {
   if (realCheckIns.length < 4) {
     return {
       primaryPattern: "insufficient_data",
-      evidencePoints: [`Only ${realCheckIns.length} check-ins in last 7 days`],
+      evidencePoints: [`${realCheckIns.length} check-in${realCheckIns.length === 1 ? '' : 's'} logged so far`],
       weekId,
       dateRange,
       canCoach: false,

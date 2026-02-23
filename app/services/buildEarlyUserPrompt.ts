@@ -17,17 +17,18 @@ interface BehaviorSummary {
   interface EarlyUserPromptArgs {
     checkInsThisWeek: number;
     totalLifetimeCheckIns: number;
-    behaviorAverages: BehaviorSummary[]; // whatever data exists, can be sparse
+    accountAgeDays: number;
+    behaviorAverages: BehaviorSummary[];
     patternType: 'insufficient_data' | 'building_foundation';
   }
   
   export function buildEarlyUserPrompt(args: EarlyUserPromptArgs): string {
-    const { checkInsThisWeek, totalLifetimeCheckIns, behaviorAverages, patternType } = args;
+    const { checkInsThisWeek, totalLifetimeCheckIns, accountAgeDays, behaviorAverages, patternType } = args;
   
     // Sort behaviors: highest average first, lowest last
     const sorted = [...behaviorAverages]
-      .filter(b => b.average > 0)
-      .sort((a, b) => b.average - a.average);
+  .filter(b => b.average > 0 && b.name !== 'mindset')
+  .sort((a, b) => b.average - a.average);
   
     const topBehavior = sorted[0] ?? null;
     const bottomBehavior = sorted[sorted.length - 1] ?? null;
@@ -48,16 +49,20 @@ interface BehaviorSummary {
       ? (behaviorLabels[bottomBehavior.name] ?? bottomBehavior.name)
       : null;
   
-    const dataContext = sorted.length > 0
+      const dataContext = sorted.length > 0
       ? `Behavior data so far:\n${sorted.map(b => `- ${behaviorLabels[b.name] ?? b.name}: ${Math.round(b.average)}%`).join('\n')}`
       : 'No behavior data available yet.';
+    
+    const daysAvailable = Math.min(accountAgeDays, 7);
   
     return `You are Nelson, an evidence-based personal health coach. You are direct, warm, and honest. You never guilt, never hype, never use motivational poster language.
   
   This user is early in their Nelson journey.
-  - Check-ins this week: ${checkInsThisWeek}
-  - Total lifetime check-ins: ${totalLifetimeCheckIns}
-  - Pattern type: ${patternType}
+- Account age: ${accountAgeDays} day${accountAgeDays === 1 ? '' : 's'}
+- Days available to check in: ${daysAvailable}
+- Check-ins completed: ${checkInsThisWeek} of ${daysAvailable} days available (not 7)
+- Total lifetime check-ins: ${totalLifetimeCheckIns}
+- Pattern type: ${patternType}
   
   ${dataContext}
   
@@ -76,6 +81,9 @@ interface BehaviorSummary {
   - No guilt language
   - Sound like a person, not a system
   - Keep it short — this is not a full coaching report
+  - Never reference 7 days if the account is less than 7 days old — only reference days actually available
+- Mindset is a mental state, not a behavior. Do not flag mindset as a tension area or area needing attention. It is tracked for context only.
+
   
   Respond with ONLY this JSON, no markdown, no preamble:
   

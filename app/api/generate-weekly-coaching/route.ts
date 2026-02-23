@@ -477,16 +477,21 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
       );
       const earlySnap = await getDocs(earlyQ);
       const earlyWeekData = earlySnap.docs.map(d => d.data());
-
+      
       const earlyBehaviorAverages = calculateEarlyBehaviorAverages(earlyWeekData);
-
+      
+      // Pull accountAgeDays from most recent doc, fallback to 1
+      const accountAgeDays = earlyWeekData.length > 0
+        ? (earlyWeekData[earlyWeekData.length - 1].accountAgeDays ?? 1)
+        : 1;
+      
       const earlyPrompt = buildEarlyUserPrompt({
         checkInsThisWeek: pattern.realCheckInsThisWeek,
         totalLifetimeCheckIns: pattern.totalLifetimeCheckIns,
+        accountAgeDays,
         behaviorAverages: earlyBehaviorAverages,
         patternType: pattern.primaryPattern as 'insufficient_data' | 'building_foundation',
       });
-
       const earlyMessage = await anthropic.messages.create({
         model: MODEL_CONFIG.model,
         max_tokens: 600,
@@ -494,7 +499,6 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
         system: earlyPrompt,
         messages: [{ role: 'user', content: 'Generate coaching for this early user. Respond with ONLY the JSON object.' }]
       });
-
       const earlyTextContent = earlyMessage.content.find(block => block.type === 'text');
       if (!earlyTextContent || earlyTextContent.type !== 'text') {
         throw new Error('No text content in early user API response');

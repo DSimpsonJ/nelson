@@ -24,8 +24,8 @@ const PATTERN_OPTIONS: { value: PatternType; label: string }[] = [
   { value: 'recovery_deficit', label: '😴 Recovery Deficit' },
   { value: 'effort_inconsistent', label: '🔄 Effort Inconsistent' },
   { value: 'variance_high', label: '📈 Variance High' },
-  { value: 'insufficient_data', label: '❓ Insufficient Data (Skip)' },
-  { value: 'building_foundation', label: '🌱 Building Foundation (Skip)' }
+  { value: 'insufficient_data', label: '❓ Insufficient Data (Early Coaching)' },
+  { value: 'building_foundation', label: '🌱 Building Foundation (Early Coaching)' }
 ];
 
 interface WeeklyCoachingDevToolProps {
