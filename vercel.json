@@ -1,0 +1,11 @@
+{
+    "crons": [
+      {
+        "path": "/api/cron/generate-weekly-coaching",
+        "schedule": "0 8 * * 1",
+        "headers": {
+          "authorization": "Bearer $CRON_SECRET"
+        }
+      }
+    ]
+  }
