@@ -43,12 +43,21 @@ export function WeeklyCoachingDevTool({ userEmail }: WeeklyCoachingDevToolProps)
     setResult(null);
 
     try {
+      const now = new Date();
+      const day = now.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diff - 7);
+      const yearStart = new Date(Date.UTC(monday.getFullYear(), 0, 1));
+      const weekNum = Math.ceil(((monday.getTime() - yearStart.getTime()) / 86400000 + yearStart.getUTCDay() + 1) / 7);
+      const weekId = `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+
       const response = await fetch('/api/generate-weekly-coaching', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: userEmail,
-          weekId: '2026-W04',
+          weekId,
           useFixture: useRealData ? undefined : selectedPattern
         })
       });
@@ -322,10 +331,10 @@ function SummaryDisplay({ summary }: { summary: WeeklySummaryRecord }) {
   );
 }
 function formatWeekId(weekId: string): string {
-  // Parse "2026-W04" to "Week of Jan 19-25"
   const [year, week] = weekId.split('-W').map(Number);
-  const jan1 = new Date(year, 0, 1);
-  const weekStart = new Date(jan1.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const weekStart = new Date(jan4.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
+  weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7) + 1);
   const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
   
   const monthStart = weekStart.toLocaleDateString('en-US', { month: 'short' });

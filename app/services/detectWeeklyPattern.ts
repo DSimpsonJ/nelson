@@ -117,6 +117,10 @@ const dateRange = {
     });
   
   const realCheckIns = days.filter(d => d.checkinType === "real");
+    // Calculate momentum trend
+const momentumTrend = calculateMomentumTrend([...days].reverse());
+ // Calculate variance
+ const variance = calculateBehaviorVariance(realCheckIns);
   
   // 4. Get lifetime total from most recent REAL check-in
   // First try within the window
@@ -165,22 +169,25 @@ const dateRange = {
     };
   }
   
-  // PRIORITY 2: Building foundation
-  if (totalCheckIns < 10) {
-    return {
-      primaryPattern: "building_foundation",
-      evidencePoints: [
-        `Total check-ins: ${totalCheckIns}`,
-        `Week check-ins: ${realCheckIns.length}/7`
-      ],
-      weekId,
-      dateRange,
-      canCoach: false, // Silence is acceptable
-      daysAnalyzed: 7,
-      realCheckInsThisWeek: realCheckIns.length,
-      totalLifetimeCheckIns: totalCheckIns
-    };
-  }
+ // PRIORITY 2: Early user with enough weekly data
+ if (totalCheckIns < 10) {
+  const earlyPattern = momentumTrend === "upward" ? "building_momentum" : 
+                       variance > 25 ? "variance_high" : "building_momentum";
+  return {
+    primaryPattern: earlyPattern,
+    evidencePoints: [
+      `${realCheckIns.length} check-ins this week`,
+      `${totalCheckIns} total check-ins`,
+      `Momentum trend: ${momentumTrend}`
+    ],
+    weekId,
+    dateRange,
+    canCoach: true,
+    daysAnalyzed: 7,
+    realCheckInsThisWeek: realCheckIns.length,
+    totalLifetimeCheckIns: totalCheckIns
+  };
+}
   
   // PRIORITY 3: Gap disruption (only unresolved gaps)
   const unresolvedGaps = days.filter(d => 
@@ -204,7 +211,7 @@ const dateRange = {
   }
   
  // Count exercise from all days (real + reconciled gaps)
-const exerciseDays = days.filter(d => d.exerciseCompleted === true).length;
+ const exerciseDays = realCheckIns.filter(d => d.exerciseCompleted === true).length;
   // Use current momentum from most recent day, not average
 const currentMomentum = days.length > 0 ? days[0].momentumScore : 0;
   
@@ -213,11 +220,7 @@ const currentMomentum = days.length > 0 ? days[0].momentumScore : 0;
   const sleepAvg = behaviorAverages.sleep || 0;
   const mindsetAvg = behaviorAverages.mindset || 0;
   const recoveryAvg = (sleepAvg + mindsetAvg) / 2;
-  // Calculate momentum trend
-const momentumTrend = calculateMomentumTrend([...days].reverse());
-  
-  // Calculate variance
-  const variance = calculateBehaviorVariance(realCheckIns);
+
   
   // PRIORITY 4: Commitment misaligned (exercise high but momentum flat)
   if (exerciseDays >= 5 && currentMomentum < 50) {

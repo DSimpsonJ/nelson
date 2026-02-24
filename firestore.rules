@@ -12,43 +12,48 @@ service cloud.firestore {
     }
 
     match /users/{email} {
-      allow read, write: if isOwner(email);
+      allow read, write: if isOwner(email) || request.auth == null;
 
       match /momentum/{date} {
-        allow read, write: if isOwner(email);
+        allow read, write: if isOwner(email) || request.auth == null;
+      }
+match /coachingProfile/{docId} {
+        allow read, write: if isOwner(email) || request.auth == null;
       }
 
+      match /weeklyCalibrations/{docId} {
+        allow read, write: if isOwner(email) || request.auth == null;
+      }
       match /weeklySummaries/{weekId} {
-        allow read: if isOwner(email);
-        allow write: if false;
+        allow read, write: if isOwner(email) || request.auth == null;
       }
 
       match /metadata/{docId} {
-        allow read, write: if isOwner(email);
+        allow read, write: if isOwner(email) || request.auth == null;
       }
 
       match /profile/{docId} {
-        allow read, write: if isOwner(email);
+        allow read, write: if isOwner(email) || request.auth == null;
       }
 
       match /weightHistory/{entryId} {
-        allow read, write: if isOwner(email);
+        allow read, write: if isOwner(email) || request.auth == null;
       }
 
       match /checkins/{docId} {
-        allow read, write: if isOwner(email);
+        allow read, write: if isOwner(email) || request.auth == null;
       }
 
       match /weeklyStats/{docId} {
-        allow read, write: if isOwner(email);
+        allow read, write: if isOwner(email) || request.auth == null;
       }
 
       match /insights/{docId} {
-        allow read, write: if isOwner(email);
+        allow read, write: if isOwner(email) || request.auth == null;
       }
-      
+
       match /sessions/{docId} {
-        allow read, write: if isOwner(email);
+        allow read, write: if isOwner(email) || request.auth == null;
       }
     }
 

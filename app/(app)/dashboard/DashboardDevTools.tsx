@@ -581,6 +581,59 @@ export default function DashboardDevTools({
 >
   🔄 Trigger Weekly Coaching Now
 </button>
+{/* Test Early Coaching Pattern */}
+<button
+  onClick={async () => {
+    const email = getEmail();
+    if (!email) return;
+    
+    try {
+      const today = new Date();
+      for (let i = 0; i < 5; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateKey = date.toLocaleDateString("en-CA");
+        
+        const behaviorGrades = [
+          { name: 'nutrition_quality', grade: 80 },
+          { name: 'portion_control', grade: 80 },
+          { name: 'protein', grade: 80 },
+          { name: 'hydration', grade: 80 },
+          { name: 'sleep', grade: 80 },
+          { name: 'mindset', grade: 80 },
+          { name: 'movement', grade: 80 }
+        ];
+
+        await setDoc(doc(db, "users", email, "momentum", dateKey), {
+          date: dateKey,
+          behaviorGrades,
+          momentumScore: 60 + (i * 3),
+          dailyScore: 80,
+          currentStreak: i + 1,
+          exerciseCompleted: true,
+          checkinType: 'real',
+          totalRealCheckIns: 4 + i,
+          accountAgeDays: 4 + i,
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
+        firstCheckinDate: new Date(today.setDate(today.getDate() - 4)).toLocaleDateString("en-CA"),
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+
+      showToast({ message: "Early user scenario ready (6 lifetime check-ins, 5 this week)", type: "success" });
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (err) {
+      console.error("Setup failed:", err);
+      showToast({ message: "Setup failed", type: "error" });
+    }
+  }}
+  className="bg-cyan-600 hover:bg-cyan-700 text-white rounded-md py-1 text-sm"
+>
+  🧪 Test Early Coaching
+</button>
           </div>
         </details>
       </div>
