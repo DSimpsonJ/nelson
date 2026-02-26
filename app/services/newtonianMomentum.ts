@@ -117,43 +117,7 @@ function generateMessage(
   exerciseCompleted: boolean,
   exerciseTargetMinutes?: number
 ): string {
-
-  // After a drop that was dampened by streak
-  if (trend === 'down' && streak >= 7 && dampeningApplied > 0) {
-    if (streak >= 21) {
-      return "Rough data point. Your pattern is strong - one day doesn't erase who you're becoming.";
-    } else if (streak >= 7) {
-      return "Off day logged. Your streak absorbed most of the drop.";
-    }
-  }
-  
-  // Recovering after a drop
-  if (trend === 'up' && momentum < 75) {
-    return "Bouncing back. That's what consistency looks like.";
-  }
-  
-  // High momentum zones
-  if (momentum >= 80) {
-    if (trend === 'up') return "Building momentum";
-    return "Solid pattern. Keep building.";
-  }
-  
-  // Solid range (70-79)
-  if (momentum >= 70) {
-    return "Solid performance. This is exactly where you should be.";
-  }
-  
-  // Building range (50-69)
-  if (momentum >= 50) {
-    return "Gaining traction. A few more solid days and you're on track.";
-  }
-  
-  // Low momentum
-  if (momentum >= 30) {
-    return "Every day is a fresh start. Let's build from here.";
-  }
-  
-  return "Today starts a new pattern. One solid check-in at a time.";
+  return "";
 }
 
 

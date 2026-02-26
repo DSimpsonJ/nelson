@@ -69,15 +69,13 @@ export function getStreakProtectionMessage(
  * Recovering after a drop
  */
 export function getRecoveryMessage(trend: 'up' | 'down' | 'stable', momentum: number): string {
-  if (trend === 'up' && momentum < 75) {
-    return "Bouncing back. That's what consistency looks like.";
-  }
-  
   if (trend === 'up' && momentum >= 75) {
-    return "Pattern restored. This is who you're becoming.";
+    return "Momentum gained. Recent days are pulling weight.";
   }
-  
-  return "";  // Use primary message
+  if (trend === 'up' && momentum < 75) {
+    return "Accelerating. Your work is showing up in the numbers.";
+  }
+  return "";
 }
 
 /**
@@ -100,17 +98,14 @@ export function getPatternWarningMessage(badDaysInWindow: number): string {
  */
 export function getMissedCheckInMessage(daysMissed: number, frozenMomentum: number): string {
   if (daysMissed >= 7) {
-    return "Let's rebuild. Your first brick is back in place.";
+    return "It's been a while. Today's check-in gets things moving again.";
   }
-  
-  if (daysMissed > 1) {
-    return `It's been ${daysMissed} days. Your experiment paused. Momentum needs data.`;
+  if (daysMissed >= 2) {
+    return `It's been ${daysMissed} days, your momentum has slowed. Today's check-in starts your rebuild.`;
   }
-  
   if (daysMissed === 1) {
-    return `You missed yesterday. Your momentum held at ${frozenMomentum}%. Check in today to keep building.`;
+    return "You missed a day, your momentum dropped slightly. Check in daily to keep building.";
   }
-  
   return "";
 }
 
@@ -235,8 +230,9 @@ export function selectMomentumMessage(context: {
   daysSinceLastCheckIn: number;
   badDaysInWindow: number;
   frozenMomentum?: number;
+  totalRealCheckIns: number;
 }): string {
-  
+
   const {
     momentumScore,
     trend,
@@ -245,62 +241,43 @@ export function selectMomentumMessage(context: {
     delta,
     daysSinceLastCheckIn,
     badDaysInWindow,
-    frozenMomentum
+    frozenMomentum,
+    totalRealCheckIns
   } = context;
-  
+
+  // PRIORITY 0: First check-in ever
+  if (totalRealCheckIns === 1) {
+    return "Momentum reflects your daily check-in score. Check in daily to build.";
+  }
+
   // PRIORITY 1: Missed check-ins
   if (daysSinceLastCheckIn > 0) {
     const missedMessage = getMissedCheckInMessage(
-      daysSinceLastCheckIn, 
+      daysSinceLastCheckIn,
       frozenMomentum || momentumScore
     );
     if (missedMessage) return missedMessage;
   }
-  
+
   // PRIORITY 2: Pattern warnings
   if (badDaysInWindow >= 2) {
     const patternMessage = getPatternWarningMessage(badDaysInWindow);
     if (patternMessage) return patternMessage;
   }
-  
+
   // PRIORITY 3: Streak protection (after a drop)
   if (trend === 'down' && dampeningApplied > 0 && streak >= 7) {
     return getStreakProtectionMessage(streak, dampeningApplied, Math.abs(delta));
   }
-  
-  // PRIORITY 4: Recovery messages
-  if (trend === 'up' && momentumScore < 80) {
-    const recoveryMessage = getRecoveryMessage(trend, momentumScore);
-    if (recoveryMessage) return recoveryMessage;
-  }
-  
-  // PRIORITY 5: Primary messages based on momentum level
-  if (momentumScore >= 80) {
-    if (trend === 'up') return MOMENTUM_MESSAGES.elite_rising;
-    if (trend === 'down') return MOMENTUM_MESSAGES.elite_falling;
-    return MOMENTUM_MESSAGES.elite_stable;
-  }
-  
-  if (momentumScore >= 70) {
-    if (trend === 'up') return MOMENTUM_MESSAGES.solid_rising;
-    if (trend === 'down') return MOMENTUM_MESSAGES.solid_falling;
-    return MOMENTUM_MESSAGES.solid_stable;
-  }
-  
-  if (momentumScore >= 50) {
-    if (trend === 'up') return MOMENTUM_MESSAGES.building_rising;
-    if (trend === 'down') return MOMENTUM_MESSAGES.building_falling;
-    return MOMENTUM_MESSAGES.building_stable;
-  }
-  
-  if (momentumScore >= 30) {
-    if (trend === 'up') return MOMENTUM_MESSAGES.early_rising;
-    if (trend === 'down') return MOMENTUM_MESSAGES.early_falling;
-    return MOMENTUM_MESSAGES.early_stable;
-  }
-  
-  // Bottom tier
-  return MOMENTUM_MESSAGES.zero;
+
+ // PRIORITY 4: Recovery
+ if (trend === 'up' && momentumScore < 90 && delta >= 6) {
+  const recoveryMessage = getRecoveryMessage(trend, momentumScore);
+  if (recoveryMessage) return recoveryMessage;
+}
+
+  // Normal day — no message
+  return "";
 }
 
 // ============================================================================

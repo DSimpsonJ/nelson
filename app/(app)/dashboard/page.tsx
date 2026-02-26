@@ -63,6 +63,7 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import LevelUpSlider from "@/app/components/LevelUpSlider";
 import { WeightCard } from '@/app/components/WeightCard';
 import { Inter } from 'next/font/google'
+import type { DailyMomentumDoc } from '../history/useMomentumHistory';
 import NotificationPrompt from "@/app/components/NotificationPrompt";
 const inter = Inter({ subsets: ['latin'], weight: ['500', '700'] })
 
@@ -302,7 +303,7 @@ export default function DashboardPage() {
   const [recentCheckins, setRecentCheckins] = useState<Checkin[]>([]);
   const [currentFocus, setCurrentFocus] = useState<any>(null);
   const [todayMomentum, setTodayMomentum] = useState<any>(null);
-  const [recentMomentum, setRecentMomentum] = useState<any[]>([]);
+  const [recentMomentum, setRecentMomentum] = useState<DailyMomentumDoc[]>([]);
   const [commitment, setCommitment] = useState<any>(null);
   const [showCommitment, setShowCommitment] = useState(false);
   const [commitmentStage, setCommitmentStage] = useState<"initial" | "reason" | "alternative" | "choose" | "custom">("initial");
@@ -356,6 +357,24 @@ const [pendingReward, setPendingReward] = useState<any | null>(null);
     // Just use the message from the momentum doc
     return todayMomentum.momentumMessage || "Building momentum";
   };
+  // Derive badDaysInWindow from last 5 real check-ins
+  const last5Real = recentMomentum
+  .filter((d: any) => d.checkinType === "real")
+  .slice(-5);
+const badDaysInWindow = last5Real.filter(d => d.dailyScore < 50).length;
+
+// Single source of truth for momentum message
+const momentumMessage = todayMomentum ? selectMomentumMessage({
+momentumScore: todayMomentum.momentumScore,
+trend: todayMomentum.momentumTrend as 'up' | 'down' | 'stable',
+streak: todayMomentum.currentStreak,
+dampeningApplied: todayMomentum.dampeningApplied || 0,
+delta: todayMomentum.momentumDelta,
+daysSinceLastCheckIn: missedDays,
+badDaysInWindow,
+frozenMomentum: recentMomentum.filter((d: any) => d.checkinType === "real").slice(-2)[0]?.momentumScore,
+totalRealCheckIns: todayMomentum.totalRealCheckIns || 0,
+}) : "";
   const calculateConsistency = (
     momentumDocs: any[], 
     accountAgeDays: number
@@ -627,11 +646,10 @@ if (todayMomentumSnap.exists()) {
       const momentumColRef = collection(db, "users", email, "momentum");
       const momentumSnaps = await getDocs(momentumColRef);
       const allMomentum = momentumSnaps.docs
-        .map(d => d.data())
-        .filter(m => m.date)
-        .sort((a, b) => a.date < b.date ? 1 : -1)
-        .slice(0, 14);
-      setRecentMomentum(allMomentum);
+      .map(d => ({ ...d.data(), date: d.id }) as DailyMomentumDoc)
+      .filter(m => m.date)
+      .sort((a, b) => a.date < b.date ? 1 : -1)
+      .slice(0, 14);
      // ===== NEW: Calculate consistency =====
 if (todayMomentumSnap.exists()) {
   const todayData = todayMomentumSnap.data();
@@ -1572,9 +1590,9 @@ useEffect(() => {
           )}
         </div>
         {/* Momentum message */}
-        {todayMomentum.momentumMessage && (
-          <p className="text-sm text-white/60 mt-2">
-            {todayMomentum.momentumMessage}
+        {momentumMessage && (
+  <p className="text-sm text-white/60 mt-2">
+    {momentumMessage}
           </p>
         )}
       </>
