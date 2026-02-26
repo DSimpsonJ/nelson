@@ -28,6 +28,7 @@ interface MomentumCalculationInput {
   previousMomentum?: number;
   totalRealCheckIns: number;
   exerciseCompleted?: boolean;
+  exerciseTargetMinutes?: number;
 }
 
 interface MomentumResult {
@@ -112,8 +113,11 @@ function generateMessage(
   momentum: number,
   trend: 'up' | 'down' | 'stable',
   streak: number,
-  dampeningApplied: number
+  dampeningApplied: number,
+  exerciseCompleted: boolean,
+  exerciseTargetMinutes?: number
 ): string {
+
   // After a drop that was dampened by streak
   if (trend === 'down' && streak >= 7 && dampeningApplied > 0) {
     if (streak >= 21) {
@@ -130,7 +134,7 @@ function generateMessage(
   
   // High momentum zones
   if (momentum >= 80) {
-    if (trend === 'up') return "Building momentum 🔥";
+    if (trend === 'up') return "Building momentum";
     return "Solid pattern. Keep building.";
   }
   
@@ -169,7 +173,8 @@ export function calculateNewtonianMomentum(input: MomentumCalculationInput): Mom
     currentStreak,
     previousMomentum,
     totalRealCheckIns,
-    exerciseCompleted
+    exerciseCompleted,
+    exerciseTargetMinutes
   } = input;
   
   // Step 1: Calculate weighted average (velocity)
@@ -213,7 +218,7 @@ if (previousMomentum !== undefined) {
 }
 
 // Step 5: Generate message
-const message = generateMessage(finalScore, trend, currentStreak, dampeningApplied);
+const message = generateMessage(finalScore, trend, currentStreak, dampeningApplied, exerciseCompleted ?? false, exerciseTargetMinutes);
 
 return {
   proposedScore: Math.max(0, Math.min(100, finalScore)),

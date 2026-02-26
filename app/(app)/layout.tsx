@@ -36,8 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // Exclude these paths from gate
     if (
       pathname === "/not-started" ||
-      pathname?.startsWith("/onboarding/setup/movement-commitment") ||
-      pathname?.startsWith("/learn")
+      pathname?.startsWith("/onboarding/setup/movement-commitment")
     ) {
       setAuthReady(true);
       setCommitmentChecked(true);
@@ -157,11 +156,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   
     // Commitment gate applies only to dashboard flows
-    if (
-      user &&
-      !hasCommitment &&
-      pathname.startsWith("/dashboard")
-    ) {
+    if (user && !hasCommitment) {
       redirect("/not-started");
     }
   }

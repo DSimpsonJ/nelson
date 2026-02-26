@@ -89,7 +89,7 @@ const RESPONSE_CONFIG: Record<RewardEventType, {
     class: "positive",
     animation: "ring",
     intensity: "small",
-    primaryText: "Check-in logged.",
+    primaryText: "Momentum has been updated.",
     secondaryText: "",
     shareable: false,
   },

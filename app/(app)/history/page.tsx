@@ -38,10 +38,6 @@ export default function HistoryPage() {
     );
   }
 
-  // Exercise gate status (forward-looking state)
-  const latest = currentWindow[currentWindow.length - 1];
-  const increaseStatus = latest?.exerciseCompleted === false ? "DISABLED" : "ENABLED";
-
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
       <div className="max-w-4xl mx-auto">
@@ -69,12 +65,6 @@ export default function HistoryPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-white">Momentum Trend</h2>
-                <div className={`text-sm px-2 py-1 rounded ${increaseStatus === "ENABLED"
-                  ? "bg-emerald-900/30 text-emerald-400"
-                  : "bg-amber-900/30 text-amber-400"
-                  }`}>
-                  Increases: {increaseStatus}
-                </div>
               </div>
             </div>
 

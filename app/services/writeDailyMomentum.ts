@@ -260,33 +260,25 @@ async function calculateStreak(email: string, date: string): Promise<{
   }
 }
 
-function applyRampCap(score: number, checkInCount: number): { score: number; message: string } {
+function applyRampCap(score: number, checkInCount: number): { score: number } {
   let cap: number;
-  let message: string;
 
   if (checkInCount <= 1) {
     cap = 10;
-    message = "Building a foundation";
   } else if (checkInCount <= 2) {
     cap = 20;
-    message = "Building a foundation";
   } else if (checkInCount <= 5) {
     cap = 40;
-    message = "Finding your rhythm";
   } else if (checkInCount <= 7) {
     cap = 60;
-    message = "Finding your rhythm";
   } else if (checkInCount <= 9) {
     cap = 80;
-    message = "Momentum is forming";
   } else {
-    return { score, message: "" };
+    return { score };
   }
 
-  // Scale proportionally within the cap rather than always hitting the ceiling
-  // A 100 daily score hits the cap max. A 50 daily score hits 50% of the cap.
   const scaled = Math.round((score / 100) * cap);
-  return { score: Math.min(scaled, cap), message };
+  return { score: Math.min(scaled, cap) };
 }
 
 async function deriveExerciseCompleted(
@@ -327,6 +319,9 @@ async function calculateDerivedFields(
   
   // 1. Calculate today's daily score
   const dailyScore = calculateDailyScore(input.behaviorGrades);
+
+// Movement modifier — affects day's contribution to momentum, never a hard freeze
+
   
   // 2. Get yesterday's momentum and totalRealCheckIns
   const baseDate = new Date(input.date + "T00:00:00");
@@ -353,61 +348,58 @@ async function calculateDerivedFields(
     
     previousTotalCheckIns = yesterdayData.totalRealCheckIns || 0;
 
-    // If yesterday was a gap-fill, search backwards for last real check-in
-    if (yesterdayData.checkinType === "gap_fill" && previousTotalCheckIns === 0) {
-      previousTotalCheckIns = await getLastRealValue(
-        input.email,
-        yesterdayKey,
-        "totalRealCheckIns",
-        0
-      );
-    }
+  // If yesterday was a gap-fill, search backwards for last real check-in
+  if (yesterdayData.checkinType === "gap_fill" && previousTotalCheckIns === 0) {
+    previousTotalCheckIns = await getLastRealValue(
+      input.email,
+      yesterdayKey,
+      "totalRealCheckIns",
+      0
+    );
   }
-  
-  // Increment totalRealCheckIns (this is a real check-in)
-  const totalRealCheckIns = previousTotalCheckIns + 1;
-  
-  // 3. Derive exercise completion
-  const { completed: exerciseCompleted, targetMinutes: exerciseTargetMinutes } = 
-    await deriveExerciseCompleted(input.email, input.date, input.exerciseDeclared);
-  
-  // 4. Calculate streak (needed for dampening calculation)
-  const streakData = await calculateStreak(input.email, input.date);
-  
-  // 5. Calculate Newtonian momentum
-  const momentumResult = calculateNewtonianMomentum({
-    todayScore: dailyScore,
-    last4Days: last4Days,
-    currentStreak: streakData.currentStreak,
-    previousMomentum: previousMomentum,
-    totalRealCheckIns: totalRealCheckIns,
-    exerciseCompleted: exerciseCompleted
-  });
+}
+
+// Increment totalRealCheckIns (this is a real check-in)
+const totalRealCheckIns = previousTotalCheckIns + 1;
+
+// 3. Derive exercise completion
+const { completed: exerciseCompleted, targetMinutes: exerciseTargetMinutes } = 
+  await deriveExerciseCompleted(input.email, input.date, input.exerciseDeclared);
+
+// Movement modifier — affects day's contribution to momentum, never a hard freeze
+// Gap-fill days bypass this entirely (they use frozen momentum, never reach here)
+const movementModifier = exerciseCompleted ? 1.00
+  : totalRealCheckIns <= 9 ? 0.92
+  : totalRealCheckIns <= 29 ? 0.88
+  : 0.82;
+
+const modifiedDailyScore = Math.round(dailyScore * movementModifier);
+
+// 4. Calculate streak (needed for dampening calculation)
+const streakData = await calculateStreak(input.email, input.date);
+
+// 5. Calculate Newtonian momentum
+const momentumResult = calculateNewtonianMomentum({
+  todayScore: modifiedDailyScore,
+  last4Days: last4Days,
+  currentStreak: streakData.currentStreak,
+  previousMomentum: previousMomentum,
+  totalRealCheckIns: totalRealCheckIns,
+  exerciseCompleted: exerciseCompleted,
+  exerciseTargetMinutes: exerciseTargetMinutes
+});
   
   // 6. Apply ramp cap if under 10 check-ins
   let finalMomentumScore = momentumResult.proposedScore;
   let finalMessage = momentumResult.message;
   
   if (totalRealCheckIns <= 9) {
-    const { score: cappedScore, message: rampMessage } = applyRampCap(
+    const { score: cappedScore } = applyRampCap(
       momentumResult.proposedScore,
       totalRealCheckIns
     );
     finalMomentumScore = cappedScore;
-    if (rampMessage) {
-      finalMessage = rampMessage;
-    }
   }
-  // Apply exercise gate - momentum can't increase without exercise
-if (input.exerciseDeclared === false) {
-  const yesterdayMomentum = yesterdaySnap.exists() 
-    ? (yesterdaySnap.data().momentumScore || 0) 
-    : 0;
-  
-  if (finalMomentumScore > yesterdayMomentum) {
-    finalMomentumScore = yesterdayMomentum;
-  }
-}
 // Calculate delta - use last REAL momentum, not gap day
 let previousRealMomentum = 0;
 if (yesterdaySnap.exists()) {

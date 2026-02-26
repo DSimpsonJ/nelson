@@ -1508,19 +1508,18 @@ useEffect(() => {
 
     {/* DAY 1 STATE - Simple */}
     {todayMomentum && todayMomentum.accountAgeDays === 1 && !todayMomentum.momentumScore ? (
-      <div className="py-4">
-        {/* Empty progress bar */}
-        <div className="relative h-2.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm mb-4">
-          <div className="absolute h-full w-0 rounded-full bg-gradient-to-r from-gray-300 to-gray-400" />
-        </div>
-        
-        <p className="text-base font-medium text-center text-white/90 mb-2">
-          No momentum yet
-        </p>
-        <p className="text-sm text-white/60 text-center">
-          Check in tomorrow and your first score appears
-        </p>
-      </div>
+  <div className="py-4">
+    <div className="relative h-2.5 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm mb-4">
+      <div className="absolute h-full w-0 rounded-full bg-gradient-to-r from-gray-300 to-gray-400" />
+    </div>
+    
+    <p className="text-base font-medium text-center text-white/90 mb-2">
+      No momentum yet
+    </p>
+    <p className="text-sm text-white/60 text-center">
+      Exercise commitment not met. Meet your movement floor and check-in tomorrow to start building.
+    </p>
+  </div>
     ) : currentFocus && todayMomentum ? (
       /* NORMAL STATE - Days 2+ */
       <>
@@ -1572,6 +1571,12 @@ useEffect(() => {
             </div>
           )}
         </div>
+        {/* Momentum message */}
+        {todayMomentum.momentumMessage && (
+          <p className="text-sm text-white/60 mt-2">
+            {todayMomentum.momentumMessage}
+          </p>
+        )}
       </>
     ) : (
       /* NO CHECK-IN STATE */
