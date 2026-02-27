@@ -349,14 +349,6 @@ const [pendingReward, setPendingReward] = useState<any | null>(null);
     hydrationMax: 100,
     movementMinutes: 0,
   });
-  const getEnhancedMessage = () => {
-    if (!todayMomentum) {
-      return "Complete today's check-in to start building.";
-    }
-    
-    // Just use the message from the momentum doc
-    return todayMomentum.momentumMessage || "Building momentum";
-  };
   // Derive badDaysInWindow from last 5 real check-ins
   const last5Real = recentMomentum
   .filter((d: any) => d.checkinType === "real")
