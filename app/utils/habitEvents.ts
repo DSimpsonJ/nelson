@@ -11,8 +11,6 @@ import { db } from "@/app/firebase/config";
 export type HabitEventType = 
   | "level_up"           // User advanced to next difficulty
   | "moved_to_stack"     // Primary habit moved to stack
-  | "streak_saver_earned" // Earned a streak saver
-  | "streak_saver_used"   // Used a streak saver
   | "new_primary"        // Started a new primary habit
   | "milestone_7day"     // 7 consecutive check-ins
   | "milestone_30day"    // 30 consecutive check-ins
@@ -40,7 +38,6 @@ export interface HabitEvent {
   
   // Streak specific
   streakLength?: number;
-  saversRemaining?: number;
 }
 
 /**
@@ -112,19 +109,7 @@ export function getEventDescription(event: HabitEvent): string {
   switch (event.type) {
     case "level_up":
       return `Leveled up to ${event.toLevel} min walk`;
-    
-    case "moved_to_stack":
-      return `Moved ${event.habitName || "habit"} to stack`;
-    
-    case "streak_saver_earned":
-      return `Earned streak saver (${event.saversRemaining}/3)`;
-    
-    case "streak_saver_used":
-      return `Used streak saver to maintain ${event.streakLength}-day streak`;
-    
-    case "new_primary":
-      return `Started ${event.habitName} as primary focus`;
-    
+
     case "milestone_7day":
       return `7-day check-in streak milestone`;
     
@@ -146,14 +131,6 @@ export function getEventIcon(event: HabitEvent): string {
   switch (event.type) {
     case "level_up":
       return "📈";
-    case "moved_to_stack":
-      return "🧱";
-    case "streak_saver_earned":
-      return "🛡️";
-    case "streak_saver_used":
-      return "💾";
-    case "new_primary":
-      return "🎯";
     case "milestone_7day":
       return "⭐";
     case "milestone_30day":

@@ -1,51 +1,29 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   doc,
   getDoc,
   getDocs,
   setDoc,
   collection,
-  deleteDoc,
   query,
   orderBy,
   limit,
   where,
-  writeBatch,
 } from "firebase/firestore";
-import { db, auth } from "../../firebase/config";
+import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
 import { useToast } from "../../context/ToastContext";
-import { saveCheckin, getCheckin, type Checkin } from "../../utils/checkin";
-import { getISOWeekId } from "../../utils/programMeta";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Cell,
-  LineChart,
-  Line,
-} from "recharts";
-import { onSnapshot, } from "firebase/firestore";
-import { format, subDays, formatDistanceToNow } from "date-fns";
-import { updateWeeklyStats } from "../../utils/updateWeeklyStats";
+import { getCheckin, type Checkin } from "../../utils/checkin";
+import { onSnapshot } from "firebase/firestore";
+import { subDays } from "date-fns";
 import DashboardDevTools from "./DashboardDevTools";  
-import { TrendStats, CheckinTrend } from "../../types/trends";
 import { withFirestoreError } from "../../utils/withFirestoreError";
-import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
-import { calculateDailyMomentumScore, determinePrimaryHabitHit, applyMomentumCap } from "../../utils/momentumCalculation";
-import { getDayVisualState } from "../../utils/history/getDayVisualState";
-import { logHabitEvent, getRecentHabitEvents } from "@/app/utils/habitEvents";
+import { motion } from "framer-motion";
 import { checkLevelUpEligibility as checkEligibilityPure } from "@/app/utils/checkLevelUpEligibility";
 import type { DailyDoc } from "@/app/utils/checkLevelUpEligibility";
-import { runBackfill } from "@/app/utils/backfillMomentumStructure";
 import { writeDailyMomentum } from "@/app/services/writeDailyMomentum";
 
 import { getLocalDate, getLocalDateOffset, daysBetween } from "@/app/utils/date";
@@ -56,10 +34,10 @@ import { selectMomentumMessage } from '@/app/services/messagingGuide';
 import HistoryAccess from "@/app/components/HistoryAccess";
 import CoachAccess from "@/app/components/CoachAccess";
 import LearnBanner from "@/app/components/LearnBanner";
-import { NelsonLogo, NelsonLogoAnimated  } from '@/app/components/logos';
+import { NelsonLogoAnimated  } from '@/app/components/logos';
 import { resolveReward, type RewardPayload } 
 from "@/app/services/rewardEngine";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import LevelUpSlider from "@/app/components/LevelUpSlider";
 import { WeightCard } from '@/app/components/WeightCard';
 import { Inter } from 'next/font/google'
@@ -90,16 +68,6 @@ type UserProfile = {
   firstName: string;
   email: string;
   plan?: Plan;
-  isActivated?: boolean; // 🆕 Add this
-};
-
-type WorkoutDetails = {
-  name: string;
-  type?: string;
-  focus?: string;
-  duration?: number;
-  sets?: number;
-  reps?: string;
 };
 
 function EmptyState({
@@ -118,188 +86,15 @@ function EmptyState({
 }
 
 
-
-function safeGetSchedule(profile: any) {
-  try {
-    const schedule = profile?.plan?.schedule;
-    return Array.isArray(schedule) && schedule.length ? schedule : null;
-  } catch {
-    return null;
-  }
-}
-
-/** ✅ Compute 7-day check-in trend averages */
-function calculateTrends(checkins: any[]): CheckinTrend {
-  const last7 = checkins
-    .sort((a, b) => (a.date < b.date ? 1 : -1))
-    .slice(0, 7);
-
-  if (last7.length === 0) {
-    return {
-      proteinConsistency: 0,
-      hydrationConsistency: 0,
-      movementConsistency: 0,
-      moodTrend: "No Data",
-      checkinsCompleted: 0,
-    };
-  }
-  
-  const proteinDays = last7.filter(
-    (c) => c.proteinHit?.toLowerCase() === "yes"
-  ).length;
-
-  const hydrationDays = last7.filter(
-    (c) => c.hydrationHit?.toLowerCase() === "yes"
-  ).length;
-
-  const movementDays = last7.reduce((count, c) => {
-    const moved = (c.movedToday || "").toString().trim().toLowerCase();
-    return moved === "yes" ? count + 1 : count;
-  }, 0);
-
-  const count = last7.length;
-  
-  const moodScores = last7.map((c) => {
-    const mood = c.mood?.toLowerCase();
-    if (mood === "energized") return 3;
-    if (mood === "okay") return 2;
-    if (mood === "tired") return 1;
-    return 0;
-  });
-
-  const weights: number[] = last7.map((_, i) => Math.pow(0.7, i));
-  const totalWeight = weights.reduce((a: number, b: number) => a + b, 0);
-  const weightedAvg =
-    moodScores.reduce(
-      (sum: number, score: number, i: number) => sum + score * weights[i],
-      0
-    ) / totalWeight;
-
-  let moodTrend = "Steady";
-  if (weightedAvg >= 2.4) moodTrend = "Upward";
-  else if (weightedAvg <= 1.4) moodTrend = "Low";
-
-  return {
-    proteinConsistency: Math.round((proteinDays / count) * 100),
-    hydrationConsistency: Math.round((hydrationDays / count) * 100),
-    movementConsistency: Math.round((movementDays / count) * 100),
-    moodTrend,
-    checkinsCompleted: count,
-  };
-}
-
-async function loadWeeklyStats(email: string) {
-  const weekId = getISOWeekId(new Date());
-  const ref = doc(db, "users", email, "weeklyStats", weekId);
-  const snap = await getDoc(ref);
-  return snap.exists() ? (snap.data() as TrendStats) : null;
-}
-
-/** ✅ Calculate current check-in streak */
-function calculateCheckinStreak(checkins: { date: string }[]): number {
-  if (!checkins?.length) return 0;
-
-  const sorted = [...checkins].sort((a, b) =>
-    a.date < b.date ? 1 : -1
-  );
-
-  let streak = 0;
-  let current = new Date();
-
-  for (const c of sorted) {
-    const checkinDate = new Date(c.date);
-    const diffDays = Math.floor(
-      (current.getTime() - checkinDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays === 0 || diffDays === 1) {
-      streak++;
-      current = checkinDate;
-    } else {
-      break;
-    }
-  }
-
-  return streak;
-}
-
-function getTodaysTrainingName(intake: any): string {
-  if (!intake || !Array.isArray(intake.schedule) || intake.schedule.length === 0) {
-    return "Rest Day";
-  }
-
-  const schedule = intake.schedule;
-  const dayIdx = new Date().getDay();
-  const todaysEntry = schedule[dayIdx % schedule.length];
-
-  return todaysEntry?.name || "Rest Day";
-}
-
-function getTodaysWorkout(plan: any): WorkoutDetails | null {
-  if (!plan || !Array.isArray(plan.schedule) || plan.schedule.length === 0) return null;
-
-  const schedule = plan.schedule as WorkoutDetails[];
-  const idx = new Date().getDay();
-  return schedule[idx % schedule.length] ?? null;
-}
-
-function getWorkoutDetails(plan: any) {
-  if (!plan?.schedule) return null;
-
-  const dayIndex = new Date().getDay();
-  const todayWorkout = plan.schedule[dayIndex];
-
-  if (!todayWorkout) return null;
-
-  return {
-    name: todayWorkout.name || "Rest Day",
-    type: todayWorkout.type || "General",
-    focus: todayWorkout.focus || "Full Body",
-    duration: todayWorkout.duration || 45,
-    sets: todayWorkout.sets || null,
-    reps: todayWorkout.reps || null,
-  };
-}
-
 /** ---------- Component ---------- */
 export default function DashboardPage() {
   console.count("[DASHBOARD RENDER]");
   const router = useRouter();
   const { showToast } = useToast();
-
-  const [weeklyReflection, setWeeklyReflection] = useState<{
-    coachNote?: string;
-    weekId?: string;
-    momentumScore?: number;
-    workoutsThisWeek?: number;
-    checkinsCompleted?: number;
-  } | null>(null);
-  
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [coachNote, setCoachNote] = useState("");
   const [todayCheckin, setTodayCheckin] = useState<Checkin | null>(null);
-  const [checkin, setCheckin] = useState({
-    headspace: "",
-    proteinHit: "",
-    hydrationHit: "",
-    movedToday: "",
-    sleepHit: "",
-    energyBalance: "",
-    eatingPattern: "",
-    primaryHabitDuration: "", // NEW - for auto-leveling
-    note: "",
-  });
-
-  const [status, setStatus] = useState<{
-    lastCompleted?: string;
-    nextWorkoutIndex?: number;
-    lastDayType?: string;
-  } | null>(null);
-
   const [checkinSubmitted, setCheckinSubmitted] = useState(false);
-  const [checkinStreak, setCheckinStreak] = useState<number>(0);
-  const [trends, setTrends] = useState<TrendStats | null>(null);
   const [recentCheckins, setRecentCheckins] = useState<Checkin[]>([]);
   const [currentFocus, setCurrentFocus] = useState<any>(null);
   const [todayMomentum, setTodayMomentum] = useState<any>(null);
@@ -311,18 +106,12 @@ export default function DashboardPage() {
   const [saving, setSaving] = useState(false);
   const [missedDays, setMissedDays] = useState(0);
   const today = getLocalDate();
-  const [hasSessionToday, setHasSessionToday] = useState(false);
   const [levelUpEligible, setLevelUpEligible] = useState(false);
   const [completedLast7Days, setCompletedLast7Days] = useState(0);
-  const [averageDuration, setAverageDuration] = useState(0);
-  const [showLevelUp, setShowLevelUp] = useState(false);
   const [showAdjustOptions, setShowAdjustOptions] = useState(false);
   const [adjustOptions, setAdjustOptions] = useState<'increase' | 'decrease'>('increase');
-  const [levelUpReason, setLevelUpReason] = useState<string>("");
-  const [levelUpNextStep, setLevelUpNextStep] = useState<string>("");
 const [pendingReward, setPendingReward] = useState<any | null>(null);
   const [checkinSuccess, setCheckinSuccess] = useState(false);
-  const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
   const [consistencyPercentage, setConsistencyPercentage] = useState<number>(0);
   const [firstCheckinDate, setFirstCheckinDate] = useState<string | null>(null);
   const [readLearnSlugs, setReadLearnSlugs] = useState<string[]>([]);
@@ -341,13 +130,6 @@ const [pendingReward, setPendingReward] = useState<any | null>(null);
     currentStreak: 0,
     totalCheckIns: 0,
     monthlyConsistency: 0,
-  });
-  const [planDetails, setPlanDetails] = useState({
-    proteinMin: 0,
-    proteinMax: 0,
-    hydrationMin: 64,
-    hydrationMax: 100,
-    movementMinutes: 0,
   });
   // Derive badDaysInWindow from last 5 real check-ins
   const last5Real = recentMomentum
@@ -385,15 +167,6 @@ totalRealCheckIns: todayMomentum.totalRealCheckIns || 0,
     
     // Calculate percentage
     return Math.round((realCheckIns / windowSize) * 100);
-  };
-  const getHabitType = (habitKey: string): string => {
-    if (habitKey.includes("walk_") || habitKey.includes("movement_")) return "movement";
-    if (habitKey.includes("protein_")) return "protein";
-    if (habitKey.includes("hydration_")) return "hydration";
-    if (habitKey.includes("sleep_")) return "sleep";
-    if (habitKey === "no_late_eating") return "eating_pattern";
-    if (habitKey === "vegetables_3_servings") return "vegetables";
-    return "custom";
   };
 
   useEffect(() => {
@@ -470,30 +243,6 @@ useEffect(() => {
     setRecentCheckins(recent);
   };
 
-  function normalizeTodayCheckin(raw: any, today: string): Checkin | null {
-    if (!raw || typeof raw !== "object") return null;
-    if (raw.date && raw.date !== today) return null;
-
-    const { mood, proteinHit, hydrationHit } = raw;
-    const hasCoreFields = !!(mood || proteinHit || hydrationHit);
-
-    if (!hasCoreFields) return null;
-
-    return raw as Checkin;
-  }
-
-  async function getTodaySession(email: string): Promise<boolean> {
-    const sessionsCol = collection(db, "users", email, "sessions");
-    const snaps = await withFirestoreError(getDocs(sessionsCol), "today's session", showToast);
-    if (!snaps) return false;
-
-    const today = getLocalDate();
-    return snaps.docs.some((d) => {
-      const data = d.data();
-      return data.date?.startsWith(today);
-    });
-  }
-
 // Then inside the component:
 const loadDashboardData = async () => {
     console.count("[DASHBOARD LOAD COUNT]");
@@ -519,21 +268,16 @@ if (gapInfo.hadGap) {
       const userSnap = await getDoc(userRef);
 
       let firstName = "there";
-      let isActivated = false; 
       let hasSeenWelcome = false;
       
       if (userSnap.exists()) {
         const userData = userSnap.data();
         firstName = userData.firstName ?? "there";
-        isActivated = userData.isActivated ?? false; // 🆕 Load activation status
         hasSeenWelcome = userData.hasSeenDashboardWelcome ?? false;
         setReadLearnSlugs(userData.readLearnSlugs ?? []);
       }
 // ===== NEW: Show welcome if first time =====
 if (!hasSeenWelcome) {
-  setShowWelcomeMessage(true);
-  
-  // Mark as seen immediately
   await setDoc(userRef, {
     hasSeenDashboardWelcome: true,
     dashboardWelcomeSeenAt: new Date().toISOString()
@@ -555,7 +299,6 @@ if (!hasSeenWelcome) {
         firstName,
         email,
         plan: plan || undefined,
-        isActivated, // 🆕 Add to profile state
       });
       // ---- Load momentum data ----
       const focusRef = doc(db, "users", email, "momentum", "currentFocus");
@@ -756,90 +499,6 @@ console.log(`[Dashboard] History stats: Streak ${currentStreak}, Total ${lifetim
 
 
       await loadRecentCheckins(email);
-
-// Detect missed days from momentum collection
-const missedDaysColRef = collection(db, "users", email, "momentum");
-const missedDaysSnaps = await getDocs(missedDaysColRef);
-const allMomentumDocs = missedDaysSnaps.docs
-  .map(d => ({ date: d.data().date }))
-  .filter(d => d.date && d.date.match(/^\d{4}-\d{2}-\d{2}$/)) // Only date-formatted docs
-  .sort((a, b) => b.date.localeCompare(a.date));
-
-if (allMomentumDocs.length > 0) {
-  const lastCheckin = new Date(allMomentumDocs[0].date + "T00:00:00");
-  const todayDate = new Date();
-  todayDate.setHours(0, 0, 0, 0);
-  
-  const diffTime = todayDate.getTime() - lastCheckin.getTime();
-  const missed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-}
-
-      const hasSession = await getTodaySession(email);
-      setHasSessionToday(hasSession);
-
-      const existingStats = await loadWeeklyStats(email);
-
-      if (existingStats) {
-        setTrends({
-          proteinConsistency: existingStats.proteinConsistency ?? 0,
-          hydrationConsistency: existingStats.hydrationConsistency ?? 0,
-          movementConsistency: existingStats.movementConsistency ?? 0,
-          moodTrend: existingStats.moodTrend ?? "No Data",
-          checkinsCompleted: existingStats.checkinsCompleted ?? 0,
-        });
-      } else {
-        const trendColRef = collection(db, "users", email, "checkins");
-        const trendSnaps = await getDocs(trendColRef);
-        const checkins = trendSnaps.docs.map((d) => {
-          const data = d.data();
-          return {
-            ...data,
-            movedToday: data.movedToday?.toLowerCase?.() || "no",
-          };
-        });
-
-        const checkinTrend = calculateTrends(checkins);
-
-        const merged: TrendStats = {
-          proteinConsistency: checkinTrend.proteinConsistency,
-          hydrationConsistency: checkinTrend.hydrationConsistency,
-          movementConsistency: checkinTrend.movementConsistency,
-          moodTrend: checkinTrend.moodTrend,
-          checkinsCompleted: checkinTrend.checkinsCompleted,
-        };
-
-        setTrends(merged);
-
-        const weekId = getISOWeekId(new Date());
-        await setDoc(
-          doc(db, "users", email, "weeklyStats", weekId),
-          {
-            ...merged,
-            weekId,
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-
-        try {
-          const isMonday = new Date().getDay() === 1;
-          if (isMonday) {
-            const summaryWeekId = getISOWeekId(new Date());
-
-            const insightsSnap = await getDocs(
-              collection(db, "users", email, "insights")
-            );
-            const insights = insightsSnap.docs.map(
-              (d) => d.data() as { note: string; createdAt: string }
-            );
-
-            const recent = recentCheckins ?? [];
-
-          }
-        } catch (err) {
-          console.error("Weekly summary write failed:", err);
-        }
-      }
       // Read level-up prompt state (passive - no computation)
 const promptRef = doc(db, "users", email, "momentum", "levelUpPrompt");
 const promptSnap = await getDoc(promptRef);
@@ -847,7 +506,6 @@ const promptSnap = await getDoc(promptRef);
 if (promptSnap.exists()) {
   const promptData = promptSnap.data();
   if (promptData.pending) {
-    setShowLevelUp(true);
     setLevelUpEligible(true);
   }
 }
@@ -859,77 +517,6 @@ if (promptSnap.exists()) {
   setLoading(false);
 }
 };
-  const calculateNutritionScore = (
-    energyBalance: string,
-    eatingPattern: string,
-    goal: string
-  ): number => {
-    if (goal === "fat_loss" || goal === "recomp") {
-      if ((energyBalance === "light" || energyBalance === "normal") && eatingPattern === "meals") return 12;
-      if ((energyBalance === "light" || energyBalance === "normal") && eatingPattern === "mixed") return 6;
-      if (energyBalance === "heavy" || energyBalance === "indulgent") return 0;
-      if (eatingPattern === "grazing") return 0;
-      if (eatingPattern === "none") return 0;
-    }
-
-    if (goal === "maintenance") {
-      if (energyBalance === "normal" && eatingPattern === "meals") return 12;
-      if ((energyBalance === "light" || energyBalance === "heavy") && eatingPattern === "meals") return 6;
-      if (energyBalance === "indulgent") return 0;
-      if (eatingPattern === "grazing") return 0;
-    }
-
-    if (goal === "muscle_gain" || goal === "muscle") {
-      if ((energyBalance === "heavy" || energyBalance === "normal") && eatingPattern === "meals") return 12;
-      if (energyBalance === "light") return 0;
-      if (eatingPattern === "grazing") return 0;
-      if (eatingPattern === "mixed") return 6;
-    }
-
-    return 0;
-  };
-
-  const InfoTooltip = ({ text }: { text: string }) => {
-    const [show, setShow] = useState(false);
-
-    return (
-      <span className="relative inline-block ml-1">
-        <button
-          type="button"
-          onMouseEnter={() => setShow(true)}
-          onMouseLeave={() => setShow(false)}
-          onClick={() => setShow(!show)}
-          className="text-blue-600 hover:text-blue-700 text-xs leading-none"
-        >
-          ⓘ
-        </button>
-        {show && (
-  <span className="absolute z-10 w-64 p-2 text-xs text-gray-700 bg-white border border-gray-300 rounded-lg shadow-lg bottom-full mb-2 left-1/2 -translate-x-1/2 block max-w-[calc(100vw-2rem)]">
-    {text}
-  </span>
-)}
-      </span>
-    );
-  };
-  const getMissedDays = (): number => {
-    // Find the last check-in date
-    const sorted = [...recentCheckins].sort((a, b) => b.date.localeCompare(a.date));
-    if (!sorted.length) return 0;
-    
-    const lastCheckin = new Date(sorted[0].date + "T00:00:00");
-const todayStr = new Date().toLocaleDateString("en-CA");
-const today = new Date(todayStr + "T00:00:00");
-
-const diffTime = today.getTime() - lastCheckin.getTime();
-const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-  // === LEVEL-UP ELIGIBILITY FUNCTIONS (Event-scoped, not render-scoped) ===
-
-// IMPORTANT:
-// gatherLevelUpInputs performs Firestore reads and MUST ONLY be called
-// from event-driven flows (e.g. post check-in).
-// Never call this from a render or dashboard lifecycle.
 
 type LevelUpInputs =
 | { canCheck: false; reason: string }
@@ -1179,13 +766,6 @@ await setDoc(promptRef, {
 
   useEffect(() => {
     const email = getEmail();
-    if (email) {
-      // seedFakeCheckins(email);
-    }
-  }, []);
-
-  useEffect(() => {
-    const email = getEmail();
     if (!email) return;
 
     console.log("[Realtime] listeners attached");
@@ -1209,89 +789,11 @@ await setDoc(promptRef, {
       const sessions = snapshot.docs.map((d) => d.data());
     });
 
-    const unsubStatus = onSnapshot(statusRef, (snap) => {
-      if (snap.exists()) {
-        console.log("[Realtime] Status updated:", snap.data());
-        setStatus(snap.data());
-      }
-    });
-
     return () => {
       unsubCheckins();
       unsubSessions();
-      unsubStatus();
     };
   }, []);
-  useEffect(() => {
-    const loadRecentCheckins = async () => {
-      const email = getEmail();
-      if (!email) return;
-  
-      const colRef = collection(db, "users", email, "checkins");
-  
-      const snaps = await withFirestoreError(getDocs(colRef), "recent check-ins", showToast);
-      if (!snaps) return;
-  
-      const all = snaps.docs.map((d) => d.data() as Checkin);
-  
-      // Local cutoff date string (YYYY-MM-DD)
-      const cutoffStr = getLocalDateOffset(14);
-  
-      // Filter checkins that are >= cutoff AND have valid dates
-      const recent = all
-        .filter((c) => typeof c.date === "string" && c.date >= cutoffStr)
-        .sort((a, b) => (a.date < b.date ? -1 : 1));
-  
-      setRecentCheckins(recent);
-    };
-  
-    loadRecentCheckins();
-  }, [todayCheckin]);
-  
-
-  const [moodHistory] = useState<{ day: string; mood: number }[]>([]);
-
-  function moodToScore(m: string): number {
-    const val = m?.toLowerCase?.() || "";
-    if (val === "energized") return 3;
-    if (val === "okay") return 2;
-    if (val === "tired") return 1;
-    return 0;
-  }
-
-  function getNextFocus(trends: any): string {
-    if (!trends) return "Keep building momentum through small, steady actions.";
-
-    const areas = [
-      { name: "Protein", value: trends.proteinConsistency ?? 0 },
-      { name: "Hydration", value: trends.hydrationConsistency ?? 0 },
-      { name: "Movement", value: trends.movementConsistency ?? 0 },
-      { name: "Nutrition", value: trends.nutritionAlignment ?? 0 },
-    ];
-
-    const lowest = areas.reduce((min, a) => (a.value < min.value ? a : min), areas[0]);
-
-    switch (lowest.name) {
-      case "Protein":
-        return "Next focus: hit your protein goal consistently this week.";
-      case "Hydration":
-        return "Next focus: improve hydration — aim for 100+ oz daily.";
-      case "Movement":
-        return "Next focus: move more often — even short walks add up.";
-      case "Nutrition":
-        return "Next focus: tighten your food quality and meal timing.";
-      default:
-        return "Stay balanced across all areas — small wins compound.";
-    }
-  }
-
-  useEffect(() => {
-    const email = getEmail();
-    if (email) {
-      // seedFakeCheckins(email);
-    }
-  }, []);
-
   useEffect(() => {
     const loadCommitment = async () => {
       const email = getEmail();
@@ -1318,36 +820,7 @@ await setDoc(promptRef, {
     }
   }, [loading, currentFocus]);
 // After the other useEffects, around line 900
-useEffect(() => {
-  const loadTodaySession = async () => {
-    const email = getEmail();
-    if (!email || !currentFocus) return;
 
-    const sessionsCol = collection(db, "users", email, "sessions");
-    const sessionsSnap = await getDocs(sessionsCol);
-    
-    const todaySession = sessionsSnap.docs
-      .map(d => d.data())
-      .find(s => s.date === today);
-    
-    if (todaySession && todaySession.durationMin) {
-      const duration = todaySession.durationMin;
-      let range = "1-3";
-      
-      if (duration >= 45) range = "45+";
-      else if (duration >= 30) range = "30-45";
-      else if (duration >= 20) range = "20-30";
-      else if (duration >= 15) range = "15-20";
-      else if (duration >= 10) range = "10-15";
-      else if (duration >= 5) range = "5-10";
-      else if (duration >= 3) range = "3-5";
-      
-      setCheckin(prev => ({ ...prev, primaryHabitDuration: range }));
-    }
-  };
-
-  loadTodaySession();
-}, [currentFocus, today]);
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -1376,20 +849,6 @@ useEffect(() => {
         <NelsonLogoAnimated />
       </main>
     );
-  }
-  
-  const isFirstTimeUser = profile?.isActivated === false;
-  
-  if (isFirstTimeUser) {
-    // 🆕 ADD THIS CHECK
-    if (!checkin || !profile || !currentFocus) {
-      return (
-        <main className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-          <p className="text-gray-500">Loading dashboard…</p>
-        </main>
-      );
-    }
-    
   }
   return (
     <motion.main
@@ -1695,99 +1154,6 @@ useEffect(() => {
   </p>
 </div>
 {/* ====================================== */}
-        {/* FUTURE: AI Coach Card - See COACH_VISION.md 
-<motion.div
-  variants={itemVariants}
-  className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
->
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            Here's what I'm seeing
-          </h2>
-
-          {!weeklyReflection ? (
-            <EmptyState
-              message="No weekly reflection yet."
-              subtext="Complete a full week of check-ins to unlock your coaching summary."
-            />
-          ) : (
-            <>
-              <p className="text-sm text-gray-700 mb-2">
-                Week {weeklyReflection.weekId?.split("-")[1] || ""} Review
-              </p>
-
-              <ul className="text-sm text-gray-600 mb-4 space-y-1">
-                <li>Check-ins: {weeklyReflection.checkinsCompleted ?? 0} / 7</li>
-                <li>Workouts: {weeklyReflection.workoutsThisWeek ?? 0}</li>
-                {weeklyReflection.momentumScore && (
-                  <li>
-                    Momentum Score:
-                    <span className="font-semibold text-blue-700">
-                      {" "}
-                      {weeklyReflection.momentumScore}%
-                    </span>
-                  </li>
-                )}
-              </ul>
-
-              <p className="text-gray-800 font-medium italic border-t border-gray-100 pt-3">
-                "
-                {weeklyReflection.coachNote ||
-                  "Stay consistent, small wins compound into big results."}
-                "
-              </p>
-
-              {trends && (
-                <p className="text-sm text-gray-600 mt-4 border-t border-gray-100 pt-3">
-                  {getNextFocus(trends)}
-                </p>
-              )}
-            </>
-          )}
-      </motion.div>
-*/}
-        {/* FUTURE: Workout Analytics
-    Shows weekly workout trends (sessions, sets, duration)
-    Only display when workouts are actively promoted feature
-    Requires 'trends' data structure to be populated
-    
-<motion.div
-  variants={itemVariants}
-  className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow"
->
-  <h2 className="text-lg font-semibold text-gray-900 mb-3">
-    Workout Summary
-  </h2>
-
-  {!trends ? (
-    <p className="text-gray-500">Loading workout data...</p>
-  ) : (
-    <ul className="divide-y divide-gray-100">
-      <li className="py-2 flex justify-between items-center">
-        <span className="text-gray-700">Sessions This Week</span>
-        <span className="font-semibold text-blue-700">
-          {trends.workoutsThisWeek ?? 0}
-        </span>
-      </li>
-      <li className="py-2 flex justify-between items-center">
-        <span className="text-gray-700">Total Sets Completed</span>
-        <span className="font-semibold text-blue-700">
-          {trends.totalSets ?? 0}
-        </span>
-      </li>
-      <li className="py-2 flex justify-between items-center">
-        <span className="text-gray-700">Average Duration</span>
-        <span className="font-semibold text-blue-700">
-          {trends.avgDuration ?? 0} min
-        </span>
-      </li>
-    </ul>
-  )}
-
-  <p className="mt-4 text-sm text-gray-500">
-    *Stats update automatically after you complete a workout.
-  </p>
-</motion.div>
-*/}
 
        {/* FUTURE: Workout Integration - Saved for reference
     This section gates workouts behind daily check-ins (intentional product decision)

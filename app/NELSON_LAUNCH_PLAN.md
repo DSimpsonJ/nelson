@@ -78,7 +78,7 @@ Lock the scope. Make the business decisions that unblock everything else. Don't 
 ### Business
 - ✅ Decide entity name — **Simpson Holdings LLC**
 - ✅ Decide state of formation — **Maryland**
-- ✅ Confirm domain and business email — **thenelson.app live and loading. startnelson.com redirects to thenelson.app (308). www.thenelson.app redirect in progress. Business email pending LLC approval.**
+- ✅ Confirm domain and business email — **thenelson.app + startnelson.com purchased, thenelson.app pointed to Vercel. Business email pending LLC approval.**
 - ✅ Apple Developer Program — **wait for LLC approval, enroll under Simpson Holdings LLC directly**
 
 ### Exit Criteria
@@ -104,23 +104,37 @@ Get the business real. Get compliance documents drafted. Close the web app gaps 
 - [ ] Separate all Nelson expenses from personal immediately
 
 ### Compliance
-- ✅ Draft privacy policy — **completed in Termly (Feb 26). Covers Firebase, Anthropic API, no ads, push notifications, AI insights.**
+- ✅ Draft privacy policy — Termly draft complete, live at thenelson.app/privacy
 - [ ] Draft Terms of Use (lightweight — what the app is, what it isn't, no medical advice disclaimer)
-- 🔄 Identify hosting URL — **target: thenelson.app/privacy and thenelson.app/terms. Pages not yet built.**
 
 ### Product (Web)
-- ✅ Close Learn gate — completed
-- [ ] Remove `streak_saver` from any remaining code references (it's out of the data contract — clean it from code too)
-- [ ] Remove dead code: `firstCheckInAt` writes, `isActivated` writes
-- [ ] Delete deprecated files: `/app/onboarding/setup/rewards/page.tsx`, legacy routes (`/plan`, `/program`, `/walk`, `/workout`, `/summary`, `/plan-overview`, `/intake`)
+- ✅ Close Learn gate
+- ✅ Remove `streak_saver` from type unions (habitEvents.ts, checkLevelUpEligibility.ts, writeDailyMomentum.ts)
+- ✅ Remove dead event types from habitEvents.ts (streak_saver_earned, streak_saver_used)
+- ✅ Remove dead code: `firstCheckInAt` comment corrected, `isActivated` removed from dashboard (all 6 references)
+- ✅ Delete deprecated files — legacy routes and rewards onboarding page already gone
+- ✅ Clean up messagingGuide.ts — orphaned constants and dead comment blocks removed
+- ✅ Admin SDK audit complete — surface area documented (3 routes, 4 collections, 1 service file)
+- ✅ Weekly alpha newsletter sent (Feb 27)
+- [ ] Dashboard dead import cleanup — remove dead imports from `app/(app)/dashboard/page.tsx`:
+  - `WalkTimer`
+  - `saveSession`
+  - `seedFakeCheckins`
+  - `refreshCoachNote` / `saveCoachNoteToWeeklyStats`
+  - `generateCoachInsight`
+  - `logInsight`
+  - `generateWeeklySummary`
+  - `getStreakMessage`
+  - Verify each with global search before deleting — if actually used anywhere, skip and note it
 
 ### Exit Criteria
 - Entity exists, EIN in hand
 - Business bank account open
 - Apple Developer Program enrolled under entity
-- Privacy policy draft exists (doesn't need to be published yet)
+- ✅ Privacy policy live at thenelson.app/privacy
+- Terms of Use draft exists
 - Web app dead code cleaned up
-- Learn gate closed
+- ✅ Learn gate closed
 
 ---
 
@@ -131,21 +145,63 @@ Get the business real. Get compliance documents drafted. Close the web app gaps 
 ### Goals
 Make the backend safe for real users and real money. This is non-negotiable before public launch.
 
+### ⚠️ FIRST TASK — `save-weekly-calibration` Auth Fix
+**Do this before anything else in Phase 2. It's a 20-minute fix.**
+
+At 13+ active users, `POST /api/save-weekly-calibration` accepts any email with no ownership check. Anyone who knows another user's email can overwrite their calibration data. This is the highest-priority security gap in the current system.
+
+- [ ] Add Firebase ID token verification to `/app/api/save-weekly-calibration/route.ts`
+- [ ] Verify token's `email` claim matches the `email` in the request body — reject if mismatch
+- [ ] Test: valid user can save their own calibration, mismatched email returns 403
+- [ ] Deploy
+
+**Estimated effort:** ~20 minutes. No service layer changes needed.
+
+### Admin SDK Migration
+**Context from Feb 27 audit:** Three routes, four Firestore collections, one service file.
+
+Collections touched:
+- `users` (top-level) — read by cron orchestrator
+- `users/{email}/momentum/{date}` — read by coaching generation (4 queries)
+- `users/{email}/weeklySummaries/{weekId}` — write by coaching generation
+- `users/{email}/weeklyCalibrations/{weekId}` — read/write by calibration service
+
+Files that need migration:
+- `/app/api/generate-weekly-coaching/route.ts`
+- `/app/api/cron/generate-weekly-coaching/route.ts`
+- `/app/api/save-weekly-calibration/route.ts`
+- `/app/services/weeklyCalibration.ts` (owns the calibration read/write — migrates with the route)
+
+Additional note: Cron route loops users sequentially with `await` per user. At 50+ users this will hit Vercel timeout. Parallelize with `Promise.allSettled()` during this migration.
+
+Tasks:
+- [ ] Create `/app/firebase/admin.ts` (server-only Admin SDK initialization)
+- [ ] Migrate `/app/api/generate-weekly-coaching/route.ts` to Admin SDK
+- [ ] Migrate `/app/api/cron/generate-weekly-coaching/route.ts` to Admin SDK — parallelize loop while here
+- [ ] Migrate `/app/api/save-weekly-calibration/route.ts` to Admin SDK
+- [ ] Migrate `/app/services/weeklyCalibration.ts` reads/writes to Admin SDK
+- [ ] Rewrite Firestore security rules — remove all `|| request.auth == null` clauses
+- [ ] Test end-to-end: coaching generation still works, cron still fires correctly
+- [ ] Verify dev tools still work after migration
+
 ### Weight Integration into Coaching Prompts
 - [ ] Read `weight` field from `users/{email}` in coaching prompt builder
 - [ ] Pass weight as context to `buildScopedSystemPrompt.ts`
 - [ ] Verify coaching output references weight appropriately (protein targets, etc.)
 - [ ] Test with real user data
 
-### Admin SDK Migration
-- [ ] Audit every API route and document every Firestore collection it touches
-- [ ] Create `/app/firebase/admin.ts` (server-only Firebase Admin SDK initialization)
-- [ ] Migrate `/app/api/generate-weekly-coaching/route.ts` to Admin SDK
-- [ ] Migrate `/app/api/cron/generate-weekly-coaching/route.ts` to Admin SDK
-- [ ] Migrate `/app/api/save-weekly-calibration/route.ts` to Admin SDK
-- [ ] Rewrite Firestore security rules — remove all `|| request.auth == null` clauses
-- [ ] Test end-to-end: coaching generation still works, cron still fires correctly
-- [ ] Verify dev tools still work after migration
+### Dashboard Deep Cleanup
+Do this alongside Admin SDK work — you're already in careful, tested territory.
+- [ ] Remove dead code blocks from `app/(app)/dashboard/page.tsx`:
+  - Habit stacking reads (stackRef / stackSnap)
+  - Weekly stats reads (if not displayed anywhere)
+  - Level-up functions (`getNextLevel`, `handleLevelUp`, `handleAdjustLevel`, `handleKeepCurrent`) — verify not called before deleting
+  - Workout detail functions (`getTodaysTrainingName`, `getTodaysWorkout`, `getWorkoutDetails`) — verify not called
+- [ ] Feature-flag dev tools: wrap in `if (process.env.NODE_ENV === 'development')` or move to `/dev` route
+- [ ] Remove dead momentum fields from `writeDailyMomentum.ts` interface and defaults:
+  - `primaryHabitHit`, `stackedHabitsCompleted`, `totalStackedHabits`
+  - `moved`, `hydrated`, `slept`, `nutritionScore`
+  - `streakSavers` (deferred from Phase 1 — clean here when already in the file)
 
 ### Account Deletion Pipeline
 - [ ] Build server-side deletion endpoint (authenticated, user-triggered)
@@ -156,10 +212,9 @@ Make the backend safe for real users and real money. This is non-negotiable befo
 - [ ] Test full deletion flow end-to-end
 
 ### Compliance (Finish)
-- [ ] Publish privacy policy to live URL
 - [ ] Publish Terms of Use to live URL
-- [ ] Set up support email (e.g., support@[yourdomain].com) — forward to personal is fine for now
-- [ ] Build minimal support page or FAQ (can be a single web page)
+- [ ] Set up support email — forward to personal is fine for now
+- [ ] Build minimal support page or FAQ (single web page is fine)
 
 ### Start Expo Scaffolding (Week 3 of this phase — parallel track)
 Don't wait for Phase 2 to finish. Start Expo setup while security work is happening.
@@ -171,44 +226,33 @@ Don't wait for Phase 2 to finish. Start Expo setup while security work is happen
 - [ ] Configure environment variables for Expo (Firebase config, API keys)
 
 ### Exit Criteria
+- `save-weekly-calibration` auth fix deployed (first)
 - Admin SDK migration complete, `request.auth == null` rules removed
+- Dashboard deep cleanup complete, dev tools feature-flagged
 - Account deletion works end-to-end
-- Privacy policy and ToS live at public URLs
+- Terms of Use live at public URL
 - Support contact active
 - Expo project initializes and renders on device
 
 ---
 
-## PHASE 3: EXPO MVP BUILD
-**Apr 7 – May 22 (7 weeks)**
+## PHASE 3: NATIVE APP BUILD
+**Apr 14 – May 22 (6 weeks)**
 **Status:** ⬜ Not started
 
 ### Goals
-Build the core Nelson loop in native. It must feel fast and real — not like a website.
+Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 
-### Services Extraction (Week 1 — do this first)
-Before building screens, extract shared logic so you're not duplicating business rules.
-- [ ] Create `/packages/core` or `/shared` directory
-- [ ] Move pure-logic services: `newtonianMomentum.ts`, key calculation utilities, date helpers
-- [ ] Confirm `writeDailyMomentum.ts` can be called from React Native context (Firebase writes are the same)
-- [ ] Document which services are portable as-is vs need React Native adaptation
+### Week 1-2: Auth + Onboarding
+- [ ] Login screen (email/password)
+- [ ] Signup screen
+- [ ] Onboarding flow (all 19 screens — mirror web app logic, rebuild UI natively)
+- [ ] Movement commitment selection
+- [ ] `hasCommitment` gate — redirect to not-started if false
+- [ ] Auth persistence (AsyncStorage)
 
-### Auth + Gate (Week 1-2)
-- [ ] Firebase Auth sign-in and sign-up screens
-- [ ] Auth persistence via AsyncStorage (replaces localStorage)
-- [ ] `hasCommitment` gate — same logic as web, different implementation
-- [ ] Redirect to commitment flow if not committed
-- [ ] Redirect to login if not authenticated
-
-### Onboarding (Week 2-3)
-- [ ] Name screen
-- [ ] Movement commitment selection (the slider)
-- [ ] First check-in
-- [ ] Writes `firstCheckinDate` to metadata (same Firestore path as web)
-- [ ] Calls `writeDailyMomentum` on first check-in
-- [ ] Redirect to dashboard on completion
-
-### Daily Check-In (Week 3-4) — most important screen in the app
+### Week 3: Check-In
+- [ ] 8-question check-in flow
 - [ ] 7 behavior ratings (Elite / Solid / Not Great / Off)
 - [ ] Exercise completion (Yes / No)
 - [ ] Optional note
@@ -229,7 +273,7 @@ Before building screens, extract shared logic so you're not duplicating business
 - [ ] Display current week's coaching output
 - [ ] Pattern, tension, why it matters, progression
 - [ ] Correct handling of `insufficient_data` state (no coaching generated)
-- [ ] Correct handling of `stabilize` progression ("you're in the zone" message)
+- [ ] Correct handling of `stabilize` progression
 
 ### Learn Section (Week 6-7)
 - [ ] Article list with drip eligibility (calls `learnService`)
@@ -275,7 +319,7 @@ Before building screens, extract shared logic so you're not duplicating business
 
 ### Week 3: TestFlight
 - [ ] Build and upload to TestFlight
-- [ ] Invite current shadow alpha users (4-5 people)
+- [ ] Invite current shadow alpha users
 - [ ] Fix real-device bugs — there will be some
 - [ ] Performance check: check-in submission < 2 seconds, dashboard load < 1 second
 - [ ] Offline behavior: what happens when network fails mid-check-in? (at minimum: don't lose data)
@@ -330,11 +374,11 @@ Every Monday, before starting work:
 2. Check last week's exit criteria — did you hit them?
 3. If behind: what specifically is blocking you? Name it.
 4. Update status indicators (✅ done, ⚠️ at risk, 🔄 in progress, ⬜ not started)
-5. Note anything that needs to be added to the System Brief
+5. Note anything that needs to go into the System Brief
 
 **Questions to ask every week:**
 - Am I adding scope to V1? (Stop. Re-read the "Explicitly Deferred" list.)
-- Is any phase running more than 1 week behind? (Flag it now, not later.)
+- Is any phase running more than 1 week behind? (Flag it here, not later.)
 - Has anything changed that needs to go into the System Brief?
 
 ---
@@ -345,11 +389,13 @@ Every Monday, before starting work:
 |---|---|---|---|
 | Expo build takes longer than 7 weeks | High | High | Scope is tight but defined. If slipping, cut welcome video first, then advanced Lab analytics. Core loop is non-negotiable. |
 | App Review rejection (round 1) | Medium | Medium | Buffer built into Phase 5. Fix fast, resubmit. |
-| Admin SDK migration hits unexpected complexity | Medium | High | Start audit in Phase 1, not Phase 2. Know the surface area before you commit to timing. |
+| Admin SDK migration hits unexpected complexity | Medium | High | Audit complete Feb 27. Surface area known: 3 routes, 4 collections, 1 service file. |
+| `save-weekly-calibration` exploited before auth fix | Low | Medium | Known trust network at 13 users. Fix is first task in Phase 2. |
+| Cron loop times out at scale | Medium | Medium | Sequential `await` per user. Fix: parallelize with `Promise.allSettled()` during Admin SDK migration. |
 | IAP sandbox testing is flaky | High | Low | It's always flaky. Build extra time into Week 1 of Phase 4. |
 | Scope creep | Very High | Very High | Re-read the V1 list. Every week. |
 | Apple Developer enrollment delayed | Low | High | Do it the day the EIN arrives. Don't wait. |
-| Entity formation takes longer than expected | Low | Medium | File online, it's fast in most states. Delaware is 1-2 days. |
+| Entity formation takes longer than expected | Low | Medium | Filed Feb 26, Maryland processing up to 1 week. |
 
 ---
 

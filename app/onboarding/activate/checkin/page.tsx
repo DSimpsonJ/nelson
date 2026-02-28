@@ -271,7 +271,7 @@ const behaviorGrades = [
     exerciseDeclared: exerciseCompleted!,
   });
   
-  // Mark user as activated AND set firstCheckInAt
+  // Mark user as activated
   await setDoc(
     doc(db, "users", email),
     {

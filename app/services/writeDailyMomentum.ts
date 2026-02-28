@@ -126,7 +126,7 @@ export interface DailyMomentumDoc {
   exerciseTargetMinutes?: number;
   
   isFirstCheckIn?: boolean;
-  checkinType?: "real" | "streak_saver" | "gap_fill";
+  checkinType?: "real" | "gap_fill";
   createdAt: string;
 }
 
