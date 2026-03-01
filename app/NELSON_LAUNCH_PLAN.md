@@ -90,22 +90,23 @@ Lock the scope. Make the business decisions that unblock everything else. Don't 
 
 ## PHASE 1: ENTITY + COMPLIANCE DRAFT + WEB CLEANUPS
 **Mar 3 – Mar 14 (2 weeks)**
-**Status:** 🔄 In progress (started early)
+**Status:** 🔄 In progress — blocking on EIN
 
 ### Goals
 Get the business real. Get compliance documents drafted. Close the web app gaps that will cause parity problems in Expo.
 
 ### Business Build
-- 🔄 File LLC — **Simpson Holdings LLC filed Feb 26 via Northwest Registered Agent, Maryland processing (up to 1 week)**
-- [ ] Get EIN (free, online, takes 10 minutes at IRS.gov after entity is formed)
-- [ ] Open business bank account (Mercury or Relay are solid for startups, no minimums)
-- [ ] Set up bookkeeping (Wave is free and sufficient for now; QuickBooks if you want more)
+- ✅ File LLC — Simpson Holdings LLC filed Feb 26 via Northwest Registered Agent, Maryland
+- [ ] Get EIN (free, online, 10 minutes at IRS.gov — do immediately when LLC approval arrives)
+- [ ] Open business bank account (Mercury or Relay — do immediately after EIN)
+- [ ] Set up bookkeeping (Wave is free and sufficient for now)
 - [ ] Enroll in Apple Developer Program under entity ($99/year) — do this as soon as EIN exists
 - [ ] Separate all Nelson expenses from personal immediately
+- ✅ Set up business email — privacy@, support@, dj@thenelson.app (Google Workspace, $6/month)
 
 ### Compliance
 - ✅ Draft privacy policy — Termly draft complete, live at thenelson.app/privacy
-- [ ] Draft Terms of Use (lightweight — what the app is, what it isn't, no medical advice disclaimer)
+- ✅ Draft Terms of Use — complete Feb 28, placeholders filled, attorney review pending before publish
 
 ### Product (Web)
 - ✅ Close Learn gate
@@ -116,34 +117,25 @@ Get the business real. Get compliance documents drafted. Close the web app gaps 
 - ✅ Clean up messagingGuide.ts — orphaned constants and dead comment blocks removed
 - ✅ Admin SDK audit complete — surface area documented (3 routes, 4 collections, 1 service file)
 - ✅ Weekly alpha newsletter sent (Feb 27)
-- [ ] Dashboard dead import cleanup — remove dead imports from `app/(app)/dashboard/page.tsx`:
-  - `WalkTimer`
-  - `saveSession`
-  - `seedFakeCheckins`
-  - `refreshCoachNote` / `saveCoachNoteToWeeklyStats`
-  - `generateCoachInsight`
-  - `logInsight`
-  - `generateWeeklySummary`
-  - `getStreakMessage`
-  - Verify each with global search before deleting — if actually used anywhere, skip and note it
+- ✅ Dashboard dead code cleanup — Pass 1 complete Feb 28 (1,851 → 1,235 lines, zero errors)
 
 ### Exit Criteria
-- Entity exists, EIN in hand
-- Business bank account open
-- Apple Developer Program enrolled under entity
 - ✅ Privacy policy live at thenelson.app/privacy
-- Terms of Use draft exists
-- Web app dead code cleaned up
+- ✅ Terms of Use draft complete
+- ✅ Web app dead code cleaned up (Pass 1)
 - ✅ Learn gate closed
+- [ ] LLC approved, EIN in hand
+- [ ] Business bank account open
+- [ ] Apple Developer Program enrolled under entity
 
 ---
 
 ## PHASE 2: BACKEND HARDENING
 **Mar 17 – Apr 10 (4 weeks)**
-**Status:** ⬜ Not started
+**Status:** 🔄 Started early (Mar 1)
 
 ### Goals
-Make the backend safe for real users and real money. This is non-negotiable before public launch.
+Make the backend safe for real users and real money. Lock monetization model. Lay marketing foundation. This is non-negotiable before public launch.
 
 ### ⚠️ FIRST TASK — `save-weekly-calibration` Auth Fix
 **Do this before anything else in Phase 2. It's a 20-minute fix.**
@@ -191,13 +183,12 @@ Tasks:
 - [ ] Test with real user data
 
 ### Dashboard Deep Cleanup
-Do this alongside Admin SDK work — you're already in careful, tested territory.
-- [ ] Remove dead code blocks from `app/(app)/dashboard/page.tsx`:
-  - Habit stacking reads (stackRef / stackSnap)
-  - Weekly stats reads (if not displayed anywhere)
-  - Level-up functions (`getNextLevel`, `handleLevelUp`, `handleAdjustLevel`, `handleKeepCurrent`) — verify not called before deleting
-  - Workout detail functions (`getTodaysTrainingName`, `getTodaysWorkout`, `getWorkoutDetails`) — verify not called
-- [ ] Feature-flag dev tools: wrap in `if (process.env.NODE_ENV === 'development')` or move to `/dev` route
+✅ Pass 1 complete Feb 28 — 616 lines removed, all imports clean, no errors.
+Remaining items for Phase 2 alongside Admin SDK work:
+- [ ] Remove remaining dead code blocks from `app/(app)/dashboard/page.tsx`:
+  - `unsubSessions` realtime listener (dead — does nothing with data)
+  - `loadRecentCheckins` standalone function (duplicate of useEffect version — verify which to keep)
+- [ ] Feature-flag dev tools already done — `process.env.NODE_ENV === 'development'` in place ✅
 - [ ] Remove dead momentum fields from `writeDailyMomentum.ts` interface and defaults:
   - `primaryHabitHit`, `stackedHabitsCompleted`, `totalStackedHabits`
   - `moved`, `hydrated`, `slept`, `nutritionScore`
@@ -212,9 +203,35 @@ Do this alongside Admin SDK work — you're already in careful, tested territory
 - [ ] Test full deletion flow end-to-end
 
 ### Compliance (Finish)
-- [ ] Publish Terms of Use to live URL
-- [ ] Set up support email — forward to personal is fine for now
+- [ ] Engage startup attorney for document review — flat-fee review of Privacy Policy + Terms of Use before public launch. Budget $200-400. Priority: health behavior disclaimer, limitation of liability, dispute resolution clause (Section 15 intentionally left blank for attorney).
+- ✅ Terms of Use draft complete (Feb 28) — placeholders to fill: effective date, support email, business address, privacy policy URL, attorney review date, Section 15 dispute resolution
+- [ ] Publish Terms of Use to live URL (same pattern as privacy policy — simple page at thenelson.app/terms)
+- [ ] Set up support email — forward to personal is fine for now ✅ (support@thenelson.app created)
 - [ ] Build minimal support page or FAQ (single web page is fine)
+
+### Monetization Strategy (Dedicated Session)
+Decide this before building IAP in Phase 4. The decision affects what gets built.
+
+- [ ] Decide free vs. paid model — options to evaluate:
+  - Hard paywall (subscribe to use anything)
+  - 7-day free trial → paid
+  - 14-day free trial → paid
+  - Freemium (limited free tier, paid unlocks coaching/history)
+  - Founding Members pricing ($60/year) → standard pricing ($90/year) after first 50
+- [ ] Decide what's gated vs. free if freemium — check-in only? No coaching? No Lab?
+- [ ] Confirm Founding Members pricing and conversion plan
+- [ ] Document final decision in this plan and update V1 scope if needed
+
+### Marketing Strategy (Dedicated Session)
+Build the audience before the app ships. You need people ready to download on launch day.
+
+- ✅ Create @TheNelsonApp on Instagram (Mar 1)
+- ✅ Create @TheNelsonApp on TikTok (Mar 1)
+- [ ] Define content strategy — what does Nelson post? What's the angle? Who is the audience?
+- [ ] Define pre-launch content cadence — how often, what format, starting when?
+- [ ] Define launch week plan — what happens the week the app goes live?
+- [ ] Identify potential early distribution channels beyond social (newsletters, communities, podcasts)
+- [ ] Decide whether to build a waitlist or landing page at thenelson.app before launch
 
 ### Start Expo Scaffolding (Week 3 of this phase — parallel track)
 Don't wait for Phase 2 to finish. Start Expo setup while security work is happening.
@@ -228,10 +245,12 @@ Don't wait for Phase 2 to finish. Start Expo setup while security work is happen
 ### Exit Criteria
 - `save-weekly-calibration` auth fix deployed (first)
 - Admin SDK migration complete, `request.auth == null` rules removed
-- Dashboard deep cleanup complete, dev tools feature-flagged
+- Dashboard deep cleanup complete
 - Account deletion works end-to-end
 - Terms of Use live at public URL
-- Support contact active
+- Support contact active ✅
+- Monetization model decided and documented
+- Marketing strategy defined, content cadence started
 - Expo project initializes and renders on device
 
 ---
