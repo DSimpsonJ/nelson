@@ -168,22 +168,32 @@ export function WeeklyCalibrationContainer({
   }) => {
     setSaving(true);
     setError(null);
-
+  
     try {
+      // Get ID token for auth verification
+      const { getAuth } = await import('firebase/auth');
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) throw new Error('Not authenticated');
+      const token = await user.getIdToken();
+  
       const response = await fetch('/api/save-weekly-calibration', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           email,
           weekId,
           answers
         })
       });
-
+  
       if (!response.ok) {
         throw new Error('Failed to save calibration');
       }
-
+  
       onComplete();
     } catch (err) {
       console.error('Error saving calibration:', err);

@@ -9,7 +9,7 @@ export interface DailyDoc {
       habitKey: string;
       done: boolean;
     };
-    checkinType?: "real" | "streak_saver";
+    checkinType?: "real";
   }
   
   export interface EligibilityParams {
