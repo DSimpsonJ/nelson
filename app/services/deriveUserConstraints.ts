@@ -14,8 +14,7 @@
  * Future: Option B (training history, schedule load, sleep constraints, injury flags)
  */
 
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/app/firebase/config";
+import { adminDb } from "@/app/firebase/admin";
 
 // ============================================================================
 // TYPES
@@ -196,14 +195,13 @@ function deriveBiologicalContext(sex: "male" | "female"): string {
 export async function deriveUserConstraints(email: string): Promise<UserConstraints> {
   
   // 1. Fetch raw data from Firestore
-  const userRef = doc(db, "users", email);
-  const userSnap = await getDoc(userRef);
+  const userSnap = await adminDb.collection("users").doc(email).get();
   
-  if (!userSnap.exists()) {
+  if (!userSnap.exists) {
     throw new Error(`User ${email} not found`);
   }
   
-  const userData = userSnap.data();
+  const userData = userSnap.data()!;
   
   // Extract raw fields (Option A)
   const age = userData.age || 35; // Default if missing

@@ -13,8 +13,7 @@
  * This is Phase 3B-lite: accurate constraints, not memory.
  */
 
-import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
-import { db } from "@/app/firebase/config";
+import { adminDb } from "@/app/firebase/admin";
 
 // ============================================================================
 // TYPES
@@ -91,15 +90,11 @@ export async function deriveWeeklyConstraints(
   cutoffDate.setDate(cutoffDate.getDate() - lookbackDays);
   const cutoffStr = cutoffDate.toISOString().split('T')[0];
   
-  const checkinsRef = collection(db, 'users', email, 'momentum');
-  const q = query(
-    checkinsRef,
-    where('date', '>=', cutoffStr),
-    orderBy('date', 'desc'),
-    limit(lookbackDays)
-  );
-  
-  const snapshot = await getDocs(q);
+  const snapshot = await adminDb.collection('users').doc(email).collection('momentum')
+  .where('date', '>=', cutoffStr)
+  .orderBy('date', 'desc')
+  .limit(lookbackDays)
+  .get();
   const checkins: CheckInData[] = snapshot.docs.map(doc => doc.data() as CheckInData);
   
   if (checkins.length === 0) {
@@ -226,15 +221,11 @@ export async function deriveWeeklyConstraintsFromPattern(
  const weekStart = pattern.dateRange.start;
  const weekEnd = pattern.dateRange.end;
     
- const checkinsRef = collection(db, 'users', email, 'momentum');
-    const q = query(
-      checkinsRef,
-      where('date', '>=', weekStart),
-      where('date', '<=', weekEnd),
-      orderBy('date', 'desc')
-    );
-    
-    const snapshot = await getDocs(q);
+ const snapshot = await adminDb.collection('users').doc(email).collection('momentum')
+  .where('date', '>=', weekStart)
+  .where('date', '<=', weekEnd)
+  .orderBy('date', 'desc')
+  .get();
     const checkins: CheckInData[] = snapshot.docs.map(doc => doc.data() as CheckInData);
     
     console.log(`[Weekly Constraints] Fetched ${checkins.length} check-ins for ${weekStart} to ${weekEnd}`);

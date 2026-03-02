@@ -12,8 +12,7 @@
  * - Silence is acceptable for early users
  */
 
-import { collection, query, where, getDocs, orderBy, doc, getDoc, limit } from "firebase/firestore";
-import { db } from "@/app/firebase/config";
+import { adminDb } from "@/app/firebase/admin";
 
 // Pattern types (in priority order)
 export type PatternType = 
