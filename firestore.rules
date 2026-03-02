@@ -12,48 +12,50 @@ service cloud.firestore {
     }
 
     match /users/{email} {
-      allow read, write: if isOwner(email) || request.auth == null;
+      allow read, write: if isOwner(email);
 
       match /momentum/{date} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
-match /coachingProfile/{docId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+
+      match /coachingProfile/{docId} {
+        allow read, write: if isOwner(email);
       }
 
       match /weeklyCalibrations/{docId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
+
       match /weeklySummaries/{weekId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
 
       match /metadata/{docId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
 
       match /profile/{docId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
 
       match /weightHistory/{entryId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
 
       match /checkins/{docId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
 
       match /weeklyStats/{docId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
 
       match /insights/{docId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
 
       match /sessions/{docId} {
-        allow read, write: if isOwner(email) || request.auth == null;
+        allow read, write: if isOwner(email);
       }
     }
 

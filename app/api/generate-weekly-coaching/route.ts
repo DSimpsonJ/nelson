@@ -308,6 +308,18 @@ function compareWeekToWeek(
 
 export async function POST(request: NextRequest) {
   try {
+    // --- Auth verification ---
+    const authHeader = request.headers.get('authorization');
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (!cronSecret) {
+      return NextResponse.json({ success: false, error: 'Server configuration error' }, { status: 500 });
+    }
+
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body: GenerateWeeklyCoachingRequest = await request.json();
     console.log('[Coaching] body keys:', Object.keys(body || {}), 'email:', body?.email, 'weekId:', body?.weekId);
     const { email, weekId, useFixture } = body;
