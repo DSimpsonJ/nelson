@@ -10,7 +10,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CALIBRATION_QUESTIONS, ForceLevel, DragSource, StructuralState, GoalAlignment } from '@/app/services/weeklyCalibration';
+import { CALIBRATION_QUESTIONS, ForceLevel, DragSource, StructuralState, GoalAlignment } from '@/app/services/weeklyCalibrationTypes';
 import SafetyModal from './SafetyModal';
 
 interface WeeklyCalibrationProps {

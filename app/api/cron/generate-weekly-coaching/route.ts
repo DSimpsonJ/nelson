@@ -20,8 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/app/firebase/config';
+import { adminDb } from '@/app/firebase/admin';
 
 /**
  * Calculate the week ID for the week that just ended.
@@ -32,24 +31,22 @@ import { db } from '@/app/firebase/config';
  */
 function getPreviousWeekId(): string {
   const now = new Date();
-  
-  // Simple approach: Get current ISO week, subtract 1
-  
-  // Find Monday of current week
-  const day = now.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diff);
-  
-  // Go back 7 days to last Monday
-  monday.setDate(monday.getDate() - 7);
-  
-  // ISO week calculation
-  const yearStart = new Date(monday.getFullYear(), 0, 1);
-  const dayOfYear = Math.floor((monday.getTime() - yearStart.getTime()) / 86400000);
-  const weekNum = Math.ceil((dayOfYear + yearStart.getDay() + 1) / 7);
-  
-  return `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  const lastWeek = new Date(now);
+  lastWeek.setDate(now.getDate() - 7);
+
+  // ISO 8601: anchor on Thursday of the target week
+  const dayOfWeek = lastWeek.getDay();
+  const thursday = new Date(lastWeek);
+  thursday.setDate(lastWeek.getDate() + (4 - (dayOfWeek === 0 ? 7 : dayOfWeek)));
+
+  const year = thursday.getFullYear();
+  const jan4 = new Date(year, 0, 4);
+  const weekOneMonday = new Date(jan4);
+  weekOneMonday.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+
+  const weekNum = Math.round((thursday.getTime() - weekOneMonday.getTime()) / 604800000) + 1;
+
+  return `${year}-W${String(weekNum).padStart(2, '0')}`;
 }
 
 /**
@@ -57,15 +54,8 @@ function getPreviousWeekId(): string {
  */
 async function getAllUserEmails(): Promise<string[]> {
   try {
-    const usersRef = collection(db, 'users');
-    const snapshot = await getDocs(usersRef);
-    
-    const emails: string[] = [];
-    snapshot.forEach((doc) => {
-      emails.push(doc.id); // Document ID is the email
-    });
-    
-    return emails;
+    const snapshot = await adminDb.collection('users').get();
+    return snapshot.docs.map(doc => doc.id);
   } catch (error) {
     console.error('[Cron] Error fetching users:', error);
     throw error;
@@ -168,27 +158,22 @@ export async function GET(request: NextRequest) {
   }
 
   // 5. Generate coaching for each user
-  const results: Array<{
-    email: string;
-    success: boolean;
-    error?: string;
-  }> = [];
-
-  for (const email of userEmails) {
-    console.log(`[Cron] Processing: ${email}`);
-    
-    const result = await generateCoachingForUser(email, weekId, baseUrl);
-    results.push({
-      email,
-      ...result,
-    });
-
-    if (result.success) {
-      console.log(`[Cron] âœ“ Success: ${email}`);
-    } else {
-      console.error(`[Cron] âœ— Failed: ${email} - ${result.error}`);
-    }
-  }
+  const settledResults = await Promise.allSettled(
+    userEmails.map(email => {
+      console.log(`[Cron] Dispatching: ${email}`);
+      return generateCoachingForUser(email, weekId, baseUrl);
+    })
+  );
+  
+  const results = settledResults.map((result, i) => ({
+    email: userEmails[i],
+    success: result.status === 'fulfilled' && result.value.success,
+    error: result.status === 'rejected'
+      ? String(result.reason)
+      : result.status === 'fulfilled' && !result.value.success
+      ? result.value.error
+      : undefined,
+  }));
 
   // 6. Calculate summary
   const successCount = results.filter(r => r.success).length;
