@@ -8,21 +8,9 @@
  * Token email must match the email in the request body.
  */
 
+import { adminAuth } from '@/app/firebase/admin';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuth } from 'firebase-admin/auth';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { saveWeeklyCalibration, ForceLevel, DragSource, StructuralState, GoalAlignment } from '@/app/services/weeklyCalibration';
-
-// Initialize Firebase Admin (safe to call multiple times)
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,7 +23,7 @@ export async function POST(request: NextRequest) {
     const token = authHeader.split('Bearer ')[1];
     let decodedToken;
     try {
-      decodedToken = await getAuth().verifyIdToken(token);
+      decodedToken = await adminAuth.verifyIdToken(token);
     } catch {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }

@@ -142,10 +142,10 @@ Make the backend safe for real users and real money. Lock monetization model. La
 
 At 13+ active users, `POST /api/save-weekly-calibration` accepts any email with no ownership check. Anyone who knows another user's email can overwrite their calibration data. This is the highest-priority security gap in the current system.
 
-- [ ] Add Firebase ID token verification to `/app/api/save-weekly-calibration/route.ts`
-- [ ] Verify token's `email` claim matches the `email` in the request body — reject if mismatch
-- [ ] Test: valid user can save their own calibration, mismatched email returns 403
-- [ ] Deploy
+- ✅ Add Firebase ID token verification to `/app/api/save-weekly-calibration/route.ts`
+- ✅ Verify token's `email` claim matches the `email` in the request body — reject if mismatch
+- ✅ Test: valid user can save their own calibration, mismatched email returns 403
+- ✅ Deploy
 
 **Estimated effort:** ~20 minutes. No service layer changes needed.
 

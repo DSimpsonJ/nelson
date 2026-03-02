@@ -13,8 +13,8 @@
  * Timing: After coaching is delivered, before user leaves
  */
 
-import { doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
-import { db } from "@/app/firebase/config";
+import { FieldValue } from 'firebase-admin/firestore';
+import { adminDb } from '@/app/firebase/admin';
 
 // ============================================================================
 // TYPES
@@ -45,7 +45,7 @@ export interface WeeklyCalibration {
   interpretationConfidence: InterpretationConfidence;
   
   // Metadata
-  answeredAt: Timestamp;
+  answeredAt: FirebaseFirestore.Timestamp | Date;
 }
 
 // ============================================================================
@@ -186,16 +186,14 @@ export async function saveWeeklyCalibration(
     weekId,
     ...answers,
     interpretationConfidence: confidence,
-    answeredAt: Timestamp.now()
+    answeredAt: new Date()
   };
   
-  const calibrationRef = doc(
-    db, 
-    'users', email, 
-    'weeklyCalibrations', weekId
-  );
-  
-  await setDoc(calibrationRef, calibration);
+  const calibrationRef = adminDb
+  .collection('users').doc(email)
+  .collection('weeklyCalibrations').doc(weekId);
+
+await calibrationRef.set(calibration);
   
   console.log(`[Calibration] Saved for ${weekId}, confidence: ${confidence}`);
 }
@@ -208,19 +206,17 @@ export async function getWeeklyCalibration(
   weekId: string
 ): Promise<WeeklyCalibration | null> {
   
-  const calibrationRef = doc(
-    db, 
-    'users', email, 
-    'weeklyCalibrations', weekId
-  );
-  
-  const snap = await getDoc(calibrationRef);
-  
-  if (!snap.exists()) {
-    return null;
-  }
-  
-  return snap.data() as WeeklyCalibration;
+  const calibrationRef = adminDb
+  .collection('users').doc(email)
+  .collection('weeklyCalibrations').doc(weekId);
+
+const snap = await calibrationRef.get();
+
+if (!snap.exists) {
+  return null;
+}
+
+return snap.data() as WeeklyCalibration;
 }
 
 /**

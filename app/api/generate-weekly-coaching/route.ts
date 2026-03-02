@@ -19,7 +19,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { doc, setDoc, getDoc, Timestamp, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import Anthropic from '@anthropic-ai/sdk';
 import { deriveWeeklyConstraintsFromPattern, WeeklyConstraintSnapshot } from '@/app/services/deriveWeeklyConstraints';
 import { deriveProgressionType, ProgressionResult } from '@/app/services/deriveProgressionType';
@@ -48,13 +48,7 @@ import { detectCelebrations, CelebrationResult } from '@/app/services/celebratio
 import { buildEarlyUserPrompt, calculateEarlyBehaviorAverages } from '@/app/services/buildEarlyUserPrompt';
 
 // Import from your existing Firebase config
-import { db } from '@/app/firebase/config';
-
-// DELETE these lines (around 43-57):
-// const firebaseConfig = { ... }
-// if (!getApps().length) { ... }
-// const db = getFirestore();
-
+import { adminDb } from '@/app/firebase/admin';
 // Initialize Anthropic
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -315,6 +309,7 @@ function compareWeekToWeek(
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateWeeklyCoachingRequest = await request.json();
+    console.log('[Coaching] body keys:', Object.keys(body || {}), 'email:', body?.email, 'weekId:', body?.weekId);
     const { email, weekId, useFixture } = body;
 
     // Validate input
@@ -356,16 +351,15 @@ let dominantLimiter: string | undefined;
 let celebrationResult: CelebrationResult | undefined;
 if (!useFixture) {
   const { start, end } = pattern.dateRange;
-  const momentumRef = collection(db, 'users', email, 'momentum');
-  const q = query(
-    momentumRef,
-    where('date', '>=', start),
-    where('date', '<=', end),
-    where('checkinType', '==', 'real'),
-    orderBy('date', 'asc')
-  );
-  const snapshot = await getDocs(q);
-  const weekData = snapshot.docs.map(doc => doc.data());
+  const snapshot = await adminDb
+  .collection('users').doc(email)
+  .collection('momentum')
+  .where('date', '>=', start)
+  .where('date', '<=', end)
+  .where('checkinType', '==', 'real')
+  .orderBy('date', 'asc')
+  .get();
+const weekData = snapshot.docs.map(doc => doc.data());
   
   performance = detectSolidWeekPerformance(weekData);
   console.log(`[Coaching] Performance detected - Solid: ${performance.solidWeek.join(', ')}, Elite: ${performance.eliteWeek.join(', ')}`);
@@ -385,15 +379,15 @@ if (!useFixture) {
   const prevWeekEnd = new Date(pattern.dateRange.start);
   prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
   
-  const prevWeekQuery = query(
-    momentumRef,
-    where('date', '>=', prevWeekStart.toLocaleDateString('en-CA')),
-    where('date', '<=', prevWeekEnd.toLocaleDateString('en-CA')),
-    where('checkinType', '==', 'real'),
-    orderBy('date', 'asc')
-  );
-  const prevSnapshot = await getDocs(prevWeekQuery);
-  const previousWeekData = prevSnapshot.docs.map(doc => doc.data());
+  const prevSnapshot = await adminDb
+  .collection('users').doc(email)
+  .collection('momentum')
+  .where('date', '>=', prevWeekStart.toLocaleDateString('en-CA'))
+  .where('date', '<=', prevWeekEnd.toLocaleDateString('en-CA'))
+  .where('checkinType', '==', 'real')
+  .orderBy('date', 'asc')
+  .get();
+const previousWeekData = prevSnapshot.docs.map(doc => doc.data());
   
   try {
     progressionResult = deriveProgressionType(
@@ -467,16 +461,15 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
 
       // Fetch whatever week data exists for behavior averages
       const { start, end } = pattern.dateRange;
-      const earlyMomentumRef = collection(db, 'users', email, 'momentum');
-      const earlyQ = query(
-        earlyMomentumRef,
-        where('date', '>=', start),
-        where('date', '<=', end),
-        where('checkinType', '==', 'real'),
-        orderBy('date', 'asc')
-      );
-      const earlySnap = await getDocs(earlyQ);
-      const earlyWeekData = earlySnap.docs.map(d => d.data());
+      const earlySnap = await adminDb
+  .collection('users').doc(email)
+  .collection('momentum')
+  .where('date', '>=', start)
+  .where('date', '<=', end)
+  .where('checkinType', '==', 'real')
+  .orderBy('date', 'asc')
+  .get();
+const earlyWeekData = earlySnap.docs.map(d => d.data());
       
       const earlyBehaviorAverages = calculateEarlyBehaviorAverages(earlyWeekData);
       
@@ -732,18 +725,15 @@ async function extractUserNotes(email: string, pattern: WeeklyPattern): Promise<
     const notes: string[] = [];
     
     // Query momentum docs in pattern's exact date range
-    const momentumRef = collection(db, 'users', email, 'momentum');
-    const q = query(
-      momentumRef,
-      where('date', '>=', start),
-      where('date', '<=', end),
-      where('checkinType', '==', 'real'),
-      orderBy('date', 'asc')
-    );
-    
-    const snapshot = await getDocs(q);
-    
-    snapshot.forEach(doc => {
+    const snapshot = await adminDb
+  .collection('users').doc(email)
+  .collection('momentum')
+  .where('date', '>=', start)
+  .where('date', '<=', end)
+  .where('checkinType', '==', 'real')
+  .orderBy('date', 'asc')
+  .get();
+snapshot.docs.forEach(doc => {
       const data = doc.data();
       if (data.note && data.note.trim().length > 0) {
         notes.push(data.note.trim());
@@ -767,7 +757,9 @@ async function storeWeeklySummary(
   email: string,
   summary: WeeklySummaryRecord
 ): Promise<void> {
-  const summaryRef = doc(db, 'users', email, 'weeklySummaries', summary.weekId);
-  await setDoc(summaryRef, summary);
+  const summaryRef = adminDb
+  .collection('users').doc(email)
+  .collection('weeklySummaries').doc(summary.weekId);
+await summaryRef.set(summary);
   console.log(`[Coaching] Stored summary: users/${email}/weeklySummaries/${summary.weekId}`);
 }
