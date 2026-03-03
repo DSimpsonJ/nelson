@@ -6,14 +6,15 @@ import { getAuth } from 'firebase-admin/auth';
 if (!getApps().length) {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
   
-  if (!privateKey) {
-    throw new Error('FIREBASE_PRIVATE_KEY environment variable is not set');
-  }
+  console.log('[Admin SDK] FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID);
+  console.log('[Admin SDK] FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL);
+  console.log('[Admin SDK] Private key exists:', !!privateKey);
+  console.log('[Admin SDK] Private key length:', privateKey?.length);
+  console.log('[Admin SDK] First 50 chars:', privateKey?.substring(0, 50));
+  console.log('[Admin SDK] Contains literal \\n:', privateKey?.includes('\\n'));
+  console.log('[Admin SDK] Contains real newline:', privateKey?.includes('\n'));
 
-  // Handle both formats: literal \n strings and already-formatted keys
-  const formattedKey = privateKey.includes('\\n') 
-    ? privateKey.replace(/\\n/g, '\n')
-    : privateKey;
+  const formattedKey = privateKey?.replace(/\\n/g, '\n');
 
   initializeApp({
     credential: cert({
