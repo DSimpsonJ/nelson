@@ -132,7 +132,7 @@ Get the business real. Get compliance documents drafted. Close the web app gaps 
 
 ## PHASE 2: BACKEND HARDENING
 **Mar 17 – Apr 10 (4 weeks)**
-**Status:** 🔄 Started early (Mar 1)
+**Status:** 🔄 In progress — Admin SDK migration complete, weight integration + deletion pipeline remaining
 
 ### Goals
 Make the backend safe for real users and real money. Lock monetization model. Lay marketing foundation. This is non-negotiable before public launch.
@@ -167,13 +167,13 @@ Files that need migration:
 Additional note: Cron route loops users sequentially with `await` per user. At 50+ users this will hit Vercel timeout. Parallelize with `Promise.allSettled()` during this migration.
 
 Tasks:
-- [ ] Create `/app/firebase/admin.ts` (server-only Admin SDK initialization)
-- [ ] Migrate `/app/api/generate-weekly-coaching/route.ts` to Admin SDK
-- [ ] Migrate `/app/api/cron/generate-weekly-coaching/route.ts` to Admin SDK — parallelize loop while here
-- [ ] Migrate `/app/api/save-weekly-calibration/route.ts` to Admin SDK
-- [ ] Migrate `/app/services/weeklyCalibration.ts` reads/writes to Admin SDK
-- [ ] Rewrite Firestore security rules — remove all `|| request.auth == null` clauses
-- [ ] Test end-to-end: coaching generation still works, cron still fires correctly
+- ✅ Create `/app/firebase/admin.ts` (server-only Admin SDK initialization)
+- ✅ Migrate `/app/api/generate-weekly-coaching/route.ts` to Admin SDK
+- ✅ Migrate `/app/api/cron/generate-weekly-coaching/route.ts` to Admin SDK — parallelize loop while here
+- ✅ Migrate `/app/api/save-weekly-calibration/route.ts` to Admin SDK
+- ✅ Migrate `/app/services/weeklyCalibration.ts` reads/writes to Admin SDK
+- ✅ Rewrite Firestore security rules — remove all `|| request.auth == null` clauses
+- ✅ Test end-to-end: coaching generation still works, cron still fires correctly
 - [ ] Verify dev tools still work after migration
 
 ### Weight Integration into Coaching Prompts
@@ -452,5 +452,5 @@ These are made. They are not up for re-discussion unless something fundamental c
 
 ---
 
-*Last updated: February 27, 2026*
-*Next review: March 2, 2026*
+*Last updated: March 3, 2026*
+*Next review: March 9, 2026*
