@@ -64,9 +64,8 @@ export async function detectWeeklyPattern(
   const todayKey = today.toLocaleDateString("en-CA");
   
   // Check if today has a real check-in
-  const todayRef = doc(db, "users", email, "momentum", todayKey);
-  const todaySnap = await getDoc(todayRef);
-  const todayHasRealCheckin = todaySnap.exists() && todaySnap.data()?.checkinType === "real";
+  const todaySnap = await adminDb.collection("users").doc(email).collection("momentum").doc(todayKey).get();
+  const todayHasRealCheckin = todaySnap.exists && todaySnap.data()?.checkinType === "real";
   
   // Window ends at: today (if real check-in), otherwise yesterday
   const windowEnd = todayHasRealCheckin ? today : (() => {
@@ -89,15 +88,11 @@ const dateRange = {
   end: windowEndKey
 };
   // 2. Fetch momentum docs in window
-  const momentumRef = collection(db, "users", email, "momentum");
-  const q = query(
-    momentumRef,
-    where("date", ">=", windowStartKey),
-    where("date", "<=", windowEndKey),
-    orderBy("date", "desc")
-  );
-  
-  const snapshot = await getDocs(q);
+  const snapshot = await adminDb.collection("users").doc(email).collection("momentum")
+  .where("date", ">=", windowStartKey)
+  .where("date", "<=", windowEndKey)
+  .orderBy("date", "desc")
+  .get();
   
   // 3. Parse data
   const days: DayData[] = snapshot.docs
@@ -137,15 +132,12 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
     const thirtyDaysAgo = new Date(windowEnd);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    const fallbackQuery = query(
-      momentumRef,
-      where("date", ">=", thirtyDaysAgo.toLocaleDateString("en-CA")),
-      where("checkinType", "==", "real"),
-      orderBy("date", "desc"),
-      limit(10)
-    );
-    
-    const fallbackSnap = await getDocs(fallbackQuery);
+    const fallbackSnap = await adminDb.collection("users").doc(email).collection("momentum")
+  .where("date", ">=", thirtyDaysAgo.toLocaleDateString("en-CA"))
+  .where("checkinType", "==", "real")
+  .orderBy("date", "desc")
+  .limit(10)
+  .get();
     const fallbackReal = fallbackSnap.docs.find(d => d.data().totalRealCheckIns !== undefined);
     totalCheckIns = fallbackReal?.data()?.totalRealCheckIns || 0;
   }
