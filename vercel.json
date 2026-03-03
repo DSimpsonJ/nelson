@@ -4,5 +4,6 @@
       "path": "/api/cron/generate-weekly-coaching",
       "schedule": "0 8 * * 1"
     }
-  ]
+  ],
+  "nodejs": "20.x"
 }
