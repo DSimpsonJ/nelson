@@ -10,22 +10,16 @@ import {
   collection,
   query,
   orderBy,
-  limit,
   where,
 } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
 import { useToast } from "../../context/ToastContext";
 import { getCheckin, type Checkin } from "../../utils/checkin";
-import { onSnapshot } from "firebase/firestore";
-import { subDays } from "date-fns";
 import DashboardDevTools from "./DashboardDevTools";  
-import { withFirestoreError } from "../../utils/withFirestoreError";
 import { motion } from "framer-motion";
 import { checkLevelUpEligibility as checkEligibilityPure } from "@/app/utils/checkLevelUpEligibility";
 import type { DailyDoc } from "@/app/utils/checkLevelUpEligibility";
-import { writeDailyMomentum } from "@/app/services/writeDailyMomentum";
-
 import { getLocalDate, getLocalDateOffset, daysBetween } from "@/app/utils/date";
 import RewardRenderer from "@/app/components/rewards/RewardRenderer";
 import CheckinSuccessAnimation from "@/app/components/rewards/CheckinSuccessAnimation";
@@ -84,26 +78,19 @@ function EmptyState({
     </div>
   );
 }
-
-
 /** ---------- Component ---------- */
 export default function DashboardPage() {
-  console.count("[DASHBOARD RENDER]");
   const router = useRouter();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [todayCheckin, setTodayCheckin] = useState<Checkin | null>(null);
   const [checkinSubmitted, setCheckinSubmitted] = useState(false);
-  const [recentCheckins, setRecentCheckins] = useState<Checkin[]>([]);
   const [currentFocus, setCurrentFocus] = useState<any>(null);
   const [todayMomentum, setTodayMomentum] = useState<any>(null);
   const [recentMomentum, setRecentMomentum] = useState<DailyMomentumDoc[]>([]);
   const [commitment, setCommitment] = useState<any>(null);
   const [showCommitment, setShowCommitment] = useState(false);
-  const [commitmentStage, setCommitmentStage] = useState<"initial" | "reason" | "alternative" | "choose" | "custom">("initial");
-  const [commitmentReason, setCommitmentReason] = useState<string>("");
-  const [saving, setSaving] = useState(false);
   const [missedDays, setMissedDays] = useState(0);
   const today = getLocalDate();
   const [levelUpEligible, setLevelUpEligible] = useState(false);
@@ -112,7 +99,7 @@ export default function DashboardPage() {
   const [adjustOptions, setAdjustOptions] = useState<'increase' | 'decrease'>('increase');
 const [pendingReward, setPendingReward] = useState<any | null>(null);
   const [checkinSuccess, setCheckinSuccess] = useState(false);
-  const [consistencyPercentage, setConsistencyPercentage] = useState<number>(0);
+
   const [firstCheckinDate, setFirstCheckinDate] = useState<string | null>(null);
   const [readLearnSlugs, setReadLearnSlugs] = useState<string[]>([]);
   // Animated momentum score
@@ -149,25 +136,6 @@ badDaysInWindow,
 frozenMomentum: recentMomentum.filter((d: any) => d.checkinType === "real").slice(-2)[0]?.momentumScore,
 totalRealCheckIns: todayMomentum.totalRealCheckIns || 0,
 }) : "";
-  const calculateConsistency = (
-    momentumDocs: any[], 
-    accountAgeDays: number
-  ): number => {
-    // Don't calculate until day 7
-    if (accountAgeDays < 7) return 0;
-    
-    // Determine window size (up to 30 days)
-    const windowSize = Math.min(accountAgeDays, 30);
-    
-    // Count real check-ins (not missed) in the window
-    const realCheckIns = momentumDocs
-      .filter(doc => doc.checkinType === "real" || !doc.missed)
-      .slice(0, windowSize)
-      .length;
-    
-    // Calculate percentage
-    return Math.round((realCheckIns / windowSize) * 100);
-  };
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -181,10 +149,8 @@ totalRealCheckIns: todayMomentum.totalRealCheckIns || 0,
         if (snap.exists()) {
           setProfile(snap.data() as UserProfile);
         } else {
-          console.warn("[Dashboard] No intake/profile found.");
         }
       } catch (err) {
-        console.error("[Dashboard] Failed to load profile:", err);
       }
     };
 
@@ -228,24 +194,9 @@ useEffect(() => {
   
   requestAnimationFrame(animate);
 }, [todayMomentum?.momentumScore]);
-  const loadRecentCheckins = async (email: string) => {
-    const colRef = collection(db, "users", email, "checkins");
-    const snaps = await withFirestoreError(getDocs(colRef), "check-ins", showToast);
-    if (!snaps) return;
-
-    const all = snaps.docs.map((d) => d.data() as Checkin);
-
-    const cutoff = subDays(new Date(), 14);
-    const recent = all
-      .filter((c) => new Date(c.date) >= cutoff)
-      .sort((a, b) => (a.date < b.date ? -1 : 1));
-
-    setRecentCheckins(recent);
-  };
 
 // Then inside the component:
 const loadDashboardData = async () => {
-    console.count("[DASHBOARD LOAD COUNT]");
     try {
       const auth = getAuth();
       const currentUser = auth.currentUser;
@@ -259,7 +210,6 @@ const loadDashboardData = async () => {
 // ===== NEW: STEP 3 - Detect missed check-ins FIRST =====
 const gapInfo = await detectAndHandleMissedCheckIns(email);
 if (gapInfo.hadGap) {
-  console.log(`[Dashboard] Gap detected: ${gapInfo.daysMissed} days`);
   setMissedDays(gapInfo.daysMissed);
 }
 
@@ -292,7 +242,6 @@ if (!hasSeenWelcome) {
       if (planSnap.exists()) {
         plan = planSnap.data() as Plan;
       } else {
-        console.warn("[Dashboard] No plan found at profile/plan");
       }
 
       setProfile({
@@ -316,7 +265,6 @@ if (!hasSeenWelcome) {
         };
         setCurrentFocus(suggestedFocus);
       }
-      console.log("[Dashboard] currentFocus:", focusSnap.exists() ? focusSnap.data() : "NOT FOUND");
 // ===== CHECK LEVEL-UP ELIGIBILITY =====
 const loadedFocus = focusSnap.exists() ? focusSnap.data() : null;
 
@@ -343,13 +291,6 @@ if (loadedFocus) {
     ? daysBetween(loadedFocus.lastLevelUpAt, today)
     : 999;
 
-  console.log('[LevelUp Debug]', {
-    completed,
-    lastLevelUpAt: loadedFocus.lastLevelUpAt,
-    daysSinceLastDecision,
-    eligible: completed >= 5 && daysSinceLastDecision >= 7
-  });
-
   setCompletedLast7Days(completed);
   setLevelUpEligible(completed >= 5 && daysSinceLastDecision >= 7);
 }
@@ -357,7 +298,6 @@ if (loadedFocus) {
 const commitRef = doc(db, "users", email, "momentum", "commitment");
 const commitSnap = await getDoc(commitRef);
 const commitmentData = commitSnap.exists() ? commitSnap.data() : null;
-console.log("[DEBUG] Commitment loaded:", commitmentData);
 setCommitment(commitmentData);
 // Show commitment modal if no commitment exists OR if it's expired
 const shouldShowCommitmentModal = 
@@ -371,7 +311,6 @@ const todayMomentumSnap = await getDoc(todayMomentumRef);
 if (todayMomentumSnap.exists()) {
   const momentumData = todayMomentumSnap.data();
   setTodayMomentum(momentumData);
-  console.log("[DEBUG] Streak loaded:", momentumData.currentStreak); 
   // 🆕 If there's ANY momentum doc for today, mark check-in as done
   if (momentumData.date === today) {
     setCheckinSubmitted(true);
@@ -389,20 +328,10 @@ if (todayMomentumSnap.exists()) {
 if (todayMomentumSnap.exists()) {
   const todayData = todayMomentumSnap.data();
   const accountAgeDays = todayData.accountAgeDays || 1;
-  
-  const consistency = calculateConsistency(allMomentum, accountAgeDays);
-  setConsistencyPercentage(consistency);
-  
-  console.log(`[Dashboard] Consistency: ${consistency}% (${accountAgeDays} days old)`);
 }
 
 // ===== Calculate history stats for preview =====
 const todayKey = getLocalDate(); // Single date source
-console.log('[DATE DEBUG]', {
-  todayKey,
-  actualToday: new Date().toLocaleDateString("en-CA"),
-  rawDate: new Date().toString()
-});
 
 // Has real check-in today?
 const hasCheckedInToday = todayMomentumSnap.exists() && 
@@ -430,7 +359,6 @@ const firstCheckinDate = metadataSnap.data()?.firstCheckinDate;
 setFirstCheckinDate(firstCheckinDate ?? null);
 
 if (!firstCheckinDate) {
-  console.error("No firstCheckinDate found");
   setHistoryStats({ currentStreak, totalCheckIns: lifetimeCheckIns, monthlyConsistency: 0 });
   return;
 }
@@ -479,7 +407,6 @@ setHistoryStats({
   monthlyConsistency 
 });
 
-console.log(`[Dashboard] History stats: Streak ${currentStreak}, Total ${lifetimeCheckIns}, Month ${monthlyConsistency}%`);
 // =========================================================
       // ---- Today's check-in ----
       const rawToday = await getCheckin(email, today);
@@ -497,8 +424,6 @@ console.log(`[Dashboard] History stats: Streak ${currentStreak}, Total ${lifetim
       setTodayCheckin(todayData);
       setCheckinSubmitted(!!todayData);
 
-
-      await loadRecentCheckins(email);
       // Read level-up prompt state (passive - no computation)
 const promptRef = doc(db, "users", email, "momentum", "levelUpPrompt");
 const promptSnap = await getDoc(promptRef);
@@ -511,7 +436,6 @@ if (promptSnap.exists()) {
 }
 
 } catch (err) {
-  console.error("Dashboard load error:", err);
   showToast({ message: "Error loading dashboard", type: "error" });
 } finally {
   setLoading(false);
@@ -667,7 +591,6 @@ const handleAdjustLevel = async (minutes: number) => {
     setTimeout(() => window.location.reload(), 1000);
     
   } catch (err) {
-    console.error("Level adjustment failed:", err);
     showToast({ message: "Update failed", type: "error" });
   }
 };
@@ -703,7 +626,6 @@ const handleKeepCurrent = async () => {
     setTimeout(() => window.location.reload(), 1000);
     
   } catch (err) {
-    console.error("Keep current failed:", err);
     showToast({ message: "Update failed", type: "error" });
   }
 };
@@ -743,7 +665,6 @@ await setDoc(promptRef, {
               setPendingReward(reward.payload);
             }
           } catch (e) {
-            console.error('[Dashboard] Failed to parse pending reward:', e);
           } finally {
             sessionStorage.removeItem('pendingReward');
           }
@@ -779,36 +700,6 @@ await setDoc(promptRef, {
     }
   }, []);
 
-  useEffect(() => {
-    const email = getEmail();
-    if (!email) return;
-
-    console.log("[Realtime] listeners attached");
-
-    const checkinRef = collection(db, "users", email, "checkins");
-    const sessionsRef = collection(db, "users", email, "sessions");
-    const statusRef = doc(db, "users", email, "metadata", "status");
-
-    const unsubCheckins = onSnapshot(checkinRef, (snapshot) => {
-      if (snapshot.metadata.hasPendingWrites) return;
-
-      console.log("[Realtime] Check-in updated");
-      const checkins = snapshot.docs.map((d) => d.data() as Checkin);
-      setRecentCheckins(checkins);
-    });
-
-    const unsubSessions = onSnapshot(sessionsRef, (snapshot) => {
-      if (snapshot.metadata.hasPendingWrites) return;
-
-      console.log("[Realtime] Workout updated");
-      const sessions = snapshot.docs.map((d) => d.data());
-    });
-
-    return () => {
-      unsubCheckins();
-      unsubSessions();
-    };
-  }, []);
   useEffect(() => {
     const loadCommitment = async () => {
       const email = getEmail();
@@ -1168,73 +1059,6 @@ await setDoc(promptRef, {
     Patience • Perseverance • Progress
   </p>
 </div>
-{/* ====================================== */}
-
-       {/* FUTURE: Workout Integration - Saved for reference
-    This section gates workouts behind daily check-ins (intentional product decision)
-    Contains saveSession logic and three-state button flow
-    Decide integration strategy before rebuilding
-    See COACH_VISION.md for strength training philosophy
-    
-<div className="bg-white rounded-2xl shadow-sm p-6 mb-6 transition-shadow hover:shadow">
-  <h2 className="text-lg font-semibold text-gray-900 mb-3">
-    Today's Workout
-  </h2>
-  {loading ? (
-    <p className="text-gray-500">Loading...</p>
-  ) : (
-    <>
-      {!todayCheckin ? (
-        <EmptyState
-          message="No workout logged yet."
-          subtext="Your next training session will appear here once you complete it."
-        />
-      ) : (
-        <div className="mb-3 text-center text-gray-600">
-          <p>You completed your last check-in — keep that momentum.</p>
-        </div>
-      )}
-
-      <button
-        onClick={async () => {
-          if (!todayCheckin) return;
-
-          const email = getEmail();
-          if (!email) {
-            console.error("No email found — cannot save session");
-            return;
-          }
-
-          const now = new Date().toISOString();
-
-          if (hasSessionToday) {
-            router.push("/summary");
-          } else {
-            await saveSession(email, { date: today, startedAt: now });
-            router.push("/program");
-          }
-        }}
-        disabled={!todayCheckin}
-        className={`w-full py-2 rounded-md font-semibold transition ${
-          !todayCheckin
-            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-            : hasSessionToday
-            ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow-md"
-            : "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow-md"
-        }`}
-      >
-        {!todayCheckin
-          ? "Check in first"
-          : hasSessionToday
-          ? "View Summary"
-          : "Start Workout"}
-      </button>
-    </>
-  )}
-</div>
-*/}
-
-
         {/* Dev Tools - Extracted to separate component */}
         {process.env.NODE_ENV === "development" && (
           <DashboardDevTools 
