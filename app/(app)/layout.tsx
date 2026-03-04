@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, redirect } from "next/navigation";
+import { usePathname, redirect, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
@@ -85,7 +85,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       checkForNewContent();
     }
   }, [authReady, commitmentChecked, user]);
-
+  const router = useRouter();
   const checkForNewContent = async () => {
     try {
       const userEmail = user?.email;
@@ -103,7 +103,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         !firstCheckinDate &&
         pathname.startsWith("/dashboard")
       ) {
-        redirect("/onboarding/activate/checkin");
+        router.push("/onboarding/activate/checkin");
+        return;
       }
       if (userSnap.exists() && metadataSnap.exists()) {
         const userData = userSnap.data();
@@ -146,6 +147,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/dashboard", label: "Dashboard" },
     { href: "/history", label: "The Lab" },
     { href: "/learn", label: "Learn", showDot: showLearnDot },
+    { href: "/settings", label: "Settings" },
   ];
 
   // Redirect logic happens in render, not in effects
