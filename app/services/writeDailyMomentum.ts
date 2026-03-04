@@ -349,7 +349,7 @@ async function calculateDerivedFields(
     previousTotalCheckIns = yesterdayData.totalRealCheckIns || 0;
 
   // If yesterday was a gap-fill, search backwards for last real check-in
-  if (yesterdayData.checkinType === "gap_fill" && previousTotalCheckIns === 0) {
+  if (yesterdayData.checkinType === "gap_fill") {
     previousTotalCheckIns = await getLastRealValue(
       input.email,
       yesterdayKey,

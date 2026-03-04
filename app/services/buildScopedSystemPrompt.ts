@@ -55,6 +55,7 @@ interface BuildPromptArgs {
   userNotes?: string[];
   previousErrors?: string[];
   patternConstraints: PatternConstraints;
+  userWeight?: number;
 }
 
 // ============================================================================
@@ -75,6 +76,7 @@ export async function buildScopedSystemPrompt(args: BuildPromptArgs): Promise<st
     userNotes,
     previousErrors,
     patternConstraints,
+    userWeight,
   } = args;
 
   // ---- SCOPE THE DATA ----
@@ -131,6 +133,7 @@ ${prevCalibration ? `Previous week calibration:\n${calibrationContext}` : ''}
 # USER GOAL
 
 This user came to Nelson to: ${userConstraints.primaryDriver}
+${userWeight ? `User's current weight: ${userWeight} lbs` : ''}
 
 In Why This Matters, connect fixing ${dominantLimiter} to their goal. Include this phrase:
 "your goal to ${userConstraints.primaryDriver.toLowerCase()}"

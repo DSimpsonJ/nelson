@@ -734,6 +734,21 @@ await setDoc(promptRef, {
       milestoneHandledRef.current = true;
       
       const checkForMilestone = async () => {
+        // Read reward written by checkin/page.tsx
+        const storedReward = sessionStorage.getItem('pendingReward');
+        if (storedReward) {
+          try {
+            const reward = JSON.parse(storedReward);
+            if (reward?.payload) {
+              setPendingReward(reward.payload);
+            }
+          } catch (e) {
+            console.error('[Dashboard] Failed to parse pending reward:', e);
+          } finally {
+            sessionStorage.removeItem('pendingReward');
+          }
+        }
+
         const email = getEmail();
         if (!email) return;
         
