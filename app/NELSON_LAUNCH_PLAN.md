@@ -176,7 +176,7 @@ Tasks:
 - ✅ Test end-to-end: coaching generation still works, cron still fires correctly
 - [ ] Verify dev tools still work after migration
 
-### Weight Integration into Coaching Prompts
+### Weight Integration into Coaching Prompts (NOTE: This has been punted to Phase 4)
 - [ ] Read `weight` field from `users/{email}` in coaching prompt builder
 - [ ] Pass weight as context to `buildScopedSystemPrompt.ts`
 - [ ] Verify coaching output references weight appropriately (protein targets, etc.)
@@ -185,14 +185,18 @@ Tasks:
 ### Dashboard Deep Cleanup
 ✅ Pass 1 complete Feb 28 — 616 lines removed, all imports clean, no errors.
 Remaining items for Phase 2 alongside Admin SDK work:
-- [ ] Remove remaining dead code blocks from `app/(app)/dashboard/page.tsx`:
-  - `unsubSessions` realtime listener (dead — does nothing with data)
-  - `loadRecentCheckins` standalone function (duplicate of useEffect version — verify which to keep)
-- [ ] Feature-flag dev tools already done — `process.env.NODE_ENV === 'development'` in place ✅
-- [ ] Remove dead momentum fields from `writeDailyMomentum.ts` interface and defaults:
-  - `primaryHabitHit`, `stackedHabitsCompleted`, `totalStackedHabits`
-  - `moved`, `hydrated`, `slept`, `nutritionScore`
-  - `streakSavers` (deferred from Phase 1 — clean here when already in the file)
+- ✅  Remove remaining dead code blocks from `app/(app)/dashboard/page.tsx`:
+- ✅ `unsubSessions` realtime listener (dead — does nothing with data)
+- ✅ - [ ] Feature-flag dev tools already done — `process.env.NODE_ENV === 'development'` in place 
+- ✅ Remove dead imports: onSnapshot, subDays, withFirestoreError, limit, writeDailyMomentum, resolveReward/RewardPayload
+- [ ] Remove dead momentum fields from writeDailyMomentum.ts interface and defaults:
+- ✅ primaryHabitHit, stackedHabitsCompleted, totalStackedHabits — already removed (prior session)
+- ✅ moved, hydrated, slept, nutritionScore — already removed (prior session)
+- [ ] streakSavers — confirmed dead (written but never read outside writeDailyMomentum.ts and missedCheckIns.ts). Defer to next writeDailyMomentum touch. Locked file — do not open without a reason.
+- ✅ Remove dead state: recentCheckins, commitmentStage, commitmentReason, saving, consistencyPercentage
+- ✅ Remove dead calculateConsistency function
+- ✅ Remove all console.logs and console.counts from dashboard
+- ✅ Remove commented-out workout integration block
 
 ### Account Deletion Pipeline
 - [ ] Build server-side deletion endpoint (authenticated, user-triggered)

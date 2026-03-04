@@ -63,21 +63,6 @@ type UserProfile = {
   email: string;
   plan?: Plan;
 };
-
-function EmptyState({
-  message,
-  subtext,
-}: {
-  message: string;
-  subtext?: string;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center bg-gray-50 border border-dashed border-gray-200 rounded-lg p-6 text-center text-gray-500">
-      <p className="font-medium">{message}</p>
-      {subtext && <p className="text-xs text-gray-400 mt-1">{subtext}</p>}
-    </div>
-  );
-}
 /** ---------- Component ---------- */
 export default function DashboardPage() {
   const router = useRouter();
