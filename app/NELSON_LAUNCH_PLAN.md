@@ -199,19 +199,24 @@ Remaining items for Phase 2 alongside Admin SDK work:
 - ✅ Remove commented-out workout integration block
 
 ### Account Deletion Pipeline
-- [ ] Build server-side deletion endpoint (authenticated, user-triggered)
-- [ ] Delete Firebase Auth account
-- [ ] Delete or anonymize all Firestore subcollections: `momentum`, `weeklySummaries`, `metadata`, `profile`, `weightHistory`, `checkins`, `weeklyStats`, `insights`, `sessions`, `coachingProfile`, `weeklyCalibrations`
-- [ ] Handle partial failure gracefully (log, retry, don't leave orphan data)
-- [ ] Build in-app deletion trigger (settings screen or profile screen — simple button + confirmation)
-- [ ] Test full deletion flow end-to-end
+- ✅ Build server-side deletion endpoint (authenticated, user-triggered)
+- ✅ Delete Firebase Auth account
+- ✅ Delete or anonymize all Firestore subcollections: `momentum`, `weeklySummaries`, 
+      `metadata`, `weightHistory`, `sessions`, `coachingProfile`, `weeklyCalibrations`
+      (note: `profile`, `checkins`, `weeklyStats`, `insights` not found in codebase — skipped)
+- ⚠️ Handle partial failure gracefully — errors are logged, no retry logic. 
+      Acceptable for alpha. Revisit before public launch.
+- ✅ Build in-app deletion trigger (settings page, confirmation flow)
+- ✅ Test full deletion flow end-to-end (2 accounts fully deleted, confirmed in Firebase console)
+```
 
 ### Compliance (Finish)
 - [ ] Engage startup attorney for document review — flat-fee review of Privacy Policy + Terms of Use before public launch. Budget $200-400. Priority: health behavior disclaimer, limitation of liability, dispute resolution clause (Section 15 intentionally left blank for attorney).
 - ✅ Terms of Use draft complete (Feb 28) — placeholders to fill: effective date, support email, business address, privacy policy URL, attorney review date, Section 15 dispute resolution
 - [ ] Publish Terms of Use to live URL (same pattern as privacy policy — simple page at thenelson.app/terms)
-- [ ] Set up support email — forward to personal is fine for now ✅ (support@thenelson.app created)
+- ✅ Set up support email — forward to personal is fine for now ✅ (support@thenelson.app created)
 - [ ] Build minimal support page or FAQ (single web page is fine)
+*Known Risk | Deletion batch limit (500 docs) | Low now, Medium at scale | momentum subcollection could exceed 500 docs at ~1.5 years of daily check-ins. Swap to adminDb.recursiveDelete() before public launch. |
 
 ### Monetization Strategy (Dedicated Session)
 Decide this before building IAP in Phase 4. The decision affects what gets built.
