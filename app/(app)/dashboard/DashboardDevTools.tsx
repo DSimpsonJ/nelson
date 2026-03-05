@@ -3,9 +3,7 @@
 import { useRouter } from "next/navigation";
 import {
   doc,
-  getDoc,
   getDocs,
-  setDoc,
   collection,
   deleteDoc,
 } from "firebase/firestore";
@@ -37,21 +35,14 @@ export default function DashboardDevTools({
   
       const today = new Date().toLocaleDateString("en-CA");
   
-      // Delete today's check-in doc
-      await deleteDoc(doc(db, "users", email, "checkins", today));
-  
-      // Delete today's momentum doc (IMPORTANT - otherwise momentum shows as complete)
+      // Delete today's momentum doc only — checkins subcollection does not exist
       await deleteDoc(doc(db, "users", email, "momentum", today));
   
-      // Clear only today's state
       setTodayCheckin(null);
       setTodayMomentum(null);
       setCheckinSubmitted(false);
   
-      showToast({
-        message: "Today's check-in reset",
-        type: "success",
-      });
+      showToast({ message: "Today's check-in reset", type: "success" });
   
     } catch (err) {
       console.error("Reset failed:", err);
@@ -101,316 +92,7 @@ export default function DashboardDevTools({
             >
               🚪 Sign Out
             </button>
-           
-            {/* Run Migration */}
-<button
-  onClick={async () => {
-    try {
-      const { backfillLastProvenTarget } = await import("@/app/utils/migrations/backfillLastProvenTarget");
-      const result = await backfillLastProvenTarget();
-      
-      if (result.success) {
-        showToast({ 
-          message: `Migration complete: ${result.updated} updated, ${result.skipped} skipped`, 
-          type: "success" 
-        });
-      } else {
-        showToast({ message: "Migration failed", type: "error" });
-      }
-    } catch (err) {
-      console.error("Migration error:", err);
-      showToast({ message: "Migration failed", type: "error" });
-    }
-  }}
-  className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
->
-  🔄 Migrate lastProvenTarget
-</button>
-
-           {/* Trigger Level-Up (5 of last 7 days) */}
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    try {
-      // Get current focus to know the target
-      const focusRef = doc(db, "users", email, "momentum", "currentFocus");
-      const focusSnap = await getDoc(focusRef);
-      const target = focusSnap.exists() && focusSnap.data().target 
-        ? focusSnap.data().target 
-        : 10;
-      
-      // Create 5 qualifying sessions in last 7 days
-      for (let i = 1; i <= 5; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateKey = date.toLocaleDateString("en-CA");
-        
-        // Create session that meets target
-        await setDoc(doc(db, "users", email, "sessions", `session-${dateKey}`), {
-          date: dateKey,
-          durationMin: target, // Meets the target exactly
-          type: "cardio",
-          createdAt: new Date().toISOString(),
-        });
-      }
-      
-      // Set lastLevelUpAt to 8+ days ago (or null for first time)
-      const eightDaysAgo = new Date();
-      eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
-      
-      await setDoc(focusRef, {
-        lastLevelUpAt: eightDaysAgo.toLocaleDateString("en-CA"),
-      }, { merge: true });
-      
-      showToast({ message: "Level-up eligibility created! (5 sessions in last 7 days)", type: "success" });
-      setTimeout(() => window.location.reload(), 1000);
-      
-    } catch (err) {
-      console.error("Setup failed:", err);
-      showToast({ message: "Setup failed", type: "error" });
-    }
-  }}
-  className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
->
-  Trigger Level-Up (5/7)
-</button>
-            {/* Trigger Week 1 Recap */}
-            <button
-              onClick={async () => {
-                const email = getEmail();
-                if (!email) return;
-                
-                try {
-                  const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
-                  const eightDaysAgoISO = eightDaysAgo.toISOString();
-                  const eightDaysAgoDate = eightDaysAgo.toLocaleDateString("en-CA");
-                  
-                  // Write first check-in date to metadata (8 days ago)
-                  await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
-                    firstCheckinDate: eightDaysAgoDate,
-                    createdAt: eightDaysAgoISO,
-                  });
-                  
-                  // Write lastCheckInDate to user doc (8 days ago, to trigger gap detection)
-                  await setDoc(doc(db, "users", email), {
-                    lastCheckInDate: eightDaysAgoDate,
-                  }, { merge: true });
-                  
-                  // Write currentFocus with startedAt 8 days ago
-                  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
-                    habitKey: "walk_10min",
-                    habit: "Walk 10 minutes",
-                    level: 1,
-                    target: 10,
-                    startedAt: eightDaysAgoDate,
-                    consecutiveDays: 7,
-                    createdAt: eightDaysAgoISO,
-                  });
-                  
-                  showToast({ message: "Week 1 recap scenario created!", type: "success" });
-                  setTimeout(() => window.location.reload(), 1000);
-                  
-                } catch (err) {
-                  console.error("Setup failed:", err);
-                  showToast({ message: "Setup failed", type: "error" });
-                }
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-md py-1 text-sm"
-            >
-              Trigger Week 1 Recap
-            </button>
-
-            {/* Clear Today's Check-In */}
-            <button
-              onClick={async () => {
-                const email = getEmail();
-                if (!email) return;
-                const today = getLocalDate();
-                
-                try {
-                  // Delete today's check-in doc
-                  await deleteDoc(doc(db, "users", email, "checkins", today));
-                  
-                  // Delete today's momentum doc
-                  await deleteDoc(doc(db, "users", email, "momentum", today));
-                  
-                  // Clear local state immediately
-                  setTodayMomentum(null);
-                  setCheckinSubmitted(false);
-                  
-                  showToast({ message: "Cleared today's check-in", type: "success" });
-                } catch (err) {
-                  console.error("Clear failed:", err);
-                  showToast({ message: "Clear failed", type: "error" });
-                }
-              }}
-              className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-md py-1 text-sm"
-            >
-              Clear Today's Check-In
-            </button>
-{/* Create 10 Test Check-Ins */}
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    try {
-      const dates = [
-        '2026-01-24', '2026-01-25', '2026-01-26', '2026-01-27', '2026-01-28',
-        '2026-01-29', '2026-01-30', '2026-01-31', '2026-02-01', '2026-02-02'
-      ];
-      
-      const notes = [
-        'Felt good today, early morning walk',
-        'Struggled with late night snacking',
-        'Great workout, feeling strong',
-        'Tired but showed up',
-        'Pizza and drinks with friends',
-        'Back on track after weekend',
-        'Solid day across the board',
-        'Vacation eating caught up with me',
-        'Morning routine felt rushed',
-        'Energy was low but stayed consistent'
-      ];
-      
-      for (let i = 0; i < dates.length; i++) {
-        const date = dates[i];
-        
-        // Create momentum document with behaviorGrades (correct structure)
-        const behaviorGrades = [
-          { name: 'nutrition_quality', grade: i % 4 === 0 ? 0 : (i % 3 === 0 ? 50 : 80) },
-          { name: 'portion_control', grade: i % 5 === 0 ? 50 : 80 },
-          { name: 'protein', grade: 80 },
-          { name: 'hydration', grade: i % 4 === 0 ? 50 : 80 },
-          { name: 'sleep', grade: i % 3 === 0 ? 50 : 80 },
-          { name: 'mindset', grade: 80 },
-          { name: 'movement', grade: 80 }
-        ];
-        
-        const avgGrade = behaviorGrades.reduce((sum, b) => sum + b.grade, 0) / behaviorGrades.length;
-        
-        await setDoc(doc(db, "users", email, "momentum", date), {
-          date,
-          behaviorGrades,
-          momentumScore: 65 + (i * 2),
-          dailyScore: avgGrade,
-          currentStreak: i + 1,
-          exerciseCompleted: true,
-          checkinType: 'real',
-          totalRealCheckIns: i + 1,
-          note: notes[i],
-          accountAgeDays: i + 1,
-          createdAt: new Date().toISOString()
-        });
-      }
-      
-      // Set metadata
-      await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
-        firstCheckinDate: dates[0],
-        createdAt: new Date().toISOString()
-      }, { merge: true });
-      
-      showToast({ message: "Created 10 test check-ins with CORRECT structure!", type: "success" });
-      setTimeout(() => window.location.reload(), 1000);
-      
-    } catch (err) {
-      console.error("Setup failed:", err);
-      showToast({ message: "Setup failed", type: "error" });
-    }
-  }}
-  className="bg-green-600 hover:bg-green-700 text-white rounded-md py-1 text-sm"
->
-  10 Test Check-Ins
-</button>
-{/* Test Reward Milestones */}
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    try {
-      // Show selection dialog
-      const milestone = prompt(
-        "Enter check-in count to test:\n\n" +
-        "3 = Burst\n" +
-        "10 = Confetti\n" +
-        "15 = Burst\n" +
-        "20 = Confetti\n" +
-        "25 = Fireworks\n" +
-        "30, 35, 40, 45, 50 = various\n\n" +
-        "Or test momentum thresholds:\n" +
-        "80 = First 80% (Confetti)\n" +
-        "90 = First 90% (Confetti)\n" +
-        "100 = First 100% (Fireworks)"
-      );
-      
-      if (!milestone) return;
-      
-      const count = parseInt(milestone);
-      if (isNaN(count)) {
-        showToast({ message: "Invalid number", type: "error" });
-        return;
-      }
-      
-      // Set totalRealCheckIns to one less than target
-      const targetCount = count - 1;
-      
-      // Update today's momentum doc to have the target count
-      const today = getLocalDate();
-      const momentumRef = doc(db, "users", email, "momentum", today);
-      const momentumSnap = await getDoc(momentumRef);
-      
-      if (momentumSnap.exists()) {
-        // Update existing
-        await setDoc(momentumRef, {
-          totalRealCheckIns: targetCount,
-        }, { merge: true });
-      } else {
-        // Create minimal doc
-        await setDoc(momentumRef, {
-          date: today,
-          totalRealCheckIns: targetCount,
-          momentumScore: count >= 80 ? count - 5 : 65, // For momentum threshold tests
-          checkinCompleted: false,
-          checkinType: "real",
-          accountAgeDays: targetCount,
-          currentStreak: targetCount,
-          createdAt: new Date().toISOString(),
-        });
-      }
-      
-      // For momentum threshold tests, also set milestone state
-      if (count >= 80) {
-        const milestoneRef = doc(db, "users", email, "momentum", "milestone_state");
-        await setDoc(milestoneRef, {
-          hasEverHit80Momentum: count > 80,
-          hasEverHit90Momentum: count > 90,
-          hasEverHit100Momentum: false,
-          hasEverHitSolidMomentum: false,
-          maxConsecutiveDaysEver: 0,
-        });
-      }
-      
-      showToast({ 
-        message: `Set to ${targetCount} check-ins. Next check-in will trigger #${count} reward!`, 
-        type: "success" 
-      });
-      
-      // Clear today's check-in so user can do a fresh one
-      setTodayMomentum(null);
-      setCheckinSubmitted(false);
-      
-    } catch (err) {
-      console.error("Setup failed:", err);
-      showToast({ message: "Setup failed", type: "error" });
-    }
-  }}
-  className="bg-pink-600 hover:bg-pink-700 text-white rounded-md py-1 text-sm"
->
-  🎉 Test Reward Milestones
-</button>
+          
 {/* Clear All Coaching */}
 <button
   onClick={async () => {
@@ -436,73 +118,6 @@ export default function DashboardDevTools({
   🗑️ Clear All Coaching
 </button>
 
-{/* Reset Animation Flag */}
-<button
-  onClick={() => {
-    sessionStorage.removeItem('lastMomentumAnimation');
-    window.location.reload();
-  }}
-  className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
->
-  Reset Animation Flag
-</button>
-            {/* Fresh Start */}
-            <button
-              onClick={async () => {
-                const email = getEmail();
-                if (!email) return;
-                
-                try {
-                  const momentumSnap = await getDocs(collection(db, "users", email, "momentum"));
-                  for (const d of momentumSnap.docs) {
-                    if (d.id.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                      await deleteDoc(d.ref);
-                    }
-                  }
-                  
-                  const sessionsSnap = await getDocs(collection(db, "users", email, "sessions"));
-                  for (const d of sessionsSnap.docs) {
-                    await deleteDoc(d.ref);
-                  }
-                  
-                  const eventsSnap = await getDocs(collection(db, "users", email, "habitEvents"));
-                  for (const d of eventsSnap.docs) {
-                    await deleteDoc(d.ref);
-                  }
-                  
-                  await setDoc(doc(db, "users", email, "momentum", "currentFocus"), {
-                    habitKey: "walk_10min",
-                    habit: "Walk 10 minutes",
-                    level: 1,
-                    target: 10,
-                    startedAt: getLocalDate(),
-                    lastLevelUpAt: null,
-                  });
-                  
-                  const sevenDaysFromNow = new Date();
-                  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-                  
-                  await setDoc(doc(db, "users", email, "momentum", "commitment"), {
-                    habit: "Walk 10 minutes",
-                    habitKey: "walk_10min",
-                    acceptedAt: getLocalDate(),
-                    endsAt: sevenDaysFromNow.toLocaleDateString("en-CA"),
-                    isActive: true,
-                    levelUpPrompts: {},
-                  });
-
-                  showToast({ message: "Fresh start ready!", type: "success" });
-                  setTimeout(() => window.location.reload(), 1000);
-                  
-                } catch (err) {
-                  console.error("Reset failed:", err);
-                  showToast({ message: "Reset failed", type: "error" });
-                }
-              }}
-              className="bg-red-600 hover:bg-red-700 text-white rounded-md py-1 text-sm"
-            >
-              Fresh Start
-            </button>
             {/* Trigger Coaching For All Users */}
             <button
   onClick={async () => {
@@ -515,22 +130,24 @@ export default function DashboardDevTools({
 
       // Calculate previous week ID (same logic as cron)
       const now = new Date();
-      const day = now.getDay();
-      const diff = day === 0 ? -6 : 1 - day;
-      const monday = new Date(now);
-      monday.setDate(now.getDate() + diff);
-      monday.setDate(monday.getDate() - 7);
-      
-      const yearStart = new Date(monday.getFullYear(), 0, 1);
-      const dayOfYear = Math.floor((monday.getTime() - yearStart.getTime()) / 86400000);
-      const weekNum = Math.ceil((dayOfYear + yearStart.getDay() + 1) / 7);
-      const weekId = `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+const day = now.getDay();
+const diff = day === 0 ? -6 : 1 - day;
+const monday = new Date(now);
+monday.setDate(now.getDate() + diff - 7);
+const thu = new Date(monday);
+thu.setDate(monday.getDate() + 3);
+const yearStart = new Date(thu.getFullYear(), 0, 1);
+const weekNum = Math.ceil(((thu.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+const weekId = `${thu.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 
       showToast({ message: `Generating coaching for ${weekId}...`, type: "success" });
 
       const response = await fetch('/api/generate-weekly-coaching', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET}`
+        },
         body: JSON.stringify({ email, weekId })
       });
 
@@ -550,59 +167,6 @@ export default function DashboardDevTools({
   className="bg-purple-600 hover:bg-purple-700 text-white rounded-md py-1 text-sm"
 >
   🔄 Trigger Weekly Coaching Now
-</button>
-{/* Test Early Coaching Pattern */}
-<button
-  onClick={async () => {
-    const email = getEmail();
-    if (!email) return;
-    
-    try {
-      const today = new Date();
-      for (let i = 0; i < 5; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() - i);
-        const dateKey = date.toLocaleDateString("en-CA");
-        
-        const behaviorGrades = [
-          { name: 'nutrition_quality', grade: 80 },
-          { name: 'portion_control', grade: 80 },
-          { name: 'protein', grade: 80 },
-          { name: 'hydration', grade: 80 },
-          { name: 'sleep', grade: 80 },
-          { name: 'mindset', grade: 80 },
-          { name: 'movement', grade: 80 }
-        ];
-
-        await setDoc(doc(db, "users", email, "momentum", dateKey), {
-          date: dateKey,
-          behaviorGrades,
-          momentumScore: 60 + (i * 3),
-          dailyScore: 80,
-          currentStreak: i + 1,
-          exerciseCompleted: true,
-          checkinType: 'real',
-          totalRealCheckIns: 4 + i,
-          accountAgeDays: 4 + i,
-          createdAt: new Date().toISOString()
-        });
-      }
-
-      await setDoc(doc(db, "users", email, "metadata", "accountInfo"), {
-        firstCheckinDate: new Date(today.setDate(today.getDate() - 4)).toLocaleDateString("en-CA"),
-        createdAt: new Date().toISOString()
-      }, { merge: true });
-
-      showToast({ message: "Early user scenario ready (6 lifetime check-ins, 5 this week)", type: "success" });
-      setTimeout(() => window.location.reload(), 1000);
-    } catch (err) {
-      console.error("Setup failed:", err);
-      showToast({ message: "Setup failed", type: "error" });
-    }
-  }}
-  className="bg-cyan-600 hover:bg-cyan-700 text-white rounded-md py-1 text-sm"
->
-  🧪 Test Early Coaching
 </button>
           </div>
         </details>

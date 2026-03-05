@@ -54,7 +54,10 @@ export function WeeklyCoachingDevTool({ userEmail }: WeeklyCoachingDevToolProps)
 
       const response = await fetch('/api/generate-weekly-coaching', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET}`
+        },
         body: JSON.stringify({
           email: userEmail,
           weekId,

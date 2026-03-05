@@ -174,7 +174,7 @@ Tasks:
 - ✅ Migrate `/app/services/weeklyCalibration.ts` reads/writes to Admin SDK
 - ✅ Rewrite Firestore security rules — remove all `|| request.auth == null` clauses
 - ✅ Test end-to-end: coaching generation still works, cron still fires correctly
-- [ ] Verify dev tools still work after migration
+- ✅ Verify dev tools still work after migration
 
 ### Weight Integration into Coaching Prompts (NOTE: This has been punted to Phase 4)
 - [ ] Read `weight` field from `users/{email}` in coaching prompt builder
@@ -213,9 +213,10 @@ Remaining items for Phase 2 alongside Admin SDK work:
 ### Compliance (Finish)
 - [ ] Engage startup attorney for document review — flat-fee review of Privacy Policy + Terms of Use before public launch. Budget $200-400. Priority: health behavior disclaimer, limitation of liability, dispute resolution clause (Section 15 intentionally left blank for attorney).
 - ✅ Terms of Use draft complete (Feb 28) — placeholders to fill: effective date, support email, business address, privacy policy URL, attorney review date, Section 15 dispute resolution
-- [ ] Publish Terms of Use to live URL (same pattern as privacy policy — simple page at thenelson.app/terms)
+- ✅ Publish Terms of Use to live URL (same pattern as privacy policy — simple page at thenelson.app/terms)
 - ✅ Set up support email — forward to personal is fine for now ✅ (support@thenelson.app created)
-- [ ] Build minimal support page or FAQ (single web page is fine)
+- ✅ Build minimal support page or FAQ — live at thenelson.app/support
+
 *Known Risk | Deletion batch limit (500 docs) | Low now, Medium at scale | momentum subcollection could exceed 500 docs at ~1.5 years of daily check-ins. Swap to adminDb.recursiveDelete() before public launch. |
 
 ### Monetization Strategy (Dedicated Session)
