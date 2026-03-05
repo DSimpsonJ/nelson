@@ -106,7 +106,7 @@ Get the business real. Get compliance documents drafted. Close the web app gaps 
 
 ### Compliance
 - ✅ Draft privacy policy — Termly draft complete, live at thenelson.app/privacy
-- ✅ Draft Terms of Use — complete Feb 28, placeholders filled, attorney review pending before publish
+- ✅ Draft Terms of Use — complete Feb 28, placeholders filled.
 
 ### Product (Web)
 - ✅ Close Learn gate
