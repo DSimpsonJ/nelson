@@ -222,26 +222,20 @@ Remaining items for Phase 2 alongside Admin SDK work:
 ### Monetization Strategy (Dedicated Session)
 Decide this before building IAP in Phase 4. The decision affects what gets built.
 
-- [ ] Decide free vs. paid model — options to evaluate:
-  - Hard paywall (subscribe to use anything)
-  - 7-day free trial → paid
-  - 14-day free trial → paid
-  - Freemium (limited free tier, paid unlocks coaching/history)
-  - Founding Members pricing ($60/year) → standard pricing ($90/year) after first 50
-- [ ] Decide what's gated vs. free if freemium — check-in only? No coaching? No Lab?
-- [ ] Confirm Founding Members pricing and conversion plan
-- [ ] Document final decision in this plan and update V1 scope if needed
+- ✅ Decide free vs. paid model — 14-day free trial → paid
+- ✅ Confirm Founding Members pricing — $60/year, first 50, price lock lost on cancellation
+- ✅ Standard pricing — $99/year or $9/month
 
 ### Marketing Strategy (Dedicated Session)
 Build the audience before the app ships. You need people ready to download on launch day.
 
 - ✅ Create @TheNelsonApp on Instagram (Mar 1)
 - ✅ Create @TheNelsonApp on TikTok (Mar 1)
-- [ ] Define content strategy — what does Nelson post? What's the angle? Who is the audience?
-- [ ] Define pre-launch content cadence — how often, what format, starting when?
+- ✅ Define content strategy
+- ✅ Define pre-launch content cadence
 - [ ] Define launch week plan — what happens the week the app goes live?
 - [ ] Identify potential early distribution channels beyond social (newsletters, communities, podcasts)
-- [ ] Decide whether to build a waitlist or landing page at thenelson.app before launch
+- ✅ Decide whether to build a waitlist or landing page at thenelson.app before launch
 
 ### Start Expo Scaffolding (Week 3 of this phase — parallel track)
 Don't wait for Phase 2 to finish. Start Expo setup while security work is happening.
