@@ -764,11 +764,9 @@ await setDoc(promptRef, {
       Hey {profile?.firstName || "there"}.
     </p>
     <p className="text-base text-white/60 text-center mt-1">
-    {hasCompletedCheckin() && historyStats.currentStreak > 0
-        ? historyStats.currentStreak === 1
-          ? "Check in again tomorrow to keep your run going."
-          : `You've logged ${historyStats.currentStreak} consecutive check-ins.`
-        : "Ready to check in?"}
+    {hasCompletedCheckin()
+  ? "Momentum updated. See you tomorrow."
+  : "Ready to check in?"}
     </p>
   </div>
 
