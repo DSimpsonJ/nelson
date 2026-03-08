@@ -233,15 +233,15 @@ Build the audience before the app ships. You need people ready to download on la
 - ✅ Create @TheNelsonApp on TikTok (Mar 1)
 - ✅ Define content strategy
 - ✅ Define pre-launch content cadence
-- [ ] Define launch week plan — what happens the week the app goes live?
+- ✅ Define launch week plan — what happens the week the app goes live?
 - [ ] Identify potential early distribution channels beyond social (newsletters, communities, podcasts)
 - ✅ Decide whether to build a waitlist or landing page at thenelson.app before launch
 
 ### Start Expo Scaffolding (Week 3 of this phase — parallel track)
 Don't wait for Phase 2 to finish. Start Expo setup while security work is happening.
-- [ ] Initialize Expo project (`npx create-expo-app nelson-mobile`)
-- [ ] Configure Expo Router (file-based routing)
-- [ ] Install and configure NativeWind (Tailwind for React Native)
+- ✅ Initialize Expo project (`npx create-expo-app nelson-mobile`)
+- ✅ Configure Expo Router (file-based routing)
+- ✅ Install and configure NativeWind (Tailwind for React Native)
 - [ ] Install Firebase SDK for React Native (different package than web — `@react-native-firebase` or `firebase` with React Native compatibility)
 - [ ] Get a single screen rendering on a real device via Expo Go
 - [ ] Configure environment variables for Expo (Firebase config, API keys)
@@ -386,6 +386,8 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 - App Store approved ✅
 - Founding Members can purchase ✅
 - Revenue flows to business bank account ✅
+
+> **When App Store approval lands, execute NELSON_LAUNCH_WEEK_PLAN.md. That document is the operational playbook for the first 7 days. Target launch day: Tuesday.**
 
 ---
 
