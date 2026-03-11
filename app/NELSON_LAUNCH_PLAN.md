@@ -176,12 +176,6 @@ Tasks:
 - ✅ Test end-to-end: coaching generation still works, cron still fires correctly
 - ✅ Verify dev tools still work after migration
 
-### Weight Integration into Coaching Prompts (NOTE: This has been punted to Phase 4)
-- [ ] Read `weight` field from `users/{email}` in coaching prompt builder
-- [ ] Pass weight as context to `buildScopedSystemPrompt.ts`
-- [ ] Verify coaching output references weight appropriately (protein targets, etc.)
-- [ ] Test with real user data
-
 ### Dashboard Deep Cleanup
 ✅ Pass 1 complete Feb 28 — 616 lines removed, all imports clean, no errors.
 Remaining items for Phase 2 alongside Admin SDK work:
@@ -242,20 +236,20 @@ Don't wait for Phase 2 to finish. Start Expo setup while security work is happen
 - ✅ Initialize Expo project (`npx create-expo-app nelson-mobile`)
 - ✅ Configure Expo Router (file-based routing)
 - ✅ Install and configure NativeWind (Tailwind for React Native)
-- [ ] Install Firebase SDK for React Native (different package than web — `@react-native-firebase` or `firebase` with React Native compatibility)
-- [ ] Get a single screen rendering on a real device via Expo Go
+- ✅ Install Firebase SDK for React Native (different package than web — `@react-native-firebase` or `firebase` with React Native compatibility)
+- ✅ Get a single screen rendering on a real device via Expo Go
 - [ ] Configure environment variables for Expo (Firebase config, API keys)
 
 ### Exit Criteria
-- `save-weekly-calibration` auth fix deployed (first)
-- Admin SDK migration complete, `request.auth == null` rules removed
-- Dashboard deep cleanup complete
+- ✅ save-weekly-calibration` auth fix deployed (first)
+- ✅ Admin SDK migration complete, `request.auth == null` rules removed
+- ✅ ashboard deep cleanup complete
 - Account deletion works end-to-end
-- Terms of Use live at public URL
-- Support contact active ✅
-- Monetization model decided and documented
+- ✅ Terms of Use live at public URL
+- ✅ Support contact active 
+- ✅ Monetization model decided and documented
 - Marketing strategy defined, content cadence started
-- Expo project initializes and renders on device
+- ✅ Expo project initializes and renders on device
 
 ---
 
@@ -267,8 +261,8 @@ Don't wait for Phase 2 to finish. Start Expo setup while security work is happen
 Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 
 ### Week 1-2: Auth + Onboarding
-- [ ] Login screen (email/password)
-- [ ] Signup screen
+- ✅  Login screen (email/password)
+- ✅  Signup screen
 - [ ] Onboarding flow (all 19 screens — mirror web app logic, rebuild UI natively)
 - [ ] Movement commitment selection
 - [ ] `hasCommitment` gate — redirect to not-started if false
@@ -320,6 +314,12 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 ## PHASE 4: IAP + NOTIFICATIONS + TESTFLIGHT
 **May 26 – Jun 12 (3 weeks)**
 **Status:** ⬜ Not started
+
+### Weight Integration into Coaching Prompts (NOTE: This was originally phase 2, it was punted. Is this the approproate time?)
+- [ ] Read `weight` field from `users/{email}` in coaching prompt builder
+- [ ] Pass weight as context to `buildScopedSystemPrompt.ts`
+- [ ] Verify coaching output references weight appropriately (protein targets, etc.)
+- [ ] Test with real user data
 
 ### Week 1: IAP
 - [ ] Create Founding Members product in App Store Connect ($60/year auto-renewing subscription)
