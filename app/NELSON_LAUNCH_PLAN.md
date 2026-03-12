@@ -238,7 +238,7 @@ Don't wait for Phase 2 to finish. Start Expo setup while security work is happen
 - ✅ Install and configure NativeWind (Tailwind for React Native)
 - ✅ Install Firebase SDK for React Native (different package than web — `@react-native-firebase` or `firebase` with React Native compatibility)
 - ✅ Get a single screen rendering on a real device via Expo Go
-- [ ] Configure environment variables for Expo (Firebase config, API keys)
+- ✅ Configure environment variables for Expo (Firebase config, API keys)
 
 ### Exit Criteria
 - ✅ save-weekly-calibration` auth fix deployed (first)
@@ -255,7 +255,7 @@ Don't wait for Phase 2 to finish. Start Expo setup while security work is happen
 
 ## PHASE 3: NATIVE APP BUILD
 **Apr 14 – May 22 (6 weeks)**
-**Status:** ⬜ Not started
+**Status:** 🔄  In Progress
 
 ### Goals
 Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
@@ -263,28 +263,28 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 ### Week 1-2: Auth + Onboarding
 - ✅  Login screen (email/password)
 - ✅  Signup screen
-- [ ] Onboarding flow (all 19 screens — mirror web app logic, rebuild UI natively)
-- [ ] Movement commitment selection
-- [ ] `hasCommitment` gate — redirect to not-started if false
-- [ ] Auth persistence (AsyncStorage)
+- ✅ Onboarding flow (all 19 screens — mirror web app logic, rebuild UI natively)
+- ✅ Movement commitment selection
+- ✅ `hasCommitment` gate — redirect to not-started if false
+- ✅ Auth persistence (AsyncStorage)
 
 ### Week 3: Check-In
-- [ ] 8-question check-in flow
-- [ ] 7 behavior ratings (Elite / Solid / Not Great / Off)
-- [ ] Exercise completion (Yes / No)
+- ✅ 8-question check-in flow
+- ✅ 7 behavior ratings (Elite / Solid / Not Great / Off)
+- ✅ Exercise completion (Yes / No)
 - [ ] Optional note
-- [ ] Gap detection before submission (calls `missedCheckIns` service)
-- [ ] Calls `writeDailyMomentum` on submission
+- ✅ Gap detection before submission (calls `missedCheckIns` service)
+- ✅ Calls `writeDailyMomentum` on submission - *via /api/submit-checkin (server-side equivalent)
 - [ ] Success state (no motivational language — Canon)
-- [ ] Already checked in today state
+- ✅ Already checked in today state
 
 ### Dashboard (Week 4-5)
-- [ ] Momentum score display
-- [ ] Trend indicator
-- [ ] Coaching card (`CoachAccess` equivalent)
+- ✅ Momentum score display
+- ✅ Trend indicator
+- ✅ Coaching card (`CoachAccess` equivalent)
 - [ ] Learn entry point (blue dot if unread)
-- [ ] Check-in CTA if not yet checked in today
-- [ ] Weight card
+- ✅ Check-in CTA if not yet checked in today
+- ✅ Weight card
 
 ### Weekly Coaching View (Week 5-6)
 - [ ] Display current week's coaching output
@@ -298,7 +298,7 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 - [ ] Blue dot clears when all eligible articles are read
 
 ### Navigation
-- [ ] Bottom tab navigation: Dashboard, Check-In, Learn, Settings
+- ✅  Bottom tab navigation: Dashboard, Learn, Settings
 - [ ] Settings screen: account info, notification preferences, account deletion, support link, privacy policy link, ToS link
 
 ### Exit Criteria
@@ -315,7 +315,7 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 **May 26 – Jun 12 (3 weeks)**
 **Status:** ⬜ Not started
 
-### Weight Integration into Coaching Prompts (NOTE: This was originally phase 2, it was punted. Is this the approproate time?)
+### Weight Integration into Coaching Prompts (NOTE: This was originally phase 2, it was punted.)
 - [ ] Read `weight` field from `users/{email}` in coaching prompt builder
 - [ ] Pass weight as context to `buildScopedSystemPrompt.ts`
 - [ ] Verify coaching output references weight appropriately (protein targets, etc.)

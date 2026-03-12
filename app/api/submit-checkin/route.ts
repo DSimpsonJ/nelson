@@ -141,7 +141,12 @@ export async function POST(req: NextRequest) {
         .set({ firstCheckinDate: date, createdAt: new Date().toISOString() }, { merge: true });
     }
 
-    return NextResponse.json({ success: true, reward });
+    return NextResponse.json({
+        success: true,
+        reward,
+        momentumScore,
+        momentumDelta: momentumScore - previousMomentum,
+      });
   } catch (err) {
     console.error('[submit-checkin] Error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
