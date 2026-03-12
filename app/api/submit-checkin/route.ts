@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         totalRealCheckIns,
         behaviorGrades,
         exerciseCompleted: exerciseDeclared ?? false,
-        checkinType: 'real',
+        checkinCompleted: true,
         primary: { habitKey: currentFocus.habitKey, done: exerciseDeclared ?? false },
         createdAt: new Date().toISOString(),
       });
