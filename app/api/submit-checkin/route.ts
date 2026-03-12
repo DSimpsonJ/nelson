@@ -4,6 +4,20 @@ import { calculateNewtonianMomentum, calculateDailyScore } from '@/app/services/
 import { resolveReward } from '@/app/services/rewardEngine';
 import { FieldValue } from 'firebase-admin/firestore';
 
+// Matches writeDailyMomentum applyRampCap exactly
+function applyRampCap(score: number, checkInCount: number): number {
+  let cap: number;
+  if (checkInCount <= 1) cap = 10;
+  else if (checkInCount <= 2) cap = 20;
+  else if (checkInCount <= 5) cap = 40;
+  else if (checkInCount <= 7) cap = 60;
+  else if (checkInCount <= 9) cap = 80;
+  else return score;
+
+  const scaled = Math.round((score / 100) * cap);
+  return Math.min(scaled, cap);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -48,10 +62,21 @@ export async function POST(req: NextRequest) {
     const prevTotalRealCheckIns = prevSnap.exists ? (prevSnap.data()?.totalRealCheckIns ?? 0) : 0;
     const totalRealCheckIns = prevTotalRealCheckIns + 1;
 
-    // Calculate daily score and momentum
+    // Calculate daily score
     const dailyScore = calculateDailyScore(behaviorGrades);
+
+    // Apply movement modifier before momentum calc (matches writeDailyMomentum)
+    const movementModifier = exerciseDeclared
+      ? 1.00
+      : totalRealCheckIns <= 9 ? 0.92
+      : totalRealCheckIns <= 29 ? 0.88
+      : 0.82;
+
+    const modifiedDailyScore = Math.round(dailyScore * movementModifier);
+
+    // Calculate momentum
     const momentumResult = calculateNewtonianMomentum({
-      todayScore: dailyScore,
+      todayScore: modifiedDailyScore,
       last4Days,
       currentStreak: currentStreak + 1,
       previousMomentum,
@@ -59,11 +84,11 @@ export async function POST(req: NextRequest) {
       exerciseCompleted: exerciseDeclared,
     });
 
-    // Apply ramp caps
+    // Apply ramp cap
     let momentumScore = momentumResult.proposedScore;
-    if (totalRealCheckIns <= 2) momentumScore = Math.min(momentumScore, 30);
-    else if (totalRealCheckIns <= 5) momentumScore = Math.min(momentumScore, 60);
-    else if (totalRealCheckIns <= 9) momentumScore = Math.min(momentumScore, 80);
+    if (totalRealCheckIns <= 9) {
+      momentumScore = applyRampCap(momentumResult.proposedScore, totalRealCheckIns);
+    }
 
     // Get user doc for reward context
     const userSnap = await adminDb.collection('users').doc(email).get();
@@ -78,7 +103,7 @@ export async function POST(req: NextRequest) {
       hasEverHit100Momentum: userData.hasEverHit100Momentum ?? false,
       isEliteDay: dailyScore === 100,
       isSolidDay: dailyScore >= 75,
-      isSolidWeek: false, // not calculated here
+      isSolidWeek: false,
     });
 
     // Write momentum doc
