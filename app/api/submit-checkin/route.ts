@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
         dailyScore,
         rawMomentumScore: momentumResult.rawScore,
         momentumScore,
+        momentumDelta: momentumScore - previousMomentum,
         currentStreak: currentStreak + 1,
         totalRealCheckIns,
         behaviorGrades,
