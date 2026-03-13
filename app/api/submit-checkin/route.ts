@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      idToken, email, date, behaviorGrades, currentFocus,
-      goal, accountAgeDays, exerciseDeclared, isFirstCheckin,
+        idToken, email, date, behaviorGrades, currentFocus,
+        goal, accountAgeDays, exerciseDeclared, isFirstCheckin, note,
     } = body;
 
     // Verify token
@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
         checkinType: 'real',
         primary: { habitKey: currentFocus.habitKey, done: exerciseDeclared ?? false },
         createdAt: new Date().toISOString(),
+        ...(note && note.trim() !== '' ? { note: note.trim() } : {}),
       });
 
     // Update user doc

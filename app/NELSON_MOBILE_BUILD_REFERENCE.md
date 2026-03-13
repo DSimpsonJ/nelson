@@ -257,7 +257,7 @@ For the `movementMinutes` in the check-in submission, read `movementCommitment` 
 1. Run gap detection (client-side Firestore)
 2. Assemble `behaviorGrades` (all 7, canonical names)
 3. POST to `/api/submit-checkin` with `isFirstCheckin: false`
-4. On success: `router.replace('/(tabs)/index' as any)`
+4. On success: `router.replace('/(tabs)/checkin-success' as any)` — passes `rewardAnimation` and `rewardText` as params
 
 **Already-checked-in state:** Redirect to `/(tabs)/index`. No UI needed.
 
@@ -265,7 +265,7 @@ For the `movementMinutes` in the check-in submission, read `movementCommitment` 
 
 ### Screen: Dashboard (`app/(tabs)/index.tsx`)
 
-**Status:** Not built.
+**Status:** Built (March 12 session). Verified correct on device.
 
 **Mount sequence:**
 1. Run gap detection (same as check-in — always runs on dashboard load)
@@ -309,20 +309,15 @@ For the `movementMinutes` in the check-in submission, read `movementCommitment` 
 
 ### Screen: Weekly Coaching Detail
 
-**Status:** Not built.
+**Status:** Built (March 13 session). Verified correct on device.
 
-**Data:** Already loaded by dashboard (weeklySummaries). Pass via navigation params or re-fetch by weekId.
+**Data:** Re-fetched on mount by weekId from `weeklySummaries` ordered by `generatedAt` desc, limit 5.
 
-**Firestore write on view:** Set `viewedAt: Timestamp` on the summary doc. This clears the "New Intelligence" state on the coaching card.
+**Firestore write on view:** Set `viewedAt: serverTimestamp()` on the summary doc. This clears the "New Intelligence" state on the coaching card.
 
-**Fields to display:**
-- `coaching.pattern`
-- `coaching.tension`
-- `coaching.whyThisMatters`
-- `coaching.progression.text`
-- `coaching.progression.type` (shown as a badge)
+**Weekly calibration:** Checks `weeklyCalibrations/{weekId}` on load. If doc does not exist, shows calibration button. On complete, POSTs to `/api/save-weekly-calibration` with `Authorization: Bearer {idToken}`. Safety modal fires if `structuralState === 'something_wrong'`.
 
-**Insufficient data state:** If `status !== "generated"`, show a neutral message. No coaching available yet.
+**Historical weeks:** Up to 4 previous `status === "generated"` summaries shown as collapsible cards.
 
 ---
 
@@ -419,9 +414,8 @@ function getCurrentWeekId(): string {
 | Item | Notes |
 |---|---|
 | `learnService` not ported to mobile | `LearnBanner` on web calls `getFirstUnreadArticle`. Either port this service or expose it via a lightweight API endpoint.
-| Reward animation on daily check-in | Web uses `CheckinSuccessAnimation` component. Mobile needs equivalent. Design TBD. |
 | `gapReconciliation` flow not implemented on mobile | Web check-in page shows a "did you exercise on [missed date]?" screen before allowing today's check-in. Mobile currently skips this — gap docs are written but never reconciled via user input. Acceptable for now, revisit in Phase 3 polish. |
-| `note` field not in daily check-in UI | Web has an optional note step at the end of check-in. Not in current mobile build. Deferred — add when building Phase 3 polish. |
+| `note` field not in daily check-in UI | Web has an optional note step at the end of check-in. Not in current mobile build. Deferred — add when building Phase 3 polish. | `activate-checkin.tsx` goal field | Was hardcoded as `'consistency'`. Fixed March 13 — now reads `primaryFocus` from `users/{email}`. |
 
 ---
 
