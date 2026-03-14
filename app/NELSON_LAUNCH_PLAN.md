@@ -272,10 +272,10 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 - ✅ 8-question check-in flow
 - ✅ 7 behavior ratings (Elite / Solid / Not Great / Off)
 - ✅ Exercise completion (Yes / No)
-- [ ] Optional note
+- ✅  Optional note
 - ✅ Gap detection before submission (calls `missedCheckIns` service)
 - ✅ Calls `writeDailyMomentum` on submission - *via /api/submit-checkin (server-side equivalent)
-- [ ] Success state (no motivational language — Canon)
+- ✅  Success state (no motivational language — Canon)
 - ✅ Already checked in today state
 
 ### Dashboard (Week 4-5)
@@ -287,9 +287,9 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 - ✅ Weight card
 
 ### Weekly Coaching View (Week 5-6)
-- [ ] Display current week's coaching output
-- [ ] Pattern, tension, why it matters, progression
-- [ ] Correct handling of `insufficient_data` state (no coaching generated)
+- ✅  Display current week's coaching output
+- ✅  Pattern, tension, why it matters, progression
+- ✅  Correct handling of `insufficient_data` state (no coaching generated)
 - [ ] Correct handling of `stabilize` progression
 
 ### Learn Section (Week 6-7)
@@ -298,8 +298,8 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 - [ ] Blue dot clears when all eligible articles are read
 
 ### Navigation
-- ✅  Bottom tab navigation: Dashboard, Learn, Settings
-- [ ] Settings screen: account info, notification preferences, account deletion, support link, privacy policy link, ToS link
+- ✅  Bottom tab navigation: Dashboard, The Lab, Learn, Settings
+- 🔄  Settings screen: account info, notification preferences, account deletion, support link, privacy policy link, ToS link
 
 ### Exit Criteria
 - All V1 screens built and navigable

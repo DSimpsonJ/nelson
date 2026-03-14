@@ -17,7 +17,14 @@ function applyRampCap(score: number, checkInCount: number): number {
   const scaled = Math.round((score / 100) * cap);
   return Math.min(scaled, cap);
 }
-
+function gradesToRatings(grades: { name: string; grade: number }[]): Record<string, string> {
+    const ratingMap: Record<number, string> = { 100: 'elite', 80: 'solid', 50: 'not-great', 0: 'off' };
+    const result: Record<string, string> = {};
+    for (const { name, grade } of grades) {
+      result[name] = ratingMap[grade] ?? 'off';
+    }
+    return result;
+  }
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -121,6 +128,7 @@ export async function POST(req: NextRequest) {
         currentStreak: currentStreak + 1,
         totalRealCheckIns,
         behaviorGrades,
+        behaviorRatings: gradesToRatings(behaviorGrades), 
         exerciseCompleted: exerciseDeclared ?? false,
         checkinCompleted: true,
         checkinType: 'real',

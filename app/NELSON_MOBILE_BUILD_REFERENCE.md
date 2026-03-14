@@ -248,7 +248,7 @@ For the `movementMinutes` in the check-in submission, read `movementCommitment` 
 **Status:** Built (March 11 session). Verified correct.
 
 **Mount sequence:**
-1. Fetch `users/{email}/momentum/{today}` → if `checkinCompleted === true`, redirect to `/(tabs)/index`
+1. Fetch `users/{email}/momentum/{today}` → if `checkinCompleted === true`, redirect to checkin-success
 2. Fetch `users/{email}` → read `weight` (protein range), `primaryFocus` (goal field)
 3. Fetch `users/{email}/metadata/accountInfo` → calculate `accountAgeDays`
 4. Fetch `users/{email}/profile/plan` → read `movementCommitment`
@@ -337,7 +337,7 @@ For the `movementMinutes` in the check-in submission, read `movementCommitment` 
 
 ### Screen: Settings
 
-**Status:** Not built. Phase 3 Week 6.
+**Status:** Complete
 
 **Required items (Apple-mandated):**
 - Account deletion trigger (calls `/api/delete-account` or equivalent)
@@ -415,7 +415,7 @@ function getCurrentWeekId(): string {
 |---|---|
 | `learnService` not ported to mobile | `LearnBanner` on web calls `getFirstUnreadArticle`. Either port this service or expose it via a lightweight API endpoint.
 | `gapReconciliation` flow not implemented on mobile | Web check-in page shows a "did you exercise on [missed date]?" screen before allowing today's check-in. Mobile currently skips this — gap docs are written but never reconciled via user input. Acceptable for now, revisit in Phase 3 polish. |
-| `note` field not in daily check-in UI | Web has an optional note step at the end of check-in. Not in current mobile build. Deferred — add when building Phase 3 polish. | `activate-checkin.tsx` goal field | Was hardcoded as `'consistency'`. Fixed March 13 — now reads `primaryFocus` from `users/{email}`. |
+| `activate-checkin.tsx` goal field | Was hardcoded as `'consistency'`. Fixed March 13 — now reads `primaryFocus` from `users/{email}`. |
 
 ---
 
