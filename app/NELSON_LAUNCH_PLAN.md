@@ -244,7 +244,7 @@ Don't wait for Phase 2 to finish. Start Expo setup while security work is happen
 - ✅ save-weekly-calibration` auth fix deployed (first)
 - ✅ Admin SDK migration complete, `request.auth == null` rules removed
 - ✅ ashboard deep cleanup complete
-- Account deletion works end-to-end
+- ✅  Account deletion works end-to-end
 - ✅ Terms of Use live at public URL
 - ✅ Support contact active 
 - ✅ Monetization model decided and documented
@@ -255,7 +255,7 @@ Don't wait for Phase 2 to finish. Start Expo setup while security work is happen
 
 ## PHASE 3: NATIVE APP BUILD
 **Apr 14 – May 22 (6 weeks)**
-**Status:** ✅ Complete
+**Status:** 🔄  In Progress
 
 ### Goals
 Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
@@ -282,7 +282,7 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 - ✅ Momentum score display
 - ✅ Trend indicator
 - ✅ Coaching card (`CoachAccess` equivalent)
-- ✅ Learn entry point (blue dot if unread)
+- ✅  Learn entry point (blue dot if unread)
 - ✅ Check-in CTA if not yet checked in today
 - ✅ Weight card
 
@@ -302,18 +302,18 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 - 🔄  Settings screen: account info, notification preferences, account deletion, support link, privacy policy link, ToS link
 
 ### Exit Criteria
-- ✅ All V1 screens built and navigable
-- ✅ Data round-trips correctly to Firestore
-- ✅ Gap detection works on device
+- ✅  All V1 screens built and navigable
+- ✅  Data round-trips correctly to Firestore
+- ✅  Gap detection works on device
 - ✅ Coaching displays correctly
-- ✅ No motivational language anywhere (Canon audit)
-- ✅ Runs without crashes on a real iPhone
+- ✅  No motivational language anywhere (Canon audit)
+- ✅  Runs without crashes on a real iPhone
 
 ---
 
 ## PHASE 4: IAP + NOTIFICATIONS + TESTFLIGHT
 **May 26 – Jun 12 (3 weeks)**
-**Status:** - 🔄 In progress (Started March 15)
+**Status:** ⬜ Not started
 
 ### Weight Integration into Coaching Prompts (NOTE: This was originally phase 2, it was punted.)
 - [ ] Read `weight` field from `users/{email}` in coaching prompt builder

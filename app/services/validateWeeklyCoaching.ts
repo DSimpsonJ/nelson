@@ -44,11 +44,6 @@ const BANNED_TONE_PHRASES = [
   'appears to',
   'could be',
   'seems to',
-  'the system',
-  'your system',
-  'system is',
-  'system was',
-   // removed 'the data' and 'the pattern' — too broad, caught by 'suggests'/'may indicate' rules
   'this reflects',
   'this signals'
 ] as const;
@@ -403,15 +398,13 @@ function validateFocusTone(coaching: WeeklyCoachingOutput): ValidationError[] {
 
   const lower = coaching.progression.text.toLowerCase();
   const metaLanguage = [
-  'system',
-  'the system',
-  'this pattern',
-  'momentum score',
-  'metrics',
-  'this week shows',
-  'this indicates',
-  'the metrics'
-  ];
+    'this pattern',
+    'momentum score',
+    'metrics',
+    'this week shows',
+    'this indicates',
+    'the metrics'
+    ];
 
   const foundMeta = metaLanguage.filter(term => lower.includes(term));
 
