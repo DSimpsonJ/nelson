@@ -394,7 +394,7 @@ export const PATTERN_BANS: Record<PatternType, string[]> = {
 // MODEL CONFIG
 // ============================================================================
 
-export const MODEL_VERSION = 'claude-sonnet-4-20250514' as const;
+export const MODEL_VERSION = 'claude-sonnet-4-6' as const;
 
 export const MODEL_CONFIG = {
   model: MODEL_VERSION,
