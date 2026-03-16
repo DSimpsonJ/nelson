@@ -80,7 +80,7 @@ def run_cron() -> dict:
             "curl", "-s", "-X", "GET",
             f"{APP_URL}/api/cron/generate-weekly-coaching",
             "-H", f"Authorization: Bearer {CRON_SECRET}",
-            "--max-time", "120"
+            "--max-time", "600"
         ],
         capture_output=True,
         text=True
