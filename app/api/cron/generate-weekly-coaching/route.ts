@@ -158,23 +158,16 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // 5. Generate coaching for each user
-  const settledResults = await Promise.allSettled(
-    userEmails.map(email => {
-      console.log(`[Cron] Dispatching: ${email}`);
-      return generateCoachingForUser(email, weekId, baseUrl);
-    })
-  );
-  
-  const results = settledResults.map((result, i) => ({
-    email: userEmails[i],
-    success: result.status === 'fulfilled' && result.value.success,
-    error: result.status === 'rejected'
-      ? String(result.reason)
-      : result.status === 'fulfilled' && !result.value.success
-      ? result.value.error
-      : undefined,
-  }));
+ // 5. Generate coaching for each user sequentially to avoid rate limits
+ const results: { email: string; success: boolean; error?: string }[] = [];
+
+ for (const email of userEmails) {
+   console.log(`[Cron] Processing: ${email}`);
+   const result = await generateCoachingForUser(email, weekId, baseUrl);
+   results.push({ email, success: result.success, error: result.error });
+   // Small delay between users to avoid Anthropic rate limits
+   await new Promise(resolve => setTimeout(resolve, 1500));
+ }
 
   // 6. Calculate summary
   const successCount = results.filter(r => r.success).length;
