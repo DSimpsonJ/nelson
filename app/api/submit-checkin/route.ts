@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
         goal, accountAgeDays, exerciseDeclared, isFirstCheckin, note,
     } = body;
 
+    
     // Verify token
     const decoded = await adminAuth.verifyIdToken(idToken);
     if (decoded.email !== email) {

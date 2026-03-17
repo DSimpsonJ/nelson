@@ -1,6 +1,7 @@
 # Nelson Mobile Build Reference
-**Version:** 1.0  
+**Version:** 1.1  
 **Created:** March 11, 2026  
+**Last Updated:** March 14, 2026  
 **Purpose:** Single source of truth for building nelson-mobile screens against web app behavior. Every screen spec is derived from direct reading of web source files. No inference.
 
 ---
@@ -13,13 +14,15 @@ Before building any mobile screen, find its spec below. The spec tells you exact
 
 ## Architecture Decisions (Locked)
 
-- **Gap detection runs before every real check-in submission.** This is an architectural contract. It is not optional.
+- **Gap detection runs before every real check-in submission.** This is an architectural contract. It is not optional. Tested with real missed day — confirmed working March 14.
 - **`checkinCompleted === true`** on today's momentum doc is the canonical check-in guard. Not `lastCheckInDate`. Not `missed`. This field alone.
 - **`calculateDailyScore` filters `mindset` internally.** Send all 7 behaviors including mindset. Score is calculated from 6.
 - **All momentum writes go through `/api/submit-checkin`** on the web server. Mobile calls this endpoint — it does not write momentum docs directly.
 - **Gap fill writes go directly to Firestore from the client** (both web and mobile). Gap fills are not routed through the API.
 - **`currentFocus` lives at `users/{email}/momentum/currentFocus`** — not a date-keyed doc.
 - **ISO 8601 week calculation, Monday = week start.** Do not change.
+- **`weightHistory` is the single source of truth for weight.** `users/{email}.weight` is kept in sync for protein calculations but should not be read as the primary weight source. Always read latest from `weightHistory`.
+- **`learnService` is exposed via API endpoint** (`/api/learn-articles`) — not ported to mobile. Returns `{ articles, readSlugs }`. Mobile derives all learn state from this response.
 
 ---
 
@@ -28,14 +31,14 @@ Before building any mobile screen, find its spec below. The spec tells you exact
 ```
 users/{email}
   - firstName
-  - weight
+  - weight                              ← kept in sync with weightHistory, not primary source
   - primaryFocus
-  - readLearnSlugs: string[]
-  - learnBannerLastSlug: string
+  - readLearnSlugs: string[]            ← updated via arrayUnion on article read
+  - learnBannerLastSlug: string         ← not currently used on mobile (banner uses API)
   - hasSeenDashboardWelcome: boolean
 
 users/{email}/momentum/{YYYY-MM-DD}
-  - checkinCompleted: boolean         ← check-in guard
+  - checkinCompleted: boolean           ← check-in guard
   - checkinType: "real" | "gap_fill"
   - missed: boolean
   - momentumScore: number
@@ -46,7 +49,7 @@ users/{email}/momentum/{YYYY-MM-DD}
   - visualState: "solid" | "outline" | "empty"
   - dailyScore: number
   - behaviorGrades: { name: string; grade: number }[]
-  - behaviorRatings: Record<string, string>
+  - behaviorRatings: Record<string, string>   ← written by /api/submit-checkin as of March 14
   - exerciseCompleted: boolean
   - exerciseTargetMinutes: number
   - totalRealCheckIns: number
@@ -58,17 +61,17 @@ users/{email}/momentum/{YYYY-MM-DD}
   - createdAt: string
 
 users/{email}/momentum/currentFocus
-  - habit: string                    e.g. "Move 10 minutes daily"
-  - habitKey: string                 e.g. "movement_10min"
-  - target: number                   target minutes
+  - habit: string                       e.g. "Move 10 minutes daily"
+  - habitKey: string                    e.g. "movement_10min"
+  - target: number                      target minutes
   - suggested?: boolean
   - lastLevelUpAt?: string
 
 users/{email}/metadata/accountInfo
-  - firstCheckinDate: string         YYYY-MM-DD
+  - firstCheckinDate: string            YYYY-MM-DD
 
 users/{email}/profile/plan
-  - movementCommitment: number       minutes
+  - movementCommitment: number          minutes
   - goal: string
   - primaryHabit: { targetMinutes: number, ... }
 
@@ -86,6 +89,23 @@ users/{email}/weeklySummaries/{YYYY-Www}
       whyThisMatters: string
       progression: { type: string; text: string }
     }
+
+users/{email}/weightHistory/{auto-id}
+  - date: string                        YYYY-MM-DD
+  - weight: number
+  - timestamp: string                   ISO string
+  - weekOf: string                      YYYY-Www
+
+articles/{auto-id}                      ← read server-side by /api/learn-articles only
+  - slug: string
+  - title: string
+  - format: "read" | "watch"
+  - duration: string
+  - category: string
+  - content: string
+  - releaseType: "drip" | "broadcast"
+  - dayNumber?: number
+  - isPublished: boolean
 ```
 
 ---
@@ -148,7 +168,7 @@ const accountAgeDays = Math.floor(
 
 ## Gap Detection (Mobile Implementation)
 
-Gap detection must run **before** `submitCheckIn` is called. It is a client-side Firestore operation — there is no API endpoint for it.
+Gap detection must run **before** `submitCheckIn` is called. It is a client-side Firestore operation — there is no API endpoint for it. **Confirmed working on device with a real missed day (March 14).**
 
 **Logic:** Look back up to 30 days for the last real check-in (`missed !== true`). If the gap between that date and today is more than 1 day, fill each missing day with a gap-fill doc. Skip dates that already have a doc.
 
@@ -211,10 +231,11 @@ Request body:
   accountAgeDays: number,
   exerciseDeclared: boolean,
   isFirstCheckin: boolean,
+  note?: string,             // optional, trimmed before send
 }
 ```
 
-Response: `{ success: true, momentumScore: number, reward: RewardResult }`  
+Response: `{ success: true, momentumScore: number, momentumDelta: number, reward: RewardResult }`  
 On error: non-2xx with `{ error: string }`
 
 **What the API does:**
@@ -222,9 +243,31 @@ On error: non-2xx with `{ error: string }`
 2. Calls `calculateNewtonianMomentum` + `calculateDailyScore` (pure functions)
 3. Applies ramp caps for first 9 check-ins
 4. Resolves reward via `rewardEngine`
-5. Writes momentum doc via `adminDb`
+5. Writes momentum doc via `adminDb` — including `behaviorRatings` (derived from `behaviorGrades`)
 6. Updates `lastCheckInDate` on user doc
 7. Writes `firstCheckinDate` to `metadata/accountInfo` on first check-in only
+
+---
+
+## `/api/learn-articles` Contract
+
+**GET** `https://thenelson.app/api/learn-articles`  
+**Authorization:** `Bearer {idToken}`
+
+Response:
+```typescript
+{
+  articles: Article[],   // eligible drip articles only, sorted by dayNumber asc
+  readSlugs: string[]    // user's readLearnSlugs from their Firestore doc
+}
+```
+
+**Mobile derives from this:**
+- Learn screen: render `articles`, mark unread where `!readSlugs.includes(slug)`
+- Dashboard banner: `articles.find(a => !readSlugs.includes(a.slug))` — first unread check
+- Tab dot / banner visibility: `articles.some(a => !readSlugs.includes(a.slug))`
+
+**Mark as read:** On article open, write `arrayUnion(slug)` to `users/{email}.readLearnSlugs` directly from mobile.
 
 ---
 
@@ -239,16 +282,41 @@ For the `movementMinutes` in the check-in submission, read `movementCommitment` 
 
 ---
 
+## Weight Data Model
+
+Weight has a single source of truth: `users/{email}/weightHistory`.
+
+**On write (both onboarding and update):**
+1. `addDoc` to `weightHistory` with `{ date, weight, timestamp, weekOf }`
+2. `update` `users/{email}.weight` to keep protein range calculations in sync
+
+**On read (dashboard weight card):** Query `weightHistory` ordered by `timestamp desc`, limit 1. Fall back to `users/{email}.weight` if query fails.
+
+**`getWeekOf` helper** (used in both `intake-weight.tsx` and dashboard `handleWeightSave`):
+```typescript
+function getWeekOf(date: string): string {
+  const d = new Date(date + 'T00:00:00');
+  const dayOfWeek = d.getUTCDay();
+  const nearestThursday = new Date(d);
+  nearestThursday.setUTCDate(d.getUTCDate() + 4 - (dayOfWeek || 7));
+  const yearStart = new Date(Date.UTC(nearestThursday.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((nearestThursday.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${nearestThursday.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+}
+```
+
+---
+
 ## Screen Specs
 
 ---
 
 ### Screen: Daily Check-In (`app/(tabs)/checkin.tsx`)
 
-**Status:** Built (March 11 session). Verified correct.
+**Status:** Built (March 11). Verified correct.
 
 **Mount sequence:**
-1. Fetch `users/{email}/momentum/{today}` → if `checkinCompleted === true`, redirect to checkin-success
+1. Fetch `users/{email}/momentum/{today}` → if `checkinCompleted === true`, redirect to `/(tabs)/index`
 2. Fetch `users/{email}` → read `weight` (protein range), `primaryFocus` (goal field)
 3. Fetch `users/{email}/metadata/accountInfo` → calculate `accountAgeDays`
 4. Fetch `users/{email}/profile/plan` → read `movementCommitment`
@@ -257,94 +325,136 @@ For the `movementMinutes` in the check-in submission, read `movementCommitment` 
 1. Run gap detection (client-side Firestore)
 2. Assemble `behaviorGrades` (all 7, canonical names)
 3. POST to `/api/submit-checkin` with `isFirstCheckin: false`
-4. On success: `router.replace('/(tabs)/checkin-success' as any)` — passes `rewardAnimation` and `rewardText` as params
+4. On success: `router.replace('/(tabs)/checkin-success' as any)` — passes `rewardAnimation`, `rewardText`, `rewardSecondaryText` as params
 
-**Already-checked-in state:** Redirect to `/(tabs)/index`. No UI needed.
+**Already-checked-in state:** Redirect to `/(tabs)/index`.
+
+**Note:** `checkin.tsx` uses the namespaced `firestore()` API. `index.tsx` uses modular `getFirestore()`. These should be unified before TestFlight — not done yet.
 
 ---
 
 ### Screen: Dashboard (`app/(tabs)/index.tsx`)
 
-**Status:** Built (March 12 session). Verified correct on device.
+**Status:** Built (March 12). Updated March 14 with weight update modal, weightHistory reads, learn banner, and LearnContext.
 
 **Mount sequence:**
-1. Run gap detection (same as check-in — always runs on dashboard load)
-2. Fetch `users/{email}` → `firstName`, `readLearnSlugs`
-3. Fetch `users/{email}/profile/plan` → plan data
-4. Fetch `users/{email}/momentum/currentFocus` → current habit
-5. Fetch `users/{email}/momentum/{today}` → `todayMomentum`
-6. Fetch all `users/{email}/momentum/*` (date-keyed docs only, filter `/^\d{4}-\d{2}-\d{2}$/`) → recent history, stats
+1. Run gap detection — always first
+2. Fetch `users/{email}` → `firstName`
+3. Fetch latest from `users/{email}/weightHistory` (ordered by `timestamp desc`, limit 1) → `weight`, `weightLastLogged`
+4. Fetch `users/{email}/momentum/{today}` → `todayMomentum`
+5. Fetch `users/{email}/momentum/currentFocus` → current habit
+6. Fetch all `users/{email}/momentum/*` (date-keyed docs only) → stats
 7. Fetch `users/{email}/metadata/accountInfo` → `firstCheckinDate`
 8. Fetch `users/{email}/weeklySummaries/*` (latest 1, ordered by `generatedAt` desc) → coaching card
+9. GET `/api/learn-articles` → derive `hasUnreadLearn` — non-blocking, silently fails
 
-**Display logic:**
-
-*Momentum score:* `todayMomentum.momentumScore`. Animate from 0 on first load of the day (2300ms ease-out). Use `AsyncStorage` instead of `localStorage` to track if already animated today.
-
-*Check-in guard:* `todayMomentum?.checkinCompleted === true`. If true: show momentum score. If false: show check-in CTA.
-
-*Momentum message:* Read `todayMomentum.momentumMessage` — written by the API, display as-is. Do not recalculate on mobile.
-
-*Stats row:*
-- `currentStreak`: from `todayMomentum.currentStreak` (or most recent real doc if no today doc)
-- `totalCheckIns`: count of all date-keyed momentum docs where `checkinType === "real"`
-- `monthlyConsistency`: count of real check-ins in rolling 30-day window ÷ window size × 100
-
-*Coaching card (CoachAccess equivalent):*
-- Fetch latest `weeklySummaries` doc ordered by `generatedAt` desc
-- If none: show "First briefing arrives Monday" state
-- If `status === "generated"` and no `viewedAt`: show "New Intelligence" state (highlighted)
-- If `status === "generated"` and has `viewedAt`: show standard coaching card with `progression.text`
-- Tapping navigates to coaching detail screen
-
-*Learn banner (LearnBanner equivalent):*
-- Requires `firstCheckinDate` and `readLearnSlugs` from user doc
-- Calls `learnService.getFirstUnreadArticle(firstCheckinDate, readLearnSlugs)` — **this service needs to be ported or called via API**
-- If unread article exists and not dismissed: show banner with article title
-- Dismiss writes `learnBannerLastSlug` to user doc
-
-*Weight card:* Read `weight` from `users/{email}`. Display only if exists.
+**Key behaviors:**
+- Momentum animation: 2300ms ease-out, once per day via `AsyncStorage`
+- Check-in guard: `todayMomentum?.checkinCompleted === true`
+- Learn banner: shows if `hasUnreadLearn === true`, taps to Learn tab
+- Weight card: shows UPDATE button → opens `WeightModal` → writes to `weightHistory` + `users/{email}.weight`
+- History card: taps to `/(tabs)/lab`
+- `setHasUnreadLearn` from `LearnContext` called after load — drives tab dot (currently removed from nav, reserved for Phase 5 icon pass)
 
 ---
 
-### Screen: Weekly Coaching Detail
+### Screen: Check-In Success (`app/(tabs)/checkin-success.tsx`)
 
-**Status:** Built (March 13 session). Verified correct on device.
+**Status:** Built (March 12). Verified correct.
 
-**Data:** Re-fetched on mount by weekId from `weeklySummaries` ordered by `generatedAt` desc, limit 5.
-
-**Firestore write on view:** Set `viewedAt: serverTimestamp()` on the summary doc. This clears the "New Intelligence" state on the coaching card.
-
-**Weekly calibration:** Checks `weeklyCalibrations/{weekId}` on load. If doc does not exist, shows calibration button. On complete, POSTs to `/api/save-weekly-calibration` with `Authorization: Bearer {idToken}`. Safety modal fires if `structuralState === 'something_wrong'`.
-
-**Historical weeks:** Up to 4 previous `status === "generated"` summaries shown as collapsible cards.
+Navigated to after successful POST to `/api/submit-checkin`. Receives `rewardAnimation`, `rewardText`, `rewardSecondaryText` as params. Continue button navigates to `/(tabs)`.
 
 ---
 
-### Screen: The Lab (`app/(tabs)/lab.tsx` or similar)
+### Screen: Weekly Coaching Detail (`app/(tabs)/coaching.tsx`)
 
-**Status:** Not built. Phase 3 Week 6-7.
+**Status:** Built (March 13). Verified correct on device.
 
-**Data source:** All date-keyed momentum docs, ordered by date ascending.
+**Data:** Fetches `weeklySummaries` ordered by `generatedAt` desc, limit 5 on mount.
 
-**Key logic from `useMomentumHistory`:**
-- Filter to docs matching `/^\d{4}-\d{2}-\d{2}$/`
-- Primary observation window: `Math.min(accountAgeDays, 30)` days
-- Build date range backwards from latest doc date
-- Map dates to docs — dates with no doc get a synthetic empty entry (`missed: true, visualState: "gap"`)
+**Firestore write on view:** Sets `viewedAt: serverTimestamp()` on the current week's summary doc.
+
+**Calibration:** Checks `weeklyCalibrations/{weekId}` on load. Shows calibration button if doc does not exist. On complete, POSTs to `/api/save-weekly-calibration` with `Authorization: Bearer {idToken}`. Safety modal fires if `structuralState === 'something_wrong'`.
+
+**Historical weeks:** Up to 4 previous `status === "generated"` summaries as collapsible cards. **Built and wired but not yet tested with real multi-week Firestore data.**
+
+**`stabilize` progression type:** Renders identically to all other types (badge + text). No special handling needed — confirmed non-issue March 14.
 
 ---
 
-### Screen: Settings
+### Screen: The Lab (`app/(tabs)/lab.tsx`)
 
-**Status:** Complete
+**Status:** Built (March 14). Verified correct on device.
 
-**Required items (Apple-mandated):**
-- Account deletion trigger (calls `/api/delete-account` or equivalent)
-- Support link (`support@thenelson.app`)
-- Privacy policy link (`https://thenelson.app/privacy`)
-- Terms of Use link (`https://thenelson.app/terms`)
-- Notification preference (time window for daily reminder)
+**Data source:** All date-keyed momentum docs, ordered by `date asc`.
+
+**Sections:**
+1. **Momentum Trend** — SVG line chart, 30-day rolling window, Y-axis 0/50/100%, X-axis every 5 days always ending on latest date
+2. **Stats** — Days observed, check-ins, missed, exercise days/window, current run, longest run
+3. **Behavior Distribution** — Sorted by `off` % descending, requires 3+ real check-ins, "More Data Needed" guard below threshold
+4. **Calendar** — Month navigation (back unlimited, forward disabled at current month). Tapping a real check-in day opens day detail modal.
+
+**Day detail modal:** Date, momentum score, exercise commitment, all 7 behavior ratings from `behaviorRatings`, note toggle. Gap days are not tappable.
+
+**Key logic:**
+- Filter docs to `/^\d{4}-\d{2}-\d{2}$/`
+- `primarySize = Math.min(ageDays, 30)` from `latestDoc.accountAgeDays`
+- Dates with no doc get synthetic gap entry (`checkinType: 'gap_fill'`, `visualState: 'gap'`)
+- `behaviorRatings` field required for behavior display — written by `/api/submit-checkin` as of March 14. Pre-March 14 docs via web app have this field. Pre-March 14 mobile check-ins do not.
+
+---
+
+### Screen: Learn (`app/(tabs)/learn.tsx`)
+
+**Status:** Built (March 14). Verified correct on device.
+
+**Data source:** GET `/api/learn-articles` with Bearer token on mount. Refreshes on every focus via `useFocusEffect`.
+
+**Display:** Article list sorted by `dayNumber` asc. Blue dot on unread articles (`!readSlugs.includes(slug)`). Empty state if no eligible articles. Tapping navigates to `/(tabs)/article` with `slug` param.
+
+---
+
+### Screen: Article Detail (`app/(tabs)/article.tsx`)
+
+**Status:** Built (March 14). Verified correct on device.
+
+**Data source:** GET `/api/learn-articles`, find article by slug from params.
+
+**Mark as read:** On load, if `slug` not in `readSlugs`, writes `arrayUnion(slug)` to `users/{email}.readLearnSlugs`.
+
+**Navigation:** Back button uses `router.push('/(tabs)/learn' as any)` — not `router.back()`.
+
+---
+
+### Screen: Settings (`app/(tabs)/settings.tsx`)
+
+**Status:** Built (March 13). Verified correct.
+
+- Sign out: `auth().signOut()` → root `_layout.tsx` redirects to login
+- Delete account: two-step confirm → POST `/api/delete-account` with Bearer token → sign out
+- Privacy Policy, Terms of Use: `Linking.openURL`
+- Contact support: `mailto:support@thenelson.app`
+- **Notification preference: not yet built** — required for Phase 4
+
+---
+
+## LearnContext
+
+**File:** `app/(tabs)/LearnContext.tsx`  
+**Purpose:** Shares `hasUnreadLearn` boolean between dashboard (writer) and tab layout (reader).
+
+```typescript
+// Usage in dashboard (index.tsx):
+const { setHasUnreadLearn } = useLearnContext();
+// Called after learn-articles fetch with derived boolean
+
+// Usage in _layout.tsx:
+const { hasUnreadLearn } = useLearnContext();
+// Currently unused in nav UI — tab dot removed pending Phase 5 icon pass
+// Reserved for future use
+```
+
+`LearnProvider` wraps `TabLayoutInner` in `_layout.tsx`.
 
 ---
 
@@ -366,14 +476,12 @@ interface RewardResult {
 ```
 
 **What to do with it on mobile:**
-- `event === null` or `payload === null`: no celebration, just navigate to dashboard
-- `animation === "ring"`: subtle acknowledgment (check_in_logged fallback)
+- `event === null` or `payload === null`: no celebration, navigate to dashboard
+- `animation === "ring"`: subtle acknowledgment
 - `animation === "burst"` or `"confetti"`: show celebration overlay before navigating
 - `animation === "fireworks"`: show full-screen celebration
 
-The `activate-celebration.tsx` screen exists for first check-in. Daily check-in success states will need their own celebration handling or can reuse a simplified version.
-
-**One reward per check-in maximum.** The engine guarantees this.
+The `activate-celebration.tsx` screen exists for first check-in. One reward per check-in maximum.
 
 ---
 
@@ -413,10 +521,17 @@ function getCurrentWeekId(): string {
 
 | Item | Notes |
 |---|---|
-| `learnService` not ported to mobile | `LearnBanner` on web calls `getFirstUnreadArticle`. Either port this service or expose it via a lightweight API endpoint.
-| `gapReconciliation` flow not implemented on mobile | Web check-in page shows a "did you exercise on [missed date]?" screen before allowing today's check-in. Mobile currently skips this — gap docs are written but never reconciled via user input. Acceptable for now, revisit in Phase 3 polish. |
-| `activate-checkin.tsx` goal field | Was hardcoded as `'consistency'`. Fixed March 13 — now reads `primaryFocus` from `users/{email}`. |
-
+| `checkin.tsx` uses namespaced `firestore()` API | `index.tsx` uses modular `getFirestore()`. Inconsistency. Not breaking now but should be unified before TestFlight. |
+| `gapReconciliation` not on mobile | Web check-in shows exercise reconciliation screen for missed days. Mobile skips — gap docs written but never reconciled via user input. Deferred to Phase 3 polish. |
+| Historical weeks in `coaching.tsx` untested | Built and wired March 13. Never tested with real multi-week Firestore data. Test with any account that has 2+ weeks of generated coaching. |
+| `route.ts` divergence risk | Mobile momentum math lives in `route.ts`, web in `writeDailyMomentum.ts`. Every future change must be manually mirrored. No automated safeguard. |
+| `deletionBatch` 500-doc limit | `momentum` subcollection exceeds 500 docs at ~1.5 years of daily check-ins. Swap to `adminDb.recursiveDelete()` before public launch. No phase assigned. |
+| Pre-March 14 mobile check-ins missing `behaviorRatings` | Lab day detail modal shows empty behaviors for these docs. Web app check-ins are unaffected. All check-ins from March 14 forward write `behaviorRatings` correctly. |
+| Notification preference in Settings | Not built. Required for Phase 4. |
+| Weight in The Lab | No weight display in Lab yet. Scope TBD — Phase 4. |
+| Weight in coaching prompts | Phase 4. Depends on weight logging adoption and trend data. |
+| Canon audit complete | March 15, 2026. Violations fixed: lab.tsx behavior labels, index.tsx greeting subtext, coaching.tsx calibration CTA copy. Phase 3 exit criterion met. |
+| `checkin-success.tsx` rebuilt | March 15, 2026. SVG checkmark, particle burst animation with gravity, checkmark rotation entrance, expo-av sound (checkin-complete.mp3). isMilestone path: fireworks/hero only. burst/confetti route to particle path. |
 ---
 
 ## Files This Document Was Derived From
@@ -424,12 +539,18 @@ function getCurrentWeekId(): string {
 - `app/(app)/checkin/page.tsx` (web)
 - `app/(app)/checkin/checkinModel.ts` (web)
 - `app/(app)/dashboard/page.tsx` (web)
+- `app/(app)/history/page.tsx` (web)
+- `app/(app)/history/useMomentumHistory.ts` (web)
+- `app/(app)/learn/page.tsx` (web)
 - `app/services/writeDailyMomentum.ts` (web)
 - `app/services/newtonianMomentum.ts` (web)
 - `app/services/missedCheckIns.ts` (web)
 - `app/services/rewardEngine.ts` (web)
+- `app/services/learnService.ts` (web)
+- `app/services/weightService.ts` (web)
 - `app/components/CoachAccess.tsx` (web)
 - `app/components/LearnBanner.tsx` (web)
-- `app/(app)/history/useMomentumHistory.ts` (web)
+- `app/components/WeightCard.tsx` (web)
 - `app/utils/date.ts` (web)
 - `app/api/submit-checkin/route.ts` (web)
+- `app/api/learn-articles/route.ts` (web)
