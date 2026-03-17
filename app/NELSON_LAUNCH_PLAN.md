@@ -164,12 +164,13 @@ Files that need migration:
 - `/app/api/save-weekly-calibration/route.ts`
 - `/app/services/weeklyCalibration.ts` (owns the calibration read/write — migrates with the route)
 
-Additional note: Cron route loops users sequentially with `await` per user. At 50+ users this will hit Vercel timeout. Parallelize with `Promise.allSettled()` during this migration.
+Cron runs sequentially with 1500ms delay between users — intentional, rate limit mitigation.
 
 Tasks:
 - ✅ Create `/app/firebase/admin.ts` (server-only Admin SDK initialization)
 - ✅ Migrate `/app/api/generate-weekly-coaching/route.ts` to Admin SDK
-- ✅ Migrate `/app/api/cron/generate-weekly-coaching/route.ts` to Admin SDK — parallelize loop while here
+- ✅ Migrate `/app/api/cron/generate-weekly-coaching/route.ts` to Admin SDK
+  (Note: loop changed to sequential with 1500ms delay March 16 -- concurrent execution caused Anthropic rate limit errors at 18+ users. Parallelization reversed.)
 - ✅ Migrate `/app/api/save-weekly-calibration/route.ts` to Admin SDK
 - ✅ Migrate `/app/services/weeklyCalibration.ts` reads/writes to Admin SDK
 - ✅ Rewrite Firestore security rules — remove all `|| request.auth == null` clauses
@@ -255,7 +256,7 @@ Don't wait for Phase 2 to finish. Start Expo setup while security work is happen
 
 ## PHASE 3: NATIVE APP BUILD
 **Apr 14 – May 22 (6 weeks)**
-**Status:** 🔄  In Progress
+**Status:** ✅  Complete
 
 ### Goals
 Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
@@ -299,7 +300,7 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 
 ### Navigation
 - ✅  Bottom tab navigation: Dashboard, The Lab, Learn, Settings
-- 🔄  Settings screen: account info, notification preferences, account deletion, support link, privacy policy link, ToS link
+- ✅  Settings screen: account info, account deletion, support link, privacy policy link, ToS link
 
 ### Exit Criteria
 - ✅  All V1 screens built and navigable
@@ -416,7 +417,7 @@ Every Monday, before starting work:
 | App Review rejection (round 1) | Medium | Medium | Buffer built into Phase 5. Fix fast, resubmit. |
 | Admin SDK migration hits unexpected complexity | Medium | High | Audit complete Feb 27. Surface area known: 3 routes, 4 collections, 1 service file. |
 | `save-weekly-calibration` exploited before auth fix | Low | Medium | Known trust network at 13 users. Fix is first task in Phase 2. |
-| Cron loop times out at scale | Medium | Medium | Sequential `await` per user. Fix: parallelize with `Promise.allSettled()` during Admin SDK migration. |
+| Cron loop times out at scale | Medium | Medium | Sequential execution with 1500ms delay between users. Concurrent execution caused rate limit errors at 18+ users and was reversed March 16. At 50+ users, revisit batched parallelization (e.g. batches of 5 with delay between batches).
 | IAP sandbox testing is flaky | High | Low | It's always flaky. Build extra time into Week 1 of Phase 4. |
 | Scope creep | Very High | Very High | Re-read the V1 list. Every week. |
 | Apple Developer enrollment delayed | Low | High | Do it the day the EIN arrives. Don't wait. |
@@ -458,5 +459,5 @@ These are made. They are not up for re-discussion unless something fundamental c
 
 ---
 
-*Last updated: March 3, 2026*
-*Next review: March 9, 2026*
+*Last updated: March 16, 2026*
+*Next review: March 17, 2026*

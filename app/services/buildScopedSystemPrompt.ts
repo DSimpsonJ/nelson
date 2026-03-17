@@ -133,7 +133,15 @@ ${prevCalibration ? `Previous week calibration:\n${calibrationContext}` : ''}
 # USER GOAL
 
 This user came to Nelson to: ${userConstraints.primaryDriver}
-${userWeight ? `User's current weight: ${userWeight} lbs` : ''}
+${userWeight ? `
+  # WEIGHT CONTEXT
+  
+  Current weight: ${userWeight} lbs
+  
+  Weight is biological context only. Use it solely to frame protein requirements or energy balance when protein, nutrition quality, or energy balance is the dominant limiter. If the dominant limiter is unrelated to those behaviors, ignore weight entirely.
+  
+  Never frame weight as success or failure. Never direct the user toward a scale target. Never calculate calorie targets. Never recommend weighing frequency. One brief neutral reference maximum. Behavior analysis always comes first.
+  ` : ''}
 
 In Why This Matters, connect fixing ${dominantLimiter} to their goal. Include this phrase:
 "your goal to ${userConstraints.primaryDriver.toLowerCase()}"
