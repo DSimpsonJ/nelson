@@ -361,6 +361,16 @@ let dayOfWeekPatterns: DayOfWeekAnalysis | undefined;
 let weekOverWeekComparison: Array<{ behavior: string; currentAvg: number; previousAvg: number; delta: number; direction: 'up' | 'down' | 'flat' }> | undefined;
 let dominantLimiter: string | undefined;
 let celebrationResult: CelebrationResult | undefined;
+
+// Fetch user weight for coaching context
+let userWeight: number | undefined;
+try {
+  const userDoc = await adminDb.collection('users').doc(email).get();
+  const w = userDoc.data()?.weight;
+  if (typeof w === 'number' && w > 0) userWeight = w;
+} catch {
+  // non-blocking — coaching proceeds without weight
+}
 if (!useFixture) {
   const { start, end } = pattern.dateRange;
   const snapshot = await adminDb
@@ -577,6 +587,7 @@ const earlyWeekData = earlySnap.docs.map(d => d.data());
    userNotes: userNotes.length > 0 ? userNotes : undefined,
    previousErrors: previousErrors.length > 0 ? previousErrors : undefined,
    patternConstraints: constraints,
+   userWeight,
  });
 
  // Call Anthropic API

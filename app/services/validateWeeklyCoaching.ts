@@ -47,7 +47,19 @@ const BANNED_TONE_PHRASES = [
   'this reflects',
   'this signals'
 ] as const;
-  
+const BANNED_WEIGHT_PHRASES = [
+  'lose weight',
+  'need to lose',
+  'should weigh',
+  'drop pounds',
+  'burn fat',
+  'scale progress',
+  "scale isn't moving",
+  'scale target',
+  'get leaner',
+  'overweight',
+  'too heavy',
+] as const;
   // ============================================================================
   // MAIN VALIDATION
   // ============================================================================
@@ -98,6 +110,7 @@ const BANNED_TONE_PHRASES = [
    // Focus validation
    errors.push(...validateFocus(coaching));
    errors.push(...validateFocusTone(coaching));
+   errors.push(...validateWeightLanguage(coaching));
 
   return {
       valid: errors.length === 0,
@@ -425,6 +438,43 @@ function validateFocusTone(coaching: WeeklyCoachingOutput): ValidationError[] {
   /**
    * Convert validation errors to a single readable string
    */
+  // ============================================================================
+// WEIGHT LANGUAGE VALIDATION
+// ============================================================================
+
+function validateWeightLanguage(coaching: WeeklyCoachingOutput): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  const allText = [
+    coaching.pattern,
+    coaching.tension,
+    coaching.whyThisMatters,
+    coaching.progression.text
+  ].join(' ').toLowerCase();
+
+  const foundBans = BANNED_WEIGHT_PHRASES.filter(phrase =>
+    allText.includes(phrase.toLowerCase())
+  );
+
+  if (foundBans.length > 0) {
+    errors.push({
+      rule: 'banned_weight_language',
+      message: `Contains banned weight/scale language: ${foundBans.join(', ')}`
+    });
+  }
+
+  // Weight must never lead the coaching narrative
+  const patternFirstSentence = coaching.pattern.split(/[.!?]/)[0].toLowerCase();
+  if (patternFirstSentence.includes('weight') || patternFirstSentence.includes(' lbs')) {
+    errors.push({
+      rule: 'weight_leads_narrative',
+      message: 'Pattern field must not open with a weight reference. Behavior analysis comes first.'
+    });
+  }
+
+  return errors;
+}
+  
   export function getErrorSummary(errors: ValidationError[]): string {
     if (errors.length === 0) {
       return 'No errors';
