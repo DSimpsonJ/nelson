@@ -105,7 +105,7 @@ export const RATINGS: RatingMetadata[] = [
     grade: 80,
   },
   {
-    value: 'not_great',
+    value: 'not-great',
     label: 'Not Great',
     grade: 50,
   },

@@ -9,7 +9,7 @@ export type BehaviorId =
   | 'mindset'
   | 'movement';
 
-export type Rating = 'elite' | 'solid' | 'not_great' | 'off';
+  export type Rating = 'elite' | 'solid' | 'not-great' | 'off';
 
 export type CheckinAnswers = Record<BehaviorId, Rating>;
 

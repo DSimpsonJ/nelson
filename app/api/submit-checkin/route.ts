@@ -63,8 +63,13 @@ export async function POST(req: NextRequest) {
       .collection('users').doc(email)
       .collection('momentum').doc(prevDate.toLocaleDateString('en-CA'))
       .get();
-    const previousMomentum = prevSnap.exists ? (prevSnap.data()?.momentumScore ?? 0) : 0;
-    const currentStreak = prevSnap.exists ? (prevSnap.data()?.currentStreak ?? 0) : 0;
+      const prevData = prevSnap.exists ? prevSnap.data()! : null;
+      const previousMomentum = prevData
+        ? (prevData.checkinType === 'gap_fill'
+            ? (prevData.momentumScore ?? 0)          // frozen value from gap-fill
+            : (prevData.rawMomentumScore ?? prevData.momentumScore ?? 0))  // real check-in
+        : 0;
+      const currentStreak = prevData?.currentStreak ?? 0;
 
     // Get totalRealCheckIns from previous doc (we'll increment it)
     const prevTotalRealCheckIns = prevSnap.exists ? (prevSnap.data()?.totalRealCheckIns ?? 0) : 0;

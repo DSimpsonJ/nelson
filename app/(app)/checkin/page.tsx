@@ -12,7 +12,6 @@ import { ProgressIndicator } from './components/ProgressIndicator';
 import CheckinSuccessAnimation from '@/app/components/rewards/CheckinSuccessAnimation';
 import { getBehaviors, answersToGrades } from './checkinModel';
 import { CheckinAnswers, BehaviorMetadata } from './types';
-import { writeDailyMomentum } from '../../services/writeDailyMomentum';
 import { detectAndHandleMissedCheckIns } from '../../services/missedCheckIns';
 import { checkForUnresolvedGap, resolveGap } from "@/app/services/gapReconciliation";
 
@@ -200,17 +199,30 @@ export default function CheckinPage() {
       
       console.log('[CheckIn] Submitting with note:', noteText);
 
-      const { doc: momentumDoc, reward } = await writeDailyMomentum({
-        email,
-        date: today,
-        behaviorGrades,
-        behaviorRatings: finalAnswers,
-        currentFocus,
-        accountAgeDays,
-        exerciseDeclared,
-        note: noteText?.trim() || undefined,
+      const auth = getAuth();
+      const idToken = await auth.currentUser!.getIdToken();
+
+      const apiRes = await fetch('/api/submit-checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          email,
+          date: today,
+          behaviorGrades,
+          currentFocus,
+          goal: undefined,
+          accountAgeDays,
+          exerciseDeclared,
+          isFirstCheckin: false,
+          note: noteText?.trim() || undefined,
+        }),
       });
-      
+
+      if (!apiRes.ok) throw new Error(`API error: ${apiRes.status}`);
+      const result = await apiRes.json();
+      const reward = result.reward;
+
       sessionStorage.setItem('pendingReward', JSON.stringify(reward));
   
       setShowSuccess(true);

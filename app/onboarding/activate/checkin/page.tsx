@@ -7,7 +7,6 @@ import { db } from "@/app/firebase/config";
 import { getEmail } from "@/app/utils/getEmail";
 import { getLocalDate } from "@/app/utils/date";
 import { motion, AnimatePresence } from "framer-motion";
-import { writeDailyMomentum } from "@/app/services/writeDailyMomentum";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 type Rating = "elite" | "solid" | "not-great" | "off";
@@ -248,28 +247,36 @@ export default function CheckInPage() {
       }
   
      // Convert ratings to behavior grades
-const behaviorGrades = [
-    { name: "Nutrition Quality", grade: getRatingGrade(data.nutrition_quality) },
-    { name: "Portion Control", grade: getRatingGrade(data.portion_control) },
-    { name: "Protein", grade: getRatingGrade(data.protein) },
-    { name: "Hydration", grade: getRatingGrade(data.hydration) },
-    { name: "Sleep", grade: getRatingGrade(data.sleep) },
-    { name: "Mindset", grade: getRatingGrade(data.mindset) },
-    // Skip movement on first check-in (no commitment yet)
-  ];
+     const behaviorGrades = [
+      { name: 'nutrition_quality', grade: getRatingGrade(data.nutrition_quality) },
+      { name: 'portion_control', grade: getRatingGrade(data.portion_control) },
+      { name: 'protein', grade: getRatingGrade(data.protein) },
+      { name: 'hydration', grade: getRatingGrade(data.hydration) },
+      { name: 'sleep', grade: getRatingGrade(data.sleep) },
+      { name: 'mindset', grade: getRatingGrade(data.mindset) },
+      { name: 'movement', grade: 0 }, // not rated on first check-in, send 0
+    ];
   
   console.log("Behavior grades:", behaviorGrades);
   
-  // Use the momentum engine
-  await writeDailyMomentum({
-    email,
-    date: today,
-    behaviorGrades, // ← New parameter
-    currentFocus,
-    goal,
-    accountAgeDays: 1,
-    exerciseDeclared: exerciseCompleted!,
+  const idToken = await auth.currentUser!.getIdToken();
+  const apiRes = await fetch('/api/submit-checkin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      idToken,
+      email,
+      date: today,
+      behaviorGrades,
+      currentFocus,
+      goal,
+      accountAgeDays: 1,
+      exerciseDeclared: exerciseCompleted ?? false,
+      isFirstCheckin: false, // firstCheckinDate written separately below
+      note: undefined,
+    }),
   });
+  if (!apiRes.ok) throw new Error(`API error: ${apiRes.status}`);
   
   // Mark user as activated
   await setDoc(
