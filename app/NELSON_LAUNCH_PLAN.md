@@ -97,11 +97,11 @@ Get the business real. Get compliance documents drafted. Close the web app gaps 
 
 ### Business Build
 - ✅ File LLC — Simpson Holdings LLC filed Feb 26 via Northwest Registered Agent, Maryland
-- [ ] Get EIN (free, online, 10 minutes at IRS.gov — do immediately when LLC approval arrives)
-- [ ] Open business bank account (Mercury or Relay — do immediately after EIN)
+- ✅ Get EIN (free, online, 10 minutes at IRS.gov — do immediately when LLC approval arrives)
+- ✅ Open business bank account (Mercury)
 - [ ] Set up bookkeeping (Wave is free and sufficient for now)
 - [ ] Enroll in Apple Developer Program under entity ($99/year) — do this as soon as EIN exists
-- [ ] Separate all Nelson expenses from personal immediately
+- ✅ Separate all Nelson expenses from personal immediately
 - ✅ Set up business email — privacy@, support@, dj@thenelson.app (Google Workspace, $6/month)
 
 ### Compliance
@@ -124,15 +124,15 @@ Get the business real. Get compliance documents drafted. Close the web app gaps 
 - ✅ Terms of Use draft complete
 - ✅ Web app dead code cleaned up (Pass 1)
 - ✅ Learn gate closed
-- [ ] LLC approved, EIN in hand
-- [ ] Business bank account open
+- ✅ LLC approved, EIN in hand
+- ✅ Business bank account open
 - [ ] Apple Developer Program enrolled under entity
 
 ---
 
 ## PHASE 2: BACKEND HARDENING
 **Mar 17 – Apr 10 (4 weeks)**
-**Status:** 🔄 In progress — Admin SDK migration complete, weight integration + deletion pipeline remaining
+**Status:** ✅ Complete — Admin SDK migration complete, weight integration + deletion pipeline remaining
 
 ### Goals
 Make the backend safe for real users and real money. Lock monetization model. Lay marketing foundation. This is non-negotiable before public launch.
@@ -184,10 +184,8 @@ Remaining items for Phase 2 alongside Admin SDK work:
 - ✅ `unsubSessions` realtime listener (dead — does nothing with data)
 - ✅ - [ ] Feature-flag dev tools already done — `process.env.NODE_ENV === 'development'` in place 
 - ✅ Remove dead imports: onSnapshot, subDays, withFirestoreError, limit, writeDailyMomentum, resolveReward/RewardPayload
-- [ ] Remove dead momentum fields from writeDailyMomentum.ts interface and defaults:
 - ✅ primaryHabitHit, stackedHabitsCompleted, totalStackedHabits — already removed (prior session)
 - ✅ moved, hydrated, slept, nutritionScore — already removed (prior session)
-- [ ] streakSavers — confirmed dead (written but never read outside writeDailyMomentum.ts and missedCheckIns.ts). Defer to next writeDailyMomentum touch. Locked file — do not open without a reason.
 - ✅ Remove dead state: recentCheckins, commitmentStage, commitmentReason, saving, consistencyPercentage
 - ✅ Remove dead calculateConsistency function
 - ✅ Remove all console.logs and console.counts from dashboard
@@ -206,7 +204,6 @@ Remaining items for Phase 2 alongside Admin SDK work:
 ```
 
 ### Compliance (Finish)
-- [ ] Engage startup attorney for document review — flat-fee review of Privacy Policy + Terms of Use before public launch. Budget $200-400. Priority: health behavior disclaimer, limitation of liability, dispute resolution clause (Section 15 intentionally left blank for attorney).
 - ✅ Terms of Use draft complete (Feb 28) — placeholders to fill: effective date, support email, business address, privacy policy URL, attorney review date, Section 15 dispute resolution
 - ✅ Publish Terms of Use to live URL (same pattern as privacy policy — simple page at thenelson.app/terms)
 - ✅ Set up support email — forward to personal is fine for now ✅ (support@thenelson.app created)
@@ -317,10 +314,10 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 **Status:** ⬜ Not started
 
 ### Weight Integration into Coaching Prompts (NOTE: This was originally phase 2, it was punted.)
-- [ ] Read `weight` field from `users/{email}` in coaching prompt builder
-- [ ] Pass weight as context to `buildScopedSystemPrompt.ts`
-- [ ] Verify coaching output references weight appropriately (protein targets, etc.)
-- [ ] Test with real user data
+- ✅ Read `weight` field from `users/{email}` in coaching prompt builder
+- ✅ Pass weight as context to `buildScopedSystemPrompt.ts`
+- ✅ Verify coaching output references weight appropriately (protein targets, etc.)
+- ✅ Test with real user data
 
 ### Week 1: IAP
 - [ ] Create Founding Members product in App Store Connect ($60/year auto-renewing subscription)
@@ -340,6 +337,11 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 - [ ] Daily check-in reminder — user sets preferred time window, fires once daily
 - [ ] Test delivery on real device (not simulator — push doesn't work in simulator)
 - [ ] Respect Canon: reminder is factual ("Time to check in"), never motivational
+
+### Items Deferred from previous phases requiring attention:
+- [ ] Remove dead momentum fields from writeDailyMomentum.ts interface and defaults:
+- [ ] streakSavers — confirmed dead (written but never read outside writeDailyMomentum.ts and missedCheckIns.ts). Defer to next writeDailyMomentum touch. Locked file — do not open without a reason.
+- [ ] Engage startup attorney for document review — flat-fee review of Privacy Policy + Terms of Use before public launch. Budget $200-400. Priority: health behavior disclaimer, limitation of liability, dispute resolution clause (Section 15 intentionally left blank for attorney).
 
 ### Week 3: TestFlight
 - [ ] Build and upload to TestFlight

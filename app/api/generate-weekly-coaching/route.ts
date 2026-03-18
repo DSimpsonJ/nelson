@@ -91,7 +91,8 @@ CRITICAL FOR momentum_plateau:
   * "no upward or downward movement"
 - Do NOT search for synonyms - use ONLY these Canon-approved terms
 - Frame as neutral mechanical observation, not blockage
-- Orientation should normalize plateau as valid signal showing system is working correctly
+- Orientation should normalize plateau as valid signal showing the approach is working correctly
+- NEVER use language implying the user should expect continued upward momentum (e.g. "not accelerating yet", "gap", "missing layer"). Plateau at 70-90% IS the goal. Frame progression as optional optimization, not a deficit to fix.
     `.trim()
   },
 

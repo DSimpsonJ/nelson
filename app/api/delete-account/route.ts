@@ -57,14 +57,9 @@ export async function POST(request: NextRequest) {
     const userRef = adminDb.collection('users').doc(email);
 
     // --- Delete subcollections ---
+    // recursiveDelete handles arbitrarily large collections without batch limits
     for (const subcollection of SUBCOLLECTIONS) {
-      const collRef = userRef.collection(subcollection);
-      const snapshot = await collRef.get();
-      if (snapshot.empty) continue;
-
-      const batch = adminDb.batch();
-      snapshot.docs.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
+      await adminDb.recursiveDelete(userRef.collection(subcollection));
     }
 
     // --- Delete top-level user document ---

@@ -440,51 +440,21 @@ function checkCelebrationTone(
   
   const violations: LanguageViolation[] = [];
   
-  // If user hit Elite on ANY behavior, require strong celebration
-  if (eliteWeek.length >= 1) {
-    const hasEliteCelebration = 
-      /\b(elite|perfect|exceptional|nailed|outstanding|100%)\b/gi.test(coaching.pattern) ||
-      /\b(elite|perfect|exceptional|nailed|outstanding|100%)\b/gi.test(coaching.whyThisMatters);
-    
-    if (!hasEliteCelebration) {
-      violations.push({
-        phrase: 'Missing Elite celebration',
-        location: 'pattern',
-        alternatives: [
-          'Elite performance on ' + eliteWeek.join(', ') + ' - this is exceptional',
-          'Perfect execution on ' + eliteWeek.join(' and ') + ' - 100% all week',
-          '100% on ' + eliteWeek.join(', ') + ' is outstanding work'
-        ]
-      });
-    }
-  }
-  
-  // If user hit Solid on ANY behavior, require prominent acknowledgment
-  // SOLID IS SUCCESS - must be celebrated as such
-  if (solidWeek.length >= 1) {
-    const hasSolidAcknowledgment =
-      /\b(solid|consistent|success|target|hitting|80%)\b/gi.test(coaching.pattern) ||
-      /\b(solid|consistent|success|target|hitting|80%)\b/gi.test(coaching.whyThisMatters);
-    
-    if (!hasSolidAcknowledgment) {
-      violations.push({
-        phrase: 'Missing Solid acknowledgment - Solid is success',
-        location: 'pattern',
-        alternatives: [
-          'Solid performance on ' + solidWeek.join(', ') + ' - this is success',
-          'This is exactly what success looks like on ' + solidWeek.join(', '),
-          'You\'re hitting the target with ' + solidWeek.join(' and '),
-          '80% execution on ' + solidWeek.join(', ') + ' - this is what we\'re aiming for'
-        ]
-      });
-    }
-  }
+ // If user hit Elite on ANY behavior, verify celebration comes before constraint
+  // in the pattern field. We check ordering below — no specific vocabulary required.
+  // The AI may express celebration in many ways ("locked in", "never dropped",
+  // "held all week") — don't require exact words, just correct ordering.
+
+  // If user hit Solid on ANY behavior, same principle applies.
+  // Ordering check below handles enforcement for both cases.
   
   // Check for problem-first framing (constraint mentioned before acknowledgment)
   // Pattern section should lead with what's working, then discuss constraint
   const patternLower = coaching.pattern.toLowerCase();
   const constraintWords = ['constraint', 'struggle', 'challenge', 'dropped', 'dipped', 'fell', 'inconsistent'];
-  const celebrationWords = ['solid', 'elite', 'success', 'hitting', 'consistent', 'working'];
+  const celebrationWords = ['solid', 'elite', 'success', 'hitting', 'consistent', 'working',
+    'locked in', 'holding steady', 'never dropped', 'strong', 'every day', 'all week',
+    'held', 'maintained', 'averaged'];
   
   // Find first occurrence of constraint vs celebration words
   let firstConstraintIndex = Infinity;
@@ -602,6 +572,7 @@ export function checkLanguageBeforeValidation(
     const result = enforceBodyFirstLanguage(parsed, solidWeek, eliteWeek);
     
     if (!result.passed) {
+      console.log('[LanguageEnforcement] Violations:', JSON.stringify(result.violations, null, 2));
       return {
         passed: false,
         error: formatLanguageViolations(result.violations)
