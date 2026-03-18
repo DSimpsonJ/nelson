@@ -329,7 +329,7 @@ function getWeekOf(date: string): string {
 
 **Already-checked-in state:** Redirect to `/(tabs)/index`.
 
-**Note:** `checkin.tsx` uses the namespaced `firestore()` API. `index.tsx` uses modular `getFirestore()`. These should be unified before TestFlight — not done yet.
+**Note:** checkin.tsx uses namespaced firestore() API | index.tsx uses modular getFirestore(). Both are correct for their respective APIs — exists() is a method in namespaced API, property in modular API. Style inconsistency only, no bug. No unification needed.**
 
 ---
 
@@ -521,15 +521,15 @@ function getCurrentWeekId(): string {
 
 | Item | Notes |
 |---|---|
-| `checkin.tsx` uses namespaced `firestore()` API | `index.tsx` uses modular `getFirestore()`. Inconsistency. Not breaking now but should be unified before TestFlight. |
-| `gapReconciliation` not on mobile | Web check-in shows exercise reconciliation screen for missed days. Mobile skips — gap docs written but never reconciled via user input. Deferred to Phase 3 polish. |
-| Historical weeks in `coaching.tsx` untested | Built and wired March 13. Never tested with real multi-week Firestore data. Test with any account that has 2+ weeks of generated coaching. |
+| checkin.tsx uses namespaced firestore() API | index.tsx uses modular getFirestore(). Both are correct for their respective APIs -- exists() is a method in namespaced API, property in modular API. Style inconsistency only, no bug. No unification needed. |
+| gapReconciliation on mobile | Built and committed March 18, 2026. Mirrors web app behavior: single-day gap only, shown before check-in flow, Yes preserves momentum, No applies 0.92 decay. End-to-end test pending March 20. |
+| **Historical weeks in coaching.tsx | Verified working March 18, 2026 with real multi-week Firestore data. Collapsible cards expand correctly, content displays correctly.** |
 | `route.ts` divergence risk | Mobile momentum math lives in `route.ts`, web in `writeDailyMomentum.ts`. Every future change must be manually mirrored. No automated safeguard. |
-| `deletionBatch` 500-doc limit | `momentum` subcollection exceeds 500 docs at ~1.5 years of daily check-ins. Swap to `adminDb.recursiveDelete()` before public launch. No phase assigned. |
+| deletionBatch 500-doc limit | RESOLVED March 18, 2026. app/api/delete-account/route.ts now uses adminDb.recursiveDelete() per subcollection. Handles arbitrarily large collections. |
 | Pre-March 14 mobile check-ins missing `behaviorRatings` | Lab day detail modal shows empty behaviors for these docs. Web app check-ins are unaffected. All check-ins from March 14 forward write `behaviorRatings` correctly. |
-| Notification preference in Settings | Not built. Required for Phase 4. |
+"**Notification preference in Settings | Built and committed March 18, 2026. Toggle in app/(tabs)/settings.tsx reads/writes users/{email}.notificationsEnabled. Scheduling deferred to Phase 4 (requires APNs + Apple Developer account).**
 | Weight in The Lab | No weight display in Lab yet. Scope TBD — Phase 4. |
-| Weight in coaching prompts | Phase 4. Depends on weight logging adoption and trend data. |
+**Weight in coaching prompts | Deployed March 18, 2026. Reads users/{email}.weight in generate-weekly-coaching/route.ts, passes to buildScopedSystemPrompt.ts. Rules: weight only referenced when dominant limiter is protein, nutrition quality, or energy balance. Validator enforces banned weight phrases. Weight trend acknowledgment (positive and negative) deferred post-launch.**
 | Canon audit complete | March 15, 2026. Violations fixed: lab.tsx behavior labels, index.tsx greeting subtext, coaching.tsx calibration CTA copy. Phase 3 exit criterion met. |
 | `checkin-success.tsx` rebuilt | March 15, 2026. SVG checkmark, particle burst animation with gravity, checkmark rotation entrance, expo-av sound (checkin-complete.mp3). isMilestone path: fireworks/hero only. burst/confetti route to particle path. |
 ---

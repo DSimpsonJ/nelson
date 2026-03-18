@@ -132,6 +132,8 @@ export async function POST(req: NextRequest) {
         exerciseCompleted: exerciseDeclared ?? false,
         checkinCompleted: true,
         checkinType: 'real',
+        momentumTrend: momentumScore - previousMomentum > 2 ? 'up' : momentumScore - previousMomentum < -2 ? 'down' : 'stable',
+visualState: 'solid' as const,
         primary: { habitKey: currentFocus.habitKey, done: exerciseDeclared ?? false },
         createdAt: new Date().toISOString(),
         ...(note && note.trim() !== '' ? { note: note.trim() } : {}),

@@ -209,7 +209,7 @@ Remaining items for Phase 2 alongside Admin SDK work:
 - ✅ Set up support email — forward to personal is fine for now ✅ (support@thenelson.app created)
 - ✅ Build minimal support page or FAQ — live at thenelson.app/support
 
-*Known Risk | Deletion batch limit (500 docs) | Low now, Medium at scale | momentum subcollection could exceed 500 docs at ~1.5 years of daily check-ins. Swap to adminDb.recursiveDelete() before public launch. |
+- ✅ Momentum subcollection could exceed 500 docs at ~1.5 years of daily check-ins. Swap to adminDb.recursiveDelete() before public launch.
 
 ### Monetization Strategy (Dedicated Session)
 Decide this before building IAP in Phase 4. The decision affects what gets built.
