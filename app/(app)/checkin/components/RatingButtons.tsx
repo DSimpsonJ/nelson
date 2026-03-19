@@ -12,7 +12,7 @@ interface RatingButtonsProps {
 const ratingColors = {
   elite: "from-green-500/20 to-green-600/10 border-green-500/40 hover:border-green-500/60",
   solid: "from-blue-500/20 to-blue-600/10 border-blue-500/40 hover:border-blue-500/60",
-  not_great: "from-amber-500/20 to-amber-600/10 border-amber-500/40 hover:border-amber-500/60",
+  'not-great': "from-amber-500/20 to-amber-600/10 border-amber-500/40 hover:border-amber-500/60",
   off: "from-slate-600/20 to-slate-700/10 border-slate-500/40 hover:border-slate-500/60",
 };
 
@@ -20,7 +20,7 @@ const ratingColors = {
 const selectedColors = {
   elite: "border-green-500 shadow-lg shadow-green-500/30",
   solid: "border-blue-500 shadow-lg shadow-blue-500/30",
-  not_great: "border-amber-500 shadow-lg shadow-amber-500/30",
+  'not-great': "border-amber-500 shadow-lg shadow-amber-500/30",
   off: "border-slate-400 shadow-lg shadow-slate-400/30",
 };
 

@@ -149,7 +149,7 @@ async function fillMissedDays(input: {
         
         // Momentum fields - NO decay yet, pending user answer
         rawMomentumScore: 0,
-        momentumScore: startingMomentum || 0, // Hold at last known, no decay
+        momentumScore: decayedMomentum,
         momentumDelta: 0,
         momentumTrend: 'stable',
         momentumMessage: "Missed check-in - pending reconciliation",
