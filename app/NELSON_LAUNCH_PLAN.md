@@ -2,7 +2,7 @@
 
 App Store Launch Plan
 
-*Owner: DJ Simpson  |  Target: Late May 2026  |  Last Updated: March 18, 2026*
+*Owner: DJ Simpson  |  Target: Late May 2026  |  Last Updated: March 20, 2026*
 
 # **The Finish Line**
 
@@ -28,7 +28,7 @@ App Store approved. Founding Members can purchase via IAP. Revenue flows cleanly
 
 - Weight integration into coaching prompts
 
-- Founding Members IAP ($60/year, first 50 users — price lock lost on cancellation)
+- Founding Members IAP ($60/year, available for 90 days post-launch — price lock for life as long as subscription active) ⚠️ Revisit exact end date before launch
 
 - Standard pricing: $99/year or $9/month
 
@@ -116,7 +116,7 @@ Get the business real. Get compliance documents drafted. Close web app gaps.
 
 - ✅ Support page live — thenelson.app/support
 
-- ⚠️ Section 15 (dispute resolution) intentionally blank — fill before App Store submission
+- ✅ Section 15 (dispute resolution) — filled March 20, 2026. Simple arbitration clause, Maryland governing law, AAA, small claims carveout, class action waiver.
 
 **Web App Cleanup**
 
@@ -220,7 +220,7 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 
 - ✅ Gap detection before submission — architectural contract met
 
-- ✅ Gap reconciliation — built March 18, end-to-end test pending March 19
+- ✅ Gap reconciliation — built March 18, confirmed working March 19, 2026
 
 - ✅ Routes through /api/submit-checkin (server-side momentum, unified with web)
 
@@ -292,9 +292,9 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 
 *Mar 23 – Apr 18, 2026 (4 weeks)*
 
-**Status: ⬜ Not Started**
+**Status: 🔄 In Progress**
 
-Gated on Apple Developer enrollment under Simpson Holdings LLC. DUNS expected ~March 23.
+Gated on Apple Developer enrollment under Simpson Holdings LLC. DUNS expected early week of March 23.
 
 **Week 1 (Mar 23–29): Apple Developer + IAP Setup**
 
@@ -316,27 +316,31 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - [ ] Handle cancellation/expiry
 
-- [ ] Build paywall screen (shown to non-subscribers)
+- ✅ Build paywall screen — built March 20, 2026. Hard gate, no dismiss. Founding Members pricing displayed. Subscribe and Restore buttons placeholder until StoreKit wired.
 
-- [ ] Restore purchases flow (required by Apple — reviewers check for this)
+- [ ] Restore purchases flow (required by Apple — reviewers check for this) — placeholder exists, wire to StoreKit
 
 - [ ] Test full purchase flow in sandbox (IAP sandbox is always flaky — budget extra time)
 
+- [ ] Backfill trialStartDate for existing alpha users in Firestore before TestFlight invites go out — accounts with no trialStartDate hit the paywall immediately on first launch
+
 **Week 2 (Mar 30 – Apr 5): Notifications**
 
-- [ ] Install and configure expo-notifications
+- ✅ Install and configure expo-notifications — done March 20, 2026
 
-- [ ] Configure APNs in Apple Developer account
+- [ ] Configure APNs in Apple Developer account — blocked until enrollment
 
-- [ ] Request notification permission at appropriate moment in onboarding (not on app launch)
+- ✅ Notification permission prompt on first dashboard load (hasSeenNotificationPrompt guard) — built March 20, 2026
 
-- [ ] Wire notificationsEnabled Firestore field to actual scheduling
+- ✅ Wire notificationsEnabled Firestore field to actual local notification scheduling — done March 20, 2026
 
-- [ ] Daily check-in reminder — user sets preferred time window, fires once daily
+- ✅ Daily check-in reminder — user picks preferred time, 7 rotating messages scheduled weekly — done March 20, 2026
 
-- [ ] Test delivery on real device (push does not work in simulator)
+- [ ] Test APNs remote push delivery on real device — blocked until Apple Developer enrollment
 
-- [ ] Copy: factual only — 'Time to check in.' Nothing motivational.
+- [ ] Replace local notification scheduling with server-side APNs push (enables notification suppression post-check-in)
+
+- ✅ Copy: 7 Canon-compliant rotating messages locked — no motivational language
 
 **Week 3 (Apr 6–12): TestFlight**
 
@@ -358,11 +362,11 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - [ ] Monday cron QA — verify March 23 run succeeds for all users
 
-- [ ] Remove writeDailyMomentum.ts from codebase (confirmed dead after 2+ weeks of API routing)
+- [ ] writeDailyMomentum.ts — retained as reference (not called anywhere). Do not delete.
 
-- [ ] Verify Section 15 (dispute resolution) filled in Terms of Use before submission
+- ✅ Section 15 (dispute resolution) filled — done March 20, 2026
 
-- [ ] Set up Wave bookkeeping if not done
+- [ ] Bookkeeping setup — Wave free tier no longer supports bank sync. Use spreadsheet until first revenue, then engage CPA for system recommendation.
 
 **Exit Criteria:**
 
@@ -447,7 +451,8 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 | Cron times out at scale (50+ users) | Medium / Medium | Currently sequential with 1,500ms delay. At 50+ users, revisit batched parallelization. |
 | Gap reconciliation bug surfaces post-TestFlight | Medium / Medium | End-to-end test March 19. Fix before TestFlight invite goes out. |
 | Monday cron fails first full run (March 23) | Low / Medium | Run python3 scripts/run-coaching.sh manually. Script has retry logic. |
-| Section 15 blank flagged by App Review | Low / Medium | Fill dispute resolution clause before submission. Simple arbitration language is sufficient. |
+| Section 15 blank flagged by App Review | RESOLVED | Filled March 20, 2026. |
+| Existing alpha users hit paywall on first TestFlight launch | High / High | Backfill trialStartDate in Firestore for all alpha users before TestFlight invites go out. One-time manual fix per user. |
 
 # **Decisions Locked**
 
@@ -459,6 +464,7 @@ These are made. Not up for re-discussion unless something fundamental changes.
 | Styling | NativeWind |
 | Navigation | Expo Router |
 | iOS monetization | IAP (StoreKit) from day one |
+| Founding Members pricing | $60/year, available 90 days post-launch, price lock for life. ⚠️ Revisit exact end date before launch. |
 | Web monetization | Stripe post-launch |
 | Notifications V1 | Daily check-in reminder only |
 | Lab/history | Full history in V1, advanced analytics deferred |
@@ -466,6 +472,7 @@ These are made. Not up for re-discussion unless something fundamental changes.
 | Entity | Simpson Holdings LLC, Maryland |
 | Momentum implementation | Single API path (/api/submit-checkin) — web, mobile, future Android |
 | IAP library | react-native-purchases (preferred over expo-in-app-purchases) |
+| Trial period | 14 days from first check-in. trialStartDate written by /api/submit-checkin on isFirstCheckin. Hard gate after expiry — no dismiss. |
 
 # **What Good Looks Like at Each Milestone**
 

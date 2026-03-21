@@ -130,7 +130,17 @@ These Terms are governed by the laws of the State of Maryland, without regard to
 
 ## 15. Dispute Resolution
 
-[ATTORNEY TO ADVISE — arbitration vs. litigation clause to be inserted here prior to public launch.]
+15.1 Informal Resolution. Before initiating any formal proceeding, you agree to contact us at support@thenelson.app and give us 30 days to attempt to resolve the dispute informally. Most concerns can be resolved this way.
+
+15.2 Binding Arbitration. If we cannot resolve a dispute informally, you and Simpson Holdings LLC agree that any dispute, claim, or controversy arising out of or relating to these Terms or the Service will be resolved by binding individual arbitration administered by the American Arbitration Association (AAA) under its Consumer Arbitration Rules, rather than in court. The arbitration will take place in Maryland, or at your election, by telephone or videoconference.
+
+15.3 Small Claims Exception. Either party may bring an individual claim in small claims court in lieu of arbitration, provided the claim qualifies and remains in small claims court.
+
+15.4 Class Action Waiver. You and Simpson Holdings LLC agree that all disputes will be resolved on an individual basis only. Neither party may bring a claim as a plaintiff or class member in any class, consolidated, or representative action. The arbitrator may not consolidate more than one person's claims and may not preside over any class or representative proceeding.
+
+15.5 Exceptions. Nothing in this Section prevents either party from seeking injunctive or other equitable relief in a court of competent jurisdiction to protect intellectual property rights or confidential information.
+
+15.6 Governing Law. These Terms and any dispute arising from them will be governed by the laws of the State of Maryland, without regard to its conflict of law provisions.
 
 ---
 

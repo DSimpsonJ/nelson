@@ -149,6 +149,10 @@ visualState: 'solid' as const,
     if (reward.stateUpdates?.hasEverHit80Momentum) userUpdates.hasEverHit80Momentum = true;
     if (reward.stateUpdates?.hasEverHit90Momentum) userUpdates.hasEverHit90Momentum = true;
     if (reward.stateUpdates?.hasEverHit100Momentum) userUpdates.hasEverHit100Momentum = true;
+    // Write trialStartDate on first check-in only — do not overwrite if already set
+    if (isFirstCheckin && !userData.trialStartDate) {
+      userUpdates.trialStartDate = new Date().toISOString();
+    }
     await adminDb.collection('users').doc(email).update(userUpdates);
 
     // Write firstCheckinDate if first check-in
