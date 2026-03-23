@@ -53,6 +53,8 @@ export interface RewardPayload {
 export interface RewardContext {
   totalRealCheckIns: number;
   momentum: number;
+  momentumDelta: number;
+  peakMomentum: number;
   hasEverHit80Momentum: boolean;
   hasEverHit90Momentum: boolean;
   hasEverHit100Momentum: boolean;
@@ -89,9 +91,44 @@ const RESPONSE_CONFIG: Record<RewardEventType, {
     class: "positive",
     animation: "ring",
     intensity: "small",
-    primaryText: "Momentum has been updated.",
+    primaryText: "All checked in.",
     secondaryText: "",
     shareable: false,
+    dynamic: (ctx) => {
+      const { momentum, momentumDelta, peakMomentum } = ctx;
+
+      // Delta overrides — only when momentum is below 80
+      if (momentum < 80) {
+        if (momentumDelta >= 5) {
+          return { primaryText: "All checked in.", secondaryText: "Momentum is building." };
+        }
+        if (momentumDelta <= -5) {
+          return { primaryText: "All checked in.", secondaryText: "Momentum is cooling." };
+        }
+      }
+
+      // Zone copy
+      if (momentum >= 90) {
+        return { primaryText: "All checked in.", secondaryText: "Momentum is peaking. Remember, consistency beats perfection." };
+      }
+      if (momentum >= 80) {
+        return { primaryText: "All checked in.", secondaryText: "Momentum is strong." };
+      }
+      if (momentum >= 70) {
+        return { primaryText: "All checked in.", secondaryText: "Momentum is solid." };
+      }
+      if (momentum >= 50) {
+        const isRebuilding = peakMomentum > 0 && peakMomentum > momentum + 15;
+        return { primaryText: "All checked in.", secondaryText: isRebuilding ? "Momentum is rebuilding." : "Momentum is holding." };
+      }
+      if (momentum >= 30) {
+        return { primaryText: "All checked in.", secondaryText: "Momentum is forming." };
+      }
+      if (momentum >= 10) {
+        return { primaryText: "All checked in.", secondaryText: "Momentum is in motion." };
+      }
+      return { primaryText: "All checked in.", secondaryText: "Momentum starts here." };
+    },
   },
   
   // CHECK-IN MILESTONES - BURST

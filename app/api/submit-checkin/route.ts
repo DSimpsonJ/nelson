@@ -106,11 +106,16 @@ export async function POST(req: NextRequest) {
     // Get user doc for reward context
     const userSnap = await adminDb.collection('users').doc(email).get();
     const userData = userSnap.data() ?? {};
+    const peakMomentum: number = userData.peakMomentum ?? 0;
 
     // Resolve reward
+    const momentumDelta = momentumScore - previousMomentum;
+
     const reward = resolveReward({
       totalRealCheckIns,
       momentum: momentumScore,
+      momentumDelta,
+      peakMomentum,
       hasEverHit80Momentum: userData.hasEverHit80Momentum ?? false,
       hasEverHit90Momentum: userData.hasEverHit90Momentum ?? false,
       hasEverHit100Momentum: userData.hasEverHit100Momentum ?? false,
@@ -149,6 +154,7 @@ visualState: 'solid' as const,
     if (reward.stateUpdates?.hasEverHit80Momentum) userUpdates.hasEverHit80Momentum = true;
     if (reward.stateUpdates?.hasEverHit90Momentum) userUpdates.hasEverHit90Momentum = true;
     if (reward.stateUpdates?.hasEverHit100Momentum) userUpdates.hasEverHit100Momentum = true;
+    if (momentumScore > peakMomentum) userUpdates.peakMomentum = momentumScore;
     // Write trialStartDate on first check-in only — do not overwrite if already set
     if (isFirstCheckin && !userData.trialStartDate) {
       userUpdates.trialStartDate = new Date().toISOString();
