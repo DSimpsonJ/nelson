@@ -280,17 +280,15 @@ function getCelebrationLevel(totalCheckIns: number): 'burst' | 'confetti' | 'fir
     return 'fireworks';
   }
   
-  // Pattern repeats every 25 check-ins after first 50
-  if (totalCheckIns > 50) {
-    const positionIn25 = ((totalCheckIns - 50) % 25);
-    const offset = 50 + positionIn25;
-    
-    // Map to equivalent position in 26-50 block
-    const equivalentCheckIn = 25 + (positionIn25 + 1);
-    if (MILESTONE_MAP[equivalentCheckIn]) {
-      return MILESTONE_MAP[equivalentCheckIn];
-    }
+// Pattern repeats every 25 check-ins after first 50
+if (totalCheckIns > 50) {
+  const positionIn25 = ((totalCheckIns - 50) % 25);
+  if (positionIn25 === 0) return 'fireworks'; // 75, 125, 175, etc.
+  const equivalentCheckIn = 25 + positionIn25;
+  if (MILESTONE_MAP[equivalentCheckIn]) {
+    return MILESTONE_MAP[equivalentCheckIn];
   }
+}
   
   return null;
 }

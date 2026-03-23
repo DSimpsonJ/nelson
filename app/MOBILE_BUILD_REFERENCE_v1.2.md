@@ -1,7 +1,7 @@
 # Nelson Mobile Build Reference
-**Version:** 1.2  
+**Version:** 1.3
 **Created:** March 11, 2026  
-**Last Updated:** March 20, 2026  
+**Last Updated:** March 22, 2026  
 **Purpose:** Single source of truth for building nelson-mobile screens against web app behavior. Every screen spec is derived from direct reading of web source files. No inference.
 
 ---
@@ -440,7 +440,7 @@ Navigated to after successful POST to `/api/submit-checkin`. Receives `rewardAni
 - Delete account: two-step confirm → POST `/api/delete-account` with Bearer token → sign out
 - Privacy Policy, Terms of Use: `Linking.openURL`
 - Contact support: `mailto:support@thenelson.app`
-- **Notification preference: not yet built** — required for Phase 4
+- **Notification preference: COMPLETE** 
 
 ---
 
@@ -520,6 +520,69 @@ function getCurrentWeekId(): string {
   return `${year}-W${weekNumber.toString().padStart(2, '0')}`;
 }
 ```
+## Celebration System
+
+### Architecture
+
+The celebration system is tiered. The API returns a `RewardResult` on every check-in. Mobile reads `result.reward?.payload?.animation` and routes to the appropriate component in `checkin-success.tsx`.
+
+Each tier has its own return block in `checkin-success.tsx` to prevent layout collisions. Do not merge them back into a single layout.
+
+### Tier Map
+
+| Animation value | Component | Sound | Triggers |
+|---|---|---|---|
+| `ring` | Inline particles (20, amber/white) | `checkin-complete.mp3` | Every check-in fallback |
+| `burst` | `SolidDayBurst` (Lottie) | `burst-hit.mp3` | solid_day, milestone_burst (3, 15, 20, 30, 35, 45...) |
+| `confetti` | `ConfettiBurst` (Lottie) | `confetti-fanfare.mp3` | elite_day, first_80/90_momentum, milestone_confetti (10, 20, 40, 65...) |
+| `fireworks` | `FireworksBurst` (reanimated) | `fireworks-milestone.mp3` | solid_week, first_100_momentum, milestone_fireworks (25, 50, 75, 100...) |
+
+### Components
+
+**`app/components/FireworksBurst.tsx`**
+- 7 burst cycles, 560ms apart, 20 particles per burst
+- Amber/white/orange palette
+- Plays `fireworks-milestone.mp3` internally
+- Used by: `checkin-success.tsx` (fireworks), `activate-celebration.tsx` (onboarding)
+
+**`app/components/SolidDayBurst.tsx`**
+- Lottie: `assets/animations/Success_check_1.json`
+- Amber circle bounces in, white checkmark draws, lines radiate outward
+- Plays `burst-hit.mp3` (orchestra hit) internally
+- Used by: `checkin-success.tsx` (burst)
+
+**`app/components/ConfettiBurst.tsx`**
+- Lottie: `assets/animations/Confetti.json` full screen + `Success_check_1.json` centered on top
+- Plays `confetti-fanfare.mp3` (trumpet fanfare) internally
+- Color palette: orange + light blue. Not fully on-brand -- revisit before App Store submission
+- Used by: `checkin-success.tsx` (confetti)
+
+### Sound Files
+
+| File | Used by | Description |
+|---|---|---|
+| `assets/sounds/checkin-complete.mp3` | checkin-success.tsx (ring) | Subtle completion tone |
+| `assets/sounds/burst-hit.mp3` | SolidDayBurst | Orchestra hit, quick stab |
+| `assets/sounds/confetti-fanfare.mp3` | ConfettiBurst | Trumpet fanfare, ta-da |
+| `assets/sounds/fireworks-milestone.mp3` | FireworksBurst, activate-celebration | Rockets + bursts |
+| `assets/sounds/checkin-tap.mp3` | checkin.tsx, activate-checkin.tsx | Subtle tap on each rating selection |
+
+### Lottie
+
+- Library: `lottie-react-native@6.7.2`
+- Installation requires full native rebuild (`npx expo run:ios --device`) -- not just Metro clear
+- Assets live in `assets/animations/`
+- Colors are baked into JSON -- `colorFilters` prop is unreliable. Pick files with acceptable palettes at source.
+
+### Tap Sound
+
+`checkin-tap.mp3` preloads on mount via `useRef<Audio.Sound>` in both `checkin.tsx` and `activate-checkin.tsx`. Uses `setPositionAsync(0)` + `playAsync()` for instant replay. Fires on every rating tap and yes/no exercise tap.
+
+### Open Items
+
+- `activate-celebration.tsx` uses `fireworks-milestone.mp3` as placeholder. First check-in sound needs a dedicated decision -- may want something distinct from milestone fireworks.
+- Confetti.json color palette (blue) is not fully on-brand. Consider replacing with a warmer palette file before App Store submission.
+```
 
 ---
 
@@ -541,7 +604,9 @@ function getCurrentWeekId(): string {
 | Weight in The Lab | No weight display in Lab yet. Scope TBD — Phase 4. |
 | Weight in coaching prompts | Deployed March 18, 2026. Reads users/{email}.weight in generate-weekly-coaching/route.ts, passes to buildScopedSystemPrompt.ts. Rules: weight only referenced when dominant limiter is protein, nutrition quality, or energy balance. Validator enforces banned weight phrases. Weight trend acknowledgment deferred post-launch. |
 | Canon audit complete | March 15, 2026. Violations fixed: lab.tsx behavior labels, index.tsx greeting subtext, coaching.tsx calibration CTA copy. Phase 3 exit criterion met. |
-| checkin-success.tsx rebuilt | March 15, 2026. SVG checkmark, particle burst animation with gravity, checkmark rotation entrance, expo-av sound (checkin-complete.mp3). isMilestone path: fireworks/hero only. burst/confetti route to particle path. |
+| checkin-success.tsx rebuilt | March 22, 2026. Full tiered celebration system. ring: 20 particles + checkin-complete.mp3. burst: SolidDayBurst (Lottie) + burst-hit.mp3. confetti: ConfettiBurst (Lottie) + confetti-fanfare.mp3. fireworks: FireworksBurst + fireworks-milestone.mp3. Each tier has its own return block. |
+| activate-checkin.tsx Canon violation removed | March 22, 2026. Emoji (target symbol) on Solid rating button removed. |
+| activate-celebration.tsx rebuilt | March 22, 2026. Now reads API reward response and passes params. Uses FireworksBurst + fireworks-milestone.mp3. Sound treatment flagged as needing further work -- placeholder only. |
 ---
 
 ## Files This Document Was Derived From
