@@ -55,7 +55,20 @@ function getPreviousWeekId(): string {
 async function getAllUserEmails(): Promise<string[]> {
   try {
     const snapshot = await adminDb.collection('users').get();
-    return snapshot.docs.map(doc => doc.id);
+    
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 14);
+    const cutoffStr = cutoff.toLocaleDateString('en-CA'); // YYYY-MM-DD
+
+    return snapshot.docs
+      .filter(doc => {
+        const data = doc.data();
+        if (data.hasCommitment !== true) return false;
+        const lastCheckIn = data.lastCheckInDate;
+        if (!lastCheckIn) return false;
+        return lastCheckIn >= cutoffStr;
+      })
+      .map(doc => doc.id);
   } catch (error) {
     console.error('[Cron] Error fetching users:', error);
     throw error;

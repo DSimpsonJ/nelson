@@ -480,27 +480,64 @@ const performanceAcknowledgment = celebrationResult ? celebrationResult.promptTe
 const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
     // Check if coaching eligible
     if (!pattern.canCoach) {
+      const isLapsedUser = pattern.totalLifetimeCheckIns >= 4 && pattern.realCheckInsThisWeek === 0;
+
+      if (isLapsedUser) {
+        console.log(`[Coaching] Lapsed user — generating static placeholder`);
+
+        const lapsedCoaching = {
+          pattern: "No check-ins were logged this week. When you don't check in, your momentum dampens — the data from your last active period is still there, but it tells you nothing about what's happening now.",
+          tension: "Without new data, the signal can't move in either direction. The system is waiting, not failing.",
+          whyThisMatters: "A week off doesn't erase prior progress. The momentum you built is more durable than that. By checking in this week, you immediately start building data that gets the signal moving forward again.",
+          progression: {
+            text: "Check in once this week. That gets the signal moving again.",
+            type: "stabilize" as const,
+          }
+        };
+
+        const summaryRecord: WeeklySummaryRecord = {
+          weekId: pattern.weekId,
+          patternType: pattern.primaryPattern,
+          canCoach: false,
+          skipReason: 'insufficient_data',
+          evidencePoints: [],
+          modelVersion: MODEL_VERSION,
+          status: 'generated',
+          coaching: lapsedCoaching,
+          generatedAt: Timestamp.now(),
+          daysAnalyzed: pattern.daysAnalyzed,
+          realCheckInsThisWeek: pattern.realCheckInsThisWeek,
+          totalLifetimeCheckIns: pattern.totalLifetimeCheckIns
+        };
+
+        await storeWeeklySummary(email, summaryRecord);
+        console.log(`[Coaching] Lapsed user placeholder stored`);
+        return NextResponse.json<GenerateWeeklyCoachingResponse>({
+          success: true,
+          summary: summaryRecord
+        });
+      }
+
       console.log(`[Coaching] Early user path: ${pattern.primaryPattern}`);
 
-      // Fetch whatever week data exists for behavior averages
       const { start, end } = pattern.dateRange;
       const earlySnap = await adminDb
-  .collection('users').doc(email)
-  .collection('momentum')
-  .where('date', '>=', start)
-  .where('date', '<=', end)
-  .where('checkinType', '==', 'real')
-  .orderBy('date', 'asc')
-  .get();
-const earlyWeekData = earlySnap.docs.map(d => d.data());
-      
+        .collection('users').doc(email)
+        .collection('momentum')
+        .where('date', '>=', start)
+        .where('date', '<=', end)
+        .where('checkinType', '==', 'real')
+        .orderBy('date', 'asc')
+        .get();
+      const earlyWeekData = earlySnap.docs.map(d => d.data());
+
       const earlyBehaviorAverages = calculateEarlyBehaviorAverages(earlyWeekData);
-      
-      // Pull accountAgeDays from most recent doc, fallback to 1
+
+      // Use metadata for accountAgeDays — fallback to totalLifetimeCheckIns as proxy
       const accountAgeDays = earlyWeekData.length > 0
-        ? (earlyWeekData[earlyWeekData.length - 1].accountAgeDays ?? 1)
-        : 1;
-      
+        ? (earlyWeekData[earlyWeekData.length - 1].accountAgeDays ?? pattern.totalLifetimeCheckIns)
+        : pattern.totalLifetimeCheckIns;
+
       const earlyPrompt = buildEarlyUserPrompt({
         checkInsThisWeek: pattern.realCheckInsThisWeek,
         totalLifetimeCheckIns: pattern.totalLifetimeCheckIns,
@@ -544,9 +581,7 @@ const earlyWeekData = earlySnap.docs.map(d => d.data());
       };
 
       await storeWeeklySummary(email, summaryRecord);
-
       console.log(`[Coaching] Early user coaching generated and stored`);
-
       return NextResponse.json<GenerateWeeklyCoachingResponse>({
         success: true,
         summary: summaryRecord
