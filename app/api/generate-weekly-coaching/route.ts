@@ -480,7 +480,7 @@ const performanceAcknowledgment = celebrationResult ? celebrationResult.promptTe
 const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
     // Check if coaching eligible
     if (!pattern.canCoach) {
-      const isLapsedUser = pattern.totalLifetimeCheckIns >= 4 && pattern.realCheckInsThisWeek === 0;
+      const isLapsedUser = pattern.totalLifetimeCheckIns >= 1 && pattern.realCheckInsThisWeek === 0;
 
       if (isLapsedUser) {
         console.log(`[Coaching] Lapsed user — generating static placeholder`);

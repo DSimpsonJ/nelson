@@ -1,7 +1,7 @@
 # Nelson Mobile Build Reference
-**Version:** 1.3
+**Version:** 1.4
 **Created:** March 11, 2026  
-**Last Updated:** March 22, 2026  
+**Last Updated:** March 24, 2026  
 **Purpose:** Single source of truth for building nelson-mobile screens against web app behavior. Every screen spec is derived from direct reading of web source files. No inference.
 
 ---
@@ -532,18 +532,34 @@ Each tier has its own return block in `checkin-success.tsx` to prevent layout co
 
 | Animation value | Component | Sound | Triggers |
 |---|---|---|---|
-| `ring` | Inline particles (20, amber/white) | `checkin-complete.mp3` | Every check-in fallback |
+| `ring` | `RingCheck` (Lottie) | `checkin-complete.mp3` | Every check-in fallback |
 | `burst` | `SolidDayBurst` (Lottie) | `burst-hit.mp3` | solid_day, milestone_burst (3, 15, 20, 30, 35, 45...) |
 | `confetti` | `ConfettiBurst` (Lottie) | `confetti-fanfare.mp3` | elite_day, first_80/90_momentum, milestone_confetti (10, 20, 40, 65...) |
 | `fireworks` | `FireworksBurst` (reanimated) | `fireworks-milestone.mp3` | solid_week, first_100_momentum, milestone_fireworks (25, 50, 75, 100...) |
 
 ### Components
 
-**`app/components/FireworksBurst.tsx`**
-- 7 burst cycles, 560ms apart, 20 particles per burst
-- Amber/white/orange palette
+**`app/components/RingCheck.tsx`** ← NEW March 24, 2026
+- Lottie: `assets/animations/Ring_check.json`
+- Blue circle + white checkmark + amber line elements
+- Blue circle is intentional — signals "showed up" vs amber circle which signals "performed"
+- Plays `checkin-complete.mp3` internally
+- Used by: `checkin-success.tsx` (ring tier)
+
+**`app/components/FirstCheckInBurst.tsx`** ← NEW March 24, 2026
+- Lottie: `assets/animations/Confetti.json` full screen + `Success_check_1.json` centered on top (320px)
+- 30bpm pulse animation on checkmark via react-native-reanimated withRepeat/withSequence
+- Easing.sin used (not Easing.sine -- does not exist in this RN Reanimated version)
+- Plays `activate-celebration.mp3` internally — distinct sound, not shared with any other tier
+- Used by: `activate-celebration.tsx` (onboarding first check-in only)
+
+**`app/components/FireworksBurst.tsx`** ← REWRITTEN March 24, 2026
+- Replaced hand-rolled particle system with Lottie `assets/animations/Fireworks.json` full screen
+- Fireworks.json is 720x1280 portrait — designed for mobile
+- Layered `Success_check_1.json` checkmark centered on top
+- `onAnimationFinish` unmounts checkmark after animation completes (fixes lingering last-frame)
 - Plays `fireworks-milestone.mp3` internally
-- Used by: `checkin-success.tsx` (fireworks), `activate-celebration.tsx` (onboarding)
+- Used by: `checkin-success.tsx` (fireworks tier)
 
 **`app/components/SolidDayBurst.tsx`**
 - Lottie: `assets/animations/Success_check_1.json`
@@ -606,7 +622,12 @@ Each tier has its own return block in `checkin-success.tsx` to prevent layout co
 | Canon audit complete | March 15, 2026. Violations fixed: lab.tsx behavior labels, index.tsx greeting subtext, coaching.tsx calibration CTA copy. Phase 3 exit criterion met. |
 | checkin-success.tsx rebuilt | March 22, 2026. Full tiered celebration system. ring: 20 particles + checkin-complete.mp3. burst: SolidDayBurst (Lottie) + burst-hit.mp3. confetti: ConfettiBurst (Lottie) + confetti-fanfare.mp3. fireworks: FireworksBurst + fireworks-milestone.mp3. Each tier has its own return block. |
 | activate-checkin.tsx Canon violation removed | March 22, 2026. Emoji (target symbol) on Solid rating button removed. |
-| activate-celebration.tsx rebuilt | March 22, 2026. Now reads API reward response and passes params. Uses FireworksBurst + fireworks-milestone.mp3. Sound treatment flagged as needing further work -- placeholder only. |
+| activate-celebration.tsx rebuilt | March 24, 2026. Uses FirstCheckInBurst (Confetti.json + pulsing checkmark). Removed useLocalSearchParams entirely — screen ignores API reward params, all copy is hardcoded. 'You did it!' above animation. Info box: 'That's it. One honest reflection.' / 'Logged in The Lab.' Auto-advance removed — user taps to continue. Plays activate-celebration.mp3. || Haptic feedback | Implemented March 24, 2026. expo-haptics (already in SDK 54, no install needed). Light on all rating taps and exercise Yes/No (checkin.tsx, activate-checkin.tsx via playTap()). NotificationFeedbackType.Success on celebration screen mount (checkin-success.tsx useEffect, activate-celebration.tsx useEffect). Light on Continue/Go to Dashboard button press (all four tiers in checkin-success.tsx, activate-celebration.tsx). |
+| totalRealCheckIns counter fix | Fixed March 24, 2026. submit-checkin/route.ts now counts real check-ins via live Firestore query instead of chaining from previous doc's stored value. Eliminates counter drift. Dashboard totalCheckIns display reads from doc scan (checkinType === 'real'), not stored counter — these two values now stay in sync. |
+| App open paywall flash | Fixed March 24, 2026. Added app/index.tsx (returns null) as default Expo Router route. Stack registers it as the initial screen so auth resolution happens before anything visible renders. Also added animation: 'none' to Stack screenOptions to eliminate slide transitions during initial routing. |
+| Lapsed user coaching | Fixed March 24, 2026. Weekly cron now skips users with no lastCheckInDate within 14 days (getAllUserEmails filter in cron/generate-weekly-coaching/route.ts). For users who pass the cron filter but have 0 check-ins this week with >= 1 lifetime check-in, a static hardcoded placeholder fires instead of AI generation — zero API cost. detectWeeklyPattern.ts fallback now searches full account history (no date window) to get accurate totalLifetimeCheckIns for lapsed users. |
+| Alpha user access | March 24, 2026. All 14 alpha users have isSubscriber: true set manually in Firebase console. Routes straight to /(tabs), bypasses trial gate entirely. Lifetime free access as long as field remains true. |
+| activate-checkin.tsx Canon exception | LOCKED. Emoji (🎯) on Solid rating button is the only permitted emoji in functional UI across the entire app. Single reinforcement on first check-in that Solid is the target, not Elite. Do not remove. |
 ---
 
 ## Files This Document Was Derived From

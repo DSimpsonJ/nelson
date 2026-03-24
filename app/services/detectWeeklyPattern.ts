@@ -126,20 +126,14 @@ const momentumTrend = calculateMomentumTrend([...days].reverse());
   let totalCheckIns = mostRecentReal?.data()?.totalRealCheckIns;
   
   if (!totalCheckIns) {
-    console.log("[Pattern Detection] No totalRealCheckIns in window, searching backward...");
-    
-    // Search last 30 days for most recent real check-in with totalRealCheckIns
-    const thirtyDaysAgo = new Date(windowEnd);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    console.log("[Pattern Detection] No totalRealCheckIns in window, searching full history...");
     
     const fallbackSnap = await adminDb.collection("users").doc(email).collection("momentum")
-  .where("date", ">=", thirtyDaysAgo.toLocaleDateString("en-CA"))
-  .where("checkinType", "==", "real")
-  .orderBy("date", "desc")
-  .limit(10)
-  .get();
-    const fallbackReal = fallbackSnap.docs.find(d => d.data().totalRealCheckIns !== undefined);
-    totalCheckIns = fallbackReal?.data()?.totalRealCheckIns || 0;
+      .where("checkinType", "==", "real")
+      .orderBy("date", "desc")
+      .limit(1)
+      .get();
+    totalCheckIns = fallbackSnap.docs[0]?.data()?.totalRealCheckIns || 0;
   }
   
   console.log(`[Pattern Detection] Real check-ins this week: ${realCheckIns.length}, Lifetime: ${totalCheckIns}`);
