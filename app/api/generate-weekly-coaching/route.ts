@@ -486,11 +486,11 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
         console.log(`[Coaching] Lapsed user — generating static placeholder`);
 
         const lapsedCoaching = {
-          pattern: "No check-ins were logged this week. When you don't check in, your momentum dampens — the data from your last active period is still there, but it tells you nothing about what's happening now.",
-          tension: "Without new data, the signal can't move in either direction. The system is waiting, not failing.",
-          whyThisMatters: "A week off doesn't erase prior progress. The momentum you built is more durable than that. By checking in this week, you immediately start building data that gets the signal moving forward again.",
+          pattern: "No check-ins were logged this week. When you don't check in, your momentum dampens.  Although the data from your last active period is still there, it tells you little about what's happening now.",
+          tension: "Without new data, the signal only fades. The system is waiting, not failing.",
+          whyThisMatters: "This time off doesn't erase prior progress, the momentum you built is more durable than that. By checking in this week, you immediately start building data that gets the signal moving forward again.",
           progression: {
-            text: "Check in once this week. That gets the signal moving again.",
+            text: "Check in this week to get your momentum moving up again.",
             type: "stabilize" as const,
           }
         };
