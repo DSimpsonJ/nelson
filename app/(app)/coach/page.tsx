@@ -257,17 +257,11 @@ if (current) {
       className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 pb-24"
     >
       <div className="max-w-2xl mx-auto pt-8">
-        <motion.div variants={itemVariants} className="flex items-center justify-between mb-8">
+      <motion.div variants={itemVariants} className="flex items-center mb-8">
           <div className="flex items-center gap-3">
             <div className="text-2xl">⚡</div>
             <h1 className="text-2xl font-bold text-white">Coach</h1>
           </div>
-          <button
-            onClick={handleExit}
-            className="text-white/60 hover:text-white text-sm transition-colors"
-          >
-            ← Dashboard
-          </button>
         </motion.div>
 
         <motion.div variants={itemVariants} className="mb-3">
@@ -325,13 +319,13 @@ if (current) {
 
 {/* Done button */}
 <motion.div variants={itemVariants} className="mb-8">
-  <button
-    onClick={handleExit}
-    className="w-full px-6 py-4 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/50 hover:border-slate-600/50 text-white font-medium rounded-xl transition-all"
-  >
-    {hasAnsweredReview ? "Back to Dashboard" : "Done — back to dashboard →"}
-  </button>
-</motion.div>
+          <button
+            onClick={handleExit}
+            className="w-full px-6 py-4 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/50 hover:border-slate-600/50 text-white font-medium rounded-xl transition-all"
+          >
+            {hasAnsweredReview ? "Back to Dashboard" : "Done"}
+          </button>
+        </motion.div>
 
 {historicalWeeks.length > 0 && (
           <motion.div variants={itemVariants} className="mt-12">

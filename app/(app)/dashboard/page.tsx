@@ -68,12 +68,22 @@ type UserProfile = {
 // Maps internal behavior keys to display labels
 const BEHAVIOR_LABELS: Record<string, string> = {
   nutrition_quality: "Nutrition",
-  portion_control: "Portions",
-  protein: "Protein",
-  hydration: "Hydration",
-  sleep: "Sleep",
-  mindset: "Mindset",
-  movement: "Movement",
+  portion_control:   "Portions",
+  protein:           "Protein",
+  hydration:         "Hydration",
+  sleep:             "Sleep",
+  mindset:           "Mindset",
+  movement:          "Movement",
+};
+
+const BEHAVIOR_SENTENCE_SUBJECTS: Record<string, string> = {
+  nutrition_quality: "Nutrition quality",
+  portion_control:   "Portion control",
+  protein:           "Protein",
+  hydration:         "Hydration",
+  sleep:             "Sleep",
+  mindset:           "Mindset",
+  movement:          "Movement",
 };
 
 function getDominantBehavior(
@@ -85,6 +95,16 @@ function getDominantBehavior(
     mode === "high" ? b.grade - a.grade : a.grade - b.grade
   );
   return BEHAVIOR_LABELS[sorted[0].name] ?? null;
+}
+function getDominantBehaviorSubject(
+  behaviorGrades: Array<{ name: string; grade: number }> | undefined,
+  mode: "high" | "low"
+): string | null {
+  if (!behaviorGrades || behaviorGrades.length === 0) return null;
+  const sorted = [...behaviorGrades].sort((a, b) =>
+    mode === "high" ? b.grade - a.grade : a.grade - b.grade
+  );
+  return BEHAVIOR_SENTENCE_SUBJECTS[sorted[0].name] ?? null;
 }
 function getMomentumPhase(totalCheckIns: number): { phase: string; next: string | null; remaining: number } {
   if (totalCheckIns < 10) {
@@ -967,8 +987,8 @@ await setDoc(promptRef, {
        <div className="flex items-center justify-between text-base font-medium mb-2">
           <div className="text-white/85">
           {(() => {
-              const topBehavior = getDominantBehavior(todayMomentum.behaviorGrades, "high");
-              const lowBehavior = getDominantBehavior(todayMomentum.behaviorGrades, "low");
+             const topBehavior = getDominantBehaviorSubject(todayMomentum.behaviorGrades, "high");
+             const lowBehavior = getDominantBehaviorSubject(todayMomentum.behaviorGrades, "low");
               if (todayMomentum.momentumDelta >= 5) {
                 return (
                   <div className="flex items-center gap-1.5">
@@ -1012,7 +1032,7 @@ await setDoc(promptRef, {
           const { phase, next, remaining } = getMomentumPhase(total);
           return (
             <p className="text-sm text-white/55 text-center mt-1">
-              <span className="font-semibold">{phase}</span>
+              <span className="font-semibold">{phase} Phase</span>
               {next ? <span className="font-normal"> · {remaining} to {next}</span> : ""}
             </p>
           );
