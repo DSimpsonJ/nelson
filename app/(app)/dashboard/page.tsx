@@ -37,6 +37,8 @@ import { WeightCard } from '@/app/components/WeightCard';
 import { Inter } from 'next/font/google'
 import type { DailyMomentumDoc } from '../history/useMomentumHistory';
 import NotificationPrompt from "@/app/components/NotificationPrompt";
+import { getCurrentWeekId, FOCUS_BEHAVIOR_LABELS } from '@/app/utils/focusBehavior';
+
 const inter = Inter({ subsets: ['latin'], weight: ['500', '700'] })
 
 /** ---------- Types ---------- */
@@ -63,6 +65,40 @@ type UserProfile = {
   email: string;
   plan?: Plan;
 };
+// Maps internal behavior keys to display labels
+const BEHAVIOR_LABELS: Record<string, string> = {
+  nutrition_quality: "Nutrition",
+  portion_control: "Portions",
+  protein: "Protein",
+  hydration: "Hydration",
+  sleep: "Sleep",
+  mindset: "Mindset",
+  movement: "Movement",
+};
+
+function getDominantBehavior(
+  behaviorGrades: Array<{ name: string; grade: number }> | undefined,
+  mode: "high" | "low"
+): string | null {
+  if (!behaviorGrades || behaviorGrades.length === 0) return null;
+  const sorted = [...behaviorGrades].sort((a, b) =>
+    mode === "high" ? b.grade - a.grade : a.grade - b.grade
+  );
+  return BEHAVIOR_LABELS[sorted[0].name] ?? null;
+}
+function getMomentumPhase(totalCheckIns: number): { phase: string; next: string | null; remaining: number } {
+  if (totalCheckIns < 10) {
+    return { phase: "Activating", next: "Patterning", remaining: 10 - totalCheckIns };
+  } else if (totalCheckIns < 30) {
+    return { phase: "Patterning", next: "Resilient", remaining: 30 - totalCheckIns };
+  } else if (totalCheckIns < 60) {
+    return { phase: "Resilient", next: "Integrated", remaining: 60 - totalCheckIns };
+  } else if (totalCheckIns < 90) {
+    return { phase: "Integrated", next: "Momentum", remaining: 90 - totalCheckIns };
+  } else {
+    return { phase: "Momentum", next: null, remaining: 0 };
+  }
+}
 /** ---------- Component ---------- */
 export default function DashboardPage() {
   const router = useRouter();
@@ -72,6 +108,7 @@ export default function DashboardPage() {
   const [todayCheckin, setTodayCheckin] = useState<Checkin | null>(null);
   const [checkinSubmitted, setCheckinSubmitted] = useState(false);
   const [currentFocus, setCurrentFocus] = useState<any>(null);
+  const [weekFocusBehavior, setWeekFocusBehavior] = useState<string | null>(null);
   const [todayMomentum, setTodayMomentum] = useState<any>(null);
   const [recentMomentum, setRecentMomentum] = useState<DailyMomentumDoc[]>([]);
   const [commitment, setCommitment] = useState<any>(null);
@@ -210,6 +247,14 @@ if (gapInfo.hadGap) {
         firstName = userData.firstName ?? "there";
         hasSeenWelcome = userData.hasSeenDashboardWelcome ?? false;
         setReadLearnSlugs(userData.readLearnSlugs ?? []);
+
+        const currentWeekId = getCurrentWeekId();
+        if (
+          userData.focusBehaviorSetWeek === currentWeekId &&
+          userData.focusBehavior
+        ) {
+          setWeekFocusBehavior(userData.focusBehavior);
+        }
       }
 // ===== NEW: Show welcome if first time =====
 if (!hasSeenWelcome) {
@@ -757,16 +802,18 @@ await setDoc(promptRef, {
         variants={containerVariants}
         className="max-w-3xl mx-auto space-y-6"
       >
-     {/* Compact Greeting Strip - Shows before and after check-in */}
+ {/* Compact Greeting Strip - Shows before and after check-in */}
 <motion.div variants={itemVariants}>
   <div className="bg-slate-800/20 backdrop-blur-sm rounded-lg py-3 px-4 mb-4">
     <p className="text-xl text-white/200 text-center">
       Hey {profile?.firstName || "there"}.
     </p>
     <p className="text-base text-white/60 text-center mt-1">
-    {hasCompletedCheckin()
-  ? "Momentum updated. See you tomorrow."
-  : "Ready to check in?"}
+      {hasCompletedCheckin()
+        ? weekFocusBehavior
+          ? `You're focusing on ${(FOCUS_BEHAVIOR_LABELS[weekFocusBehavior] ?? weekFocusBehavior).toLowerCase()} this week.`
+          : "Momentum updated. Check your coaching for this week's focus."
+        : "Ready to check in?"}
     </p>
   </div>
 
@@ -904,24 +951,34 @@ await setDoc(promptRef, {
           />
         </div>
         
-        {/* Trend layer */}
-        <div className="flex items-center justify-between text-base font-medium mb-2">
+       {/* Trend layer */}
+       <div className="flex items-center justify-between text-base font-medium mb-2">
           <div className="text-white/85">
-            {todayMomentum.momentumDelta >= 5 ? (
-              <div className="flex items-center gap-1">
-                <span className="text-base">↗</span>
-                <span>+{todayMomentum.momentumDelta} · Building</span>
-              </div>
-            ) : todayMomentum.momentumDelta <= -5 ? (
-              <div className="flex items-center gap-1">
-                <span className="text-base">↘</span>
-                <span>{todayMomentum.momentumDelta} · Cooling</span>
-              </div>
-            ) : (
-              <span>Steady</span>
-            )}
+          {(() => {
+              const topBehavior = getDominantBehavior(todayMomentum.behaviorGrades, "high");
+              const lowBehavior = getDominantBehavior(todayMomentum.behaviorGrades, "low");
+              if (todayMomentum.momentumDelta >= 5) {
+                return (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">↗</span>
+                    <span>{topBehavior ? `${topBehavior} is pushing momentum up.` : "Momentum is building."}</span>
+                  </div>
+                );
+              } else if (todayMomentum.momentumDelta <= -5) {
+                return (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">↘</span>
+                    <span>{lowBehavior ? `${lowBehavior} is pulling momentum down.` : "Momentum is cooling."}</span>
+                  </div>
+                );
+              } else {
+                return (
+                  <span>{topBehavior ? `${topBehavior} is keeping momentum steady.` : "Momentum is holding."}</span>
+                );
+              }
+            })()}
           </div>
-          
+
           {/* Commitment badge - right-aligned, same line */}
           {currentFocus?.target && (
             <div className="text-white/70">
@@ -929,12 +986,31 @@ await setDoc(promptRef, {
             </div>
           )}
         </div>
-        {/* Momentum message */}
-        {momentumMessage && (
-  <p className="text-sm text-white/60 mt-2">
-    {momentumMessage}
+         {/* Momentum message */}
+         {momentumMessage && (
+          <p className="text-sm text-white/60 mt-2">
+            {momentumMessage}
           </p>
         )}
+
+        {/* Momentum phase + focus */}
+        <div className="flex items-center justify-between mt-1">
+          {(() => {
+            const total = todayMomentum.totalRealCheckIns || 0;
+            const { phase, next, remaining } = getMomentumPhase(total);
+            return (
+              <p className="text-xs text-white/40">
+                {phase}
+                {next ? ` · ${remaining} to ${next}` : ""}
+              </p>
+            );
+          })()}
+          {weekFocusBehavior && (
+            <p className="text-sm text-white/60">
+              {FOCUS_BEHAVIOR_LABELS[weekFocusBehavior] ?? weekFocusBehavior}
+            </p>
+          )}
+        </div>
       </>
     ) : (
       /* NO CHECK-IN STATE */

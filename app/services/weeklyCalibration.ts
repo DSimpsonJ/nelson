@@ -336,3 +336,29 @@ export function deriveCalibrationModifiers(
     goalValid
   };
 }
+/**
+ * Save lightweight weekly review (drag source only)
+ * Used by the new weekly intercept flow
+ */
+export async function saveLightweightCalibration(
+  email: string,
+  weekId: string,
+  dragSource: DragSource
+): Promise<void> {
+  const calibrationRef = adminDb
+    .collection('users').doc(email)
+    .collection('weeklyCalibrations').doc(weekId);
+
+  await calibrationRef.set({
+    weekId,
+    dragSource,
+    forceLevel: 'steady_push',       // neutral default
+    structuralState: 'solid',         // neutral default
+    goalAlignment: 'clear_steady',    // neutral default
+    interpretationConfidence: 'low',  // low because incomplete
+    answeredAt: new Date(),
+    source: 'weekly_review_v2',       // flag so we know which flow wrote this
+  });
+
+  console.log(`[Calibration] Lightweight save for ${weekId}, drag: ${dragSource}`);
+}

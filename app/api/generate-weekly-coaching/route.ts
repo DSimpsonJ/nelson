@@ -363,14 +363,36 @@ let weekOverWeekComparison: Array<{ behavior: string; currentAvg: number; previo
 let dominantLimiter: string | undefined;
 let celebrationResult: CelebrationResult | undefined;
 
-// Fetch user weight for coaching context
+// Fetch user weight and focus context for coaching
 let userWeight: number | undefined;
+let focusForPrompt: string | null = null;
+let exerciseDaysCount: number | undefined;
+let exerciseTargetMinutes: number | undefined;
 try {
   const userDoc = await adminDb.collection('users').doc(email).get();
-  const w = userDoc.data()?.weight;
+  const userData = userDoc.data();
+  const w = userData?.weight;
   if (typeof w === 'number' && w > 0) userWeight = w;
+
+  const weeklyFocusBehavior = userData?.focusBehavior ?? null;
+  const focusBehaviorSetWeek = userData?.focusBehaviorSetWeek ?? null;
+  focusForPrompt = focusBehaviorSetWeek === pattern.weekId
+    ? weeklyFocusBehavior
+    : null;
+
+  const exerciseDaysHit = pattern.evidencePoints
+    .find((e: string) => e.includes('Exercise:'))
+    ?.match(/(\d+)\/7/)?.[1];
+  exerciseDaysCount = exerciseDaysHit ? parseInt(exerciseDaysHit) : undefined;
+
+  const currentFocusDoc = await adminDb
+    .collection('users').doc(email)
+    .collection('momentum').doc('currentFocus').get();
+  exerciseTargetMinutes = currentFocusDoc.exists
+    ? currentFocusDoc.data()?.target ?? undefined
+    : undefined;
 } catch {
-  // non-blocking — coaching proceeds without weight
+  // non-blocking — coaching proceeds without these fields
 }
 if (!useFixture) {
   const { start, end } = pattern.dateRange;
@@ -624,6 +646,9 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
    previousErrors: previousErrors.length > 0 ? previousErrors : undefined,
    patternConstraints: constraints,
    userWeight,
+   weeklyFocusBehavior: focusForPrompt,
+   exerciseDaysHit: exerciseDaysCount,
+   exerciseTargetMinutes,
  });
 
  // Call Anthropic API

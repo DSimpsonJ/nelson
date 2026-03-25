@@ -56,6 +56,9 @@ interface BuildPromptArgs {
   previousErrors?: string[];
   patternConstraints: PatternConstraints;
   userWeight?: number;
+  weeklyFocusBehavior?: string | null;
+  exerciseDaysHit?: number;
+  exerciseTargetMinutes?: number;
 }
 
 // ============================================================================
@@ -77,6 +80,9 @@ export async function buildScopedSystemPrompt(args: BuildPromptArgs): Promise<st
     previousErrors,
     patternConstraints,
     userWeight,
+    weeklyFocusBehavior,
+    exerciseDaysHit,
+    exerciseTargetMinutes,
   } = args;
 
   // ---- SCOPE THE DATA ----
@@ -129,6 +135,10 @@ ${scoped.filteredNotes.length > 0 ? `User notes (context only, these do not over
 ${scoped.filteredNotes.map((n, i) => `${i + 1}. "${n}"`).join('\n')}` : 'No user notes this week.'}
 
 ${prevCalibration ? `Previous week calibration:\n${calibrationContext}` : ''}
+
+${weeklyFocusBehavior ? `User's stated focus this week: ${weeklyFocusBehavior}. This is context only. Do NOT let this change your progression direction. Your progression must address ${dominantLimiter} exclusively. If the focus behavior happens to be ${dominantLimiter}, you may reference it naturally. Otherwise ignore it in progression.` : ''}
+
+${exerciseDaysHit !== undefined && exerciseTargetMinutes !== undefined ? `Exercise commitment: target was ${exerciseTargetMinutes} min/day, hit ${exerciseDaysHit}/7 days.${exerciseDaysHit <= 2 ? ` This user is struggling to meet their exercise commitment. If exercise is the dominant limiter, suggest they consider lowering their target. Frame as calibration, not failure.` : exerciseDaysHit >= 6 ? ` This user is consistently exceeding their exercise commitment. If appropriate, note they may be ready to consider raising their target.` : ''}` : ''}
 
 # USER GOAL
 

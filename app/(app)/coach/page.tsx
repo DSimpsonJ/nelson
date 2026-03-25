@@ -7,7 +7,7 @@ import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
 import { motion } from "framer-motion";
 import { WeeklyCoachingOutput } from '@/app/types/weeklyCoaching';
-import { WeeklyCalibrationContainer } from '@/app/components/WeeklyCalibration';
+import { getCurrentWeekId, getCurrentFocusBehavior } from '@/app/utils/focusBehavior';
 
 // Types defined inline to avoid import issues
 type FocusType = 'protect' | 'hold' | 'narrow' | 'ignore';
@@ -55,14 +55,25 @@ export default function CoachPage() {
   const [currentWeek, setCurrentWeek] = useState<WeeklySummaryRecord | null>(null);
   const [historicalWeeks, setHistoricalWeeks] = useState<WeeklySummaryRecord[]>([]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-  const [showCalibration, setShowCalibration] = useState(false);
   const [generating, setGenerating] = useState(false);
 const [generationError, setGenerationError] = useState<string | null>(null);
-const [hasAnsweredCalibration, setHasAnsweredCalibration] = useState(false); // Default to false, load will update
+const [weekFocusBehavior, setWeekFocusBehavior] = useState<string | null>(null);
+  const [focusLoaded, setFocusLoaded] = useState(false);
+  const [hasAnsweredReview, setHasAnsweredReview] = useState(false);
 
   useEffect(() => {
     loadCoaching();
   }, []);
+
+  const handleExit = () => {
+    if (!hasAnsweredReview && currentWeek) {
+      router.push(
+        `/weekly-review?weekId=${currentWeek.weekId}&pattern=${currentWeek.patternType}`
+      );
+    } else {
+      router.push("/dashboard");
+    }
+  };
 
   const loadCoaching = async () => {
     const email = getEmail();
@@ -91,24 +102,23 @@ if (current) {
   });
 }
   
-      // Check if user already answered calibration for this week
-      if (current) {
-        const calibrationRef = doc(db, "users", email, "weeklyCalibrations", current.weekId);
-        const calibrationSnap = await getDoc(calibrationRef);
-        const hasAnswered = calibrationSnap.exists();
-        
-        if (hasAnswered) {
-          setHasAnsweredCalibration(true);
-        } else {
-          setHasAnsweredCalibration(false);
-        }
-      }
+     // Check if weekly review already done
+     if (current) {
+      const calibrationRef = doc(db, "users", email, "weeklyCalibrations", current.weekId);
+      const calibrationSnap = await getDoc(calibrationRef);
+      setHasAnsweredReview(calibrationSnap.exists());
+    }
   
       const historical = summaries
         .filter(s => s.status === "generated" && s.weekId !== current?.weekId)
         .slice(0, 4);
       setHistoricalWeeks(historical);
-  
+  // Load focus behavior for current week
+      const currentWeekId = getCurrentWeekId();
+      const savedFocus = await getCurrentFocusBehavior(email, currentWeekId);
+      setWeekFocusBehavior(savedFocus);
+      setFocusLoaded(true);
+
     } catch (error) {
       console.error("Failed to load coaching:", error);
     } finally {
@@ -192,11 +202,11 @@ if (current) {
               <h1 className="text-2xl font-bold text-white">Coach</h1>
             </div>
             <button
-              onClick={() => router.push("/dashboard")}
-              className="text-white/60 hover:text-white text-sm"
-            >
-              ← Dashboard
-            </button>
+            onClick={handleExit}
+            className="text-white/60 hover:text-white text-sm transition-colors"
+          >
+            ← Dashboard
+          </button>
           </div>
   
           <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-8 text-center space-y-4">
@@ -239,26 +249,6 @@ if (current) {
   const email = getEmail();
   if (!email) return null;
 
-  // Show calibration flow instead of coaching if triggered
-  if (showCalibration) {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-        <WeeklyCalibrationContainer
-          email={email}
-          weekId={currentWeek.weekId}
-          onComplete={() => {
-            setShowCalibration(false);
-            router.push('/dashboard');
-          }}
-          onSkip={() => {
-            setShowCalibration(false);
-            router.push('/dashboard');
-          }}
-        />
-      </main>
-    );
-  }
-
   return (
     <motion.main
       variants={containerVariants}
@@ -273,7 +263,7 @@ if (current) {
             <h1 className="text-2xl font-bold text-white">Coach</h1>
           </div>
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={handleExit}
             className="text-white/60 hover:text-white text-sm transition-colors"
           >
             ← Dashboard
@@ -331,9 +321,19 @@ if (current) {
             onToggle={() => toggleSection('whyThisMatters')}
           />
 
-        </motion.div>
+</motion.div>
 
-        {historicalWeeks.length > 0 && (
+{/* Done button */}
+<motion.div variants={itemVariants} className="mb-8">
+  <button
+    onClick={handleExit}
+    className="w-full px-6 py-4 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/50 hover:border-slate-600/50 text-white font-medium rounded-xl transition-all"
+  >
+    {hasAnsweredReview ? "Back to Dashboard" : "Done — back to dashboard →"}
+  </button>
+</motion.div>
+
+{historicalWeeks.length > 0 && (
           <motion.div variants={itemVariants} className="mt-12">
             <div className="text-sm font-semibold text-white/80 mb-4 uppercase tracking-wide">
               Previous Weeks
@@ -345,18 +345,6 @@ if (current) {
             </div>
           </motion.div>
         )}
-
-       {/* CALIBRATION TRIGGER BUTTON - Only show if not answered yet */}
-{!hasAnsweredCalibration && (
-  <motion.div variants={itemVariants} className="mt-8">
-    <button
-      onClick={() => setShowCalibration(true)}
-      className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-    >
-      Before you go, help me understand this week →
-    </button>
-  </motion.div>
-)}
 
         <div className="h-8" />
       </div>

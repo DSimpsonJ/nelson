@@ -38,11 +38,9 @@ function countSentences(text: string): number {
  * Banned hedge and system language
  */
 const BANNED_TONE_PHRASES = [
-  'suggests',
   'may indicate',
   'might indicate',
   'appears to',
-  'could be',
   'seems to',
   'this reflects',
   'this signals'
