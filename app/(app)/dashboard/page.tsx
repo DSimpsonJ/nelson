@@ -99,6 +99,18 @@ function getMomentumPhase(totalCheckIns: number): { phase: string; next: string 
     return { phase: "Momentum", next: null, remaining: 0 };
   }
 }
+function getFocusBehaviorSentenceName(key: string): string {
+  const sentenceNames: Record<string, string> = {
+    nutrition_quality: "nutrition quality",
+    portion_control:   "portion control",
+    protein:           "protein",
+    hydration:         "hydration",
+    sleep:             "sleep",
+    mindset:           "mindset",
+    movement:          "movement",
+  };
+  return sentenceNames[key] ?? key;
+}
 /** ---------- Component ---------- */
 export default function DashboardPage() {
   const router = useRouter();
@@ -811,7 +823,7 @@ await setDoc(promptRef, {
     <p className="text-base text-white/60 text-center mt-1">
       {hasCompletedCheckin()
         ? weekFocusBehavior
-          ? `You're focusing on ${(FOCUS_BEHAVIOR_LABELS[weekFocusBehavior] ?? weekFocusBehavior).toLowerCase()} this week.`
+          ? `You're focusing on ${getFocusBehaviorSentenceName(weekFocusBehavior)} this week.`
           : "Momentum updated. Check your coaching for this week's focus."
         : "Ready to check in?"}
     </p>
@@ -981,8 +993,9 @@ await setDoc(promptRef, {
 
           {/* Commitment badge - right-aligned, same line */}
           {currentFocus?.target && (
-            <div className="text-white/70">
-              Exercise · {currentFocus.target} min+
+            <div className="text-white/70 text-right leading-tight">
+              <div>Exercise</div>
+              <div>{currentFocus.target} min+</div>
             </div>
           )}
         </div>
@@ -993,24 +1006,17 @@ await setDoc(promptRef, {
           </p>
         )}
 
-        {/* Momentum phase + focus */}
-        <div className="flex items-center justify-between mt-1">
-          {(() => {
-            const total = todayMomentum.totalRealCheckIns || 0;
-            const { phase, next, remaining } = getMomentumPhase(total);
-            return (
-              <p className="text-xs text-white/40">
-                {phase}
-                {next ? ` · ${remaining} to ${next}` : ""}
-              </p>
-            );
-          })()}
-          {weekFocusBehavior && (
-            <p className="text-sm text-white/60">
-              {FOCUS_BEHAVIOR_LABELS[weekFocusBehavior] ?? weekFocusBehavior}
+        {/* Momentum phase */}
+        {(() => {
+          const total = todayMomentum.totalRealCheckIns || 0;
+          const { phase, next, remaining } = getMomentumPhase(total);
+          return (
+            <p className="text-sm text-white/55 text-center mt-1">
+              <span className="font-semibold">{phase}</span>
+              {next ? <span className="font-normal"> · {remaining} to {next}</span> : ""}
             </p>
-          )}
-        </div>
+          );
+        })()}
       </>
     ) : (
       /* NO CHECK-IN STATE */
