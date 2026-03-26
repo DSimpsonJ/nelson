@@ -476,7 +476,23 @@ export function resolveReward(ctx: RewardContext): RewardResult {
 // ============================================================================
 // UTILITY: Calculate isSolidDay from behavior ratings
 // ============================================================================
+export function isEliteDay(
+  behaviorRatings: Record<string, string>,
+  exerciseCompleted: boolean
+): boolean {
+  const requiredBehaviors = [
+    'nutrition_quality',
+    'portion_control',
+    'protein',
+    'hydration',
+    'sleep',
+    'mindset',
+    'movement'
+  ];
 
+  const allBehaviorsElite = requiredBehaviors.every(id => behaviorRatings[id] === 'elite');
+  return allBehaviorsElite && exerciseCompleted;
+}
 export function isSolidDay(
   behaviorRatings: Record<string, string>,
   exerciseCompleted: boolean

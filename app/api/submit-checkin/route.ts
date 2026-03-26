@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminAuth } from '@/app/firebase/admin';
 import { calculateNewtonianMomentum, calculateDailyScore } from '@/app/services/newtonianMomentum';
-import { resolveReward } from '@/app/services/rewardEngine';
+import { resolveReward, isSolidDay, isEliteDay } from '@/app/services/rewardEngine';
 import { FieldValue } from 'firebase-admin/firestore';
 
 // Matches writeDailyMomentum applyRampCap exactly
@@ -125,8 +125,8 @@ const totalRealCheckIns = prevTotalRealCheckIns + 1;
       hasEverHit80Momentum: userData.hasEverHit80Momentum ?? false,
       hasEverHit90Momentum: userData.hasEverHit90Momentum ?? false,
       hasEverHit100Momentum: userData.hasEverHit100Momentum ?? false,
-      isEliteDay: dailyScore === 100,
-      isSolidDay: dailyScore >= 75,
+      isEliteDay: isEliteDay(gradesToRatings(behaviorGrades), exerciseDeclared ?? false),
+      isSolidDay: isSolidDay(gradesToRatings(behaviorGrades), exerciseDeclared ?? false),
       isSolidWeek: false,
     });
 
