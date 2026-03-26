@@ -5,10 +5,29 @@ import { useRouter } from "next/navigation";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMomentumHistory } from "./useMomentumHistory";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../../firebase/config";
+import { getEmail } from "../../utils/getEmail";
 
 export default function HistoryPage() {
   const router = useRouter();
   const { loading, allHistory, currentWindow, accountAgeDays } = useMomentumHistory();
+  const [badges, setBadges] = useState<{ id: string; type: string; earnedAt: string; phaseName?: string }[]>([]);
+
+  useEffect(() => {
+    const fetchBadges = async () => {
+      const email = getEmail();
+      if (!email) return;
+      const snap = await getDocs(collection(db, "users", email, "badges"));
+      const result = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data() as { type: string; earnedAt: string; phaseName?: string },
+      }));
+      result.sort((a, b) => a.earnedAt.localeCompare(b.earnedAt));
+      setBadges(result);
+    };
+    fetchBadges();
+  }, []);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [expandedNote, setExpandedNote] = useState<string | null>(null);
   
@@ -173,8 +192,42 @@ export default function HistoryPage() {
               </div>
             </div>
           </div>
+{/* Section 3: Milestones */}
+<div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Milestones</h2>
 
-          {/* Section 3: Behavior Distribution */}
+            {badges.length === 0 ? (
+              <p className="text-white/40 text-sm">
+                No milestones yet. Phase transitions and check-in achievements appear here.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {badges.map(badge => {
+                  const label =
+                    badge.type === "phase_transition" ? `${badge.phaseName} Phase reached` :
+                    badge.type === "identity"         ? "100 check-ins" :
+                    badge.id;
+
+                  const date = new Date(badge.earnedAt).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  });
+
+                  return (
+                    <div
+                      key={badge.id}
+                      className="flex items-center justify-between py-2 border-b border-slate-700/40 last:border-0"
+                    >
+                      <span className="text-white text-sm font-medium">{label}</span>
+                      <span className="text-white/40 text-xs">{date}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {/* Section 4: Behavior Distribution */}
           <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6">
             <h2 className="text-lg font-semibold text-white mb-4">Behavior Distribution</h2>
 
@@ -254,7 +307,7 @@ export default function HistoryPage() {
             <p className="text-sm text-white/40 mt-3">Distribution for selected window</p>
           </div>
 
-          {/* Section 4: Calendar */}
+          {/* Section 5: Calendar */}
           <div className="bg-slate-800/40 border border-slate-700 rounded-lg p-6 relative z-20 overflow-visible">
             {(() => {
               // Use selected month instead of latest date

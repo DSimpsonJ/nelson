@@ -27,6 +27,8 @@ export default function CheckinPage() {
   const [answers, setAnswers] = useState<Partial<CheckinAnswers>>({});
   const [exerciseCompleted, setExerciseCompleted] = useState<boolean | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [momentumDelta, setMomentumDelta] = useState<number>(0);
+  const [phaseTransition, setPhaseTransition] = useState<{ from: string; to: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [behaviors, setBehaviors] = useState<BehaviorMetadata[]>([]);
@@ -222,9 +224,13 @@ export default function CheckinPage() {
       if (!apiRes.ok) throw new Error(`API error: ${apiRes.status}`);
       const result = await apiRes.json();
       const reward = result.reward;
+      const momentumDelta = result.momentumDelta ?? 0;
+      const phaseTransition = result.phaseTransition ?? null;
 
       sessionStorage.setItem('pendingReward', JSON.stringify(reward));
-  
+
+      setMomentumDelta(momentumDelta);
+      setPhaseTransition(phaseTransition);
       setShowSuccess(true);
   
     } catch (error) {
@@ -316,7 +322,11 @@ export default function CheckinPage() {
   if (showSuccess) {
     return (
       <CheckinShell>
-        <CheckinSuccessAnimation onComplete={handleSuccessComplete} />
+        <CheckinSuccessAnimation
+          onComplete={handleSuccessComplete}
+          momentumDelta={momentumDelta}
+          phaseTransition={phaseTransition}
+        />
       </CheckinShell>
     );
   }

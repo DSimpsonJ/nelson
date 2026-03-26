@@ -6,6 +6,7 @@ import {
   getDocs,
   collection,
   deleteDoc,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { getEmail } from "../../utils/getEmail";
@@ -118,6 +119,65 @@ export default function DashboardDevTools({
   🗑️ Clear All Coaching
 </button>
 
+{/* Seed Fake Check-ins */}
+<button
+              onClick={async () => {
+                const email = getEmail();
+                if (!email) return;
+                const COUNT = 7;
+                try {
+                  for (let i = COUNT; i >= 1; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    const dateKey = d.toLocaleDateString("en-CA");
+                    await setDoc(
+                      doc(db, "users", email, "momentum", dateKey),
+                      {
+                        date: dateKey,
+                        checkinType: "real",
+                        momentumScore: 72,
+                        rawMomentumScore: 72,
+                        momentumDelta: 2,
+                        dailyScore: 80,
+                        totalRealCheckIns: COUNT - i + 1,
+                        currentStreak: COUNT - i + 1,
+                        exerciseCompleted: true,
+                        checkinCompleted: true,
+                        behaviorGrades: [
+                          { name: "nutrition_quality", grade: 80 },
+                          { name: "portion_control", grade: 80 },
+                          { name: "protein", grade: 80 },
+                          { name: "hydration", grade: 80 },
+                          { name: "sleep", grade: 80 },
+                          { name: "mindset", grade: 80 },
+                          { name: "movement", grade: 80 },
+                        ],
+                        behaviorRatings: {
+                          nutrition_quality: "solid",
+                          portion_control: "solid",
+                          protein: "solid",
+                          hydration: "solid",
+                          sleep: "solid",
+                          mindset: "solid",
+                          movement: "solid",
+                        },
+                        createdAt: new Date().toISOString(),
+                      },
+                      { merge: false }
+                    );
+                  }
+                  showToast({ message: `Seeded ${COUNT} fake check-ins`, type: "success" });
+                  setTimeout(() => window.location.reload(), 1000);
+                } catch (err) {
+                  console.error("Seed failed:", err);
+                  showToast({ message: "Seed failed", type: "error" });
+                }
+              }}
+              className="bg-blue-700 hover:bg-blue-800 text-white rounded-md py-1 text-sm"
+            >
+              🌱 Seed 7 Check-ins
+            </button>
+            
             {/* Trigger Coaching For All Users */}
             <button
   onClick={async () => {

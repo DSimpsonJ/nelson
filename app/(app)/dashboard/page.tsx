@@ -28,6 +28,7 @@ import { selectMomentumMessage } from '@/app/services/messagingGuide';
 import HistoryAccess from "@/app/components/HistoryAccess";
 import CoachAccess from "@/app/components/CoachAccess";
 import LearnBanner from "@/app/components/LearnBanner";
+import PhaseBottomSheet from "@/app/components/PhaseBottomSheet";
 import { NelsonLogoAnimated  } from '@/app/components/logos';
 import { resolveReward, type RewardPayload } 
 from "@/app/services/rewardEngine";
@@ -38,6 +39,8 @@ import { Inter } from 'next/font/google'
 import type { DailyMomentumDoc } from '../history/useMomentumHistory';
 import NotificationPrompt from "@/app/components/NotificationPrompt";
 import { getCurrentWeekId, FOCUS_BEHAVIOR_LABELS } from '@/app/utils/focusBehavior';
+import { getPhaseIndex, MOMENTUM_PHASES as PHASE_BOUNDARIES } from '@/app/utils/momentumPhases';
+
 
 const inter = Inter({ subsets: ['latin'], weight: ['500', '700'] })
 
@@ -106,18 +109,32 @@ function getDominantBehaviorSubject(
   );
   return BEHAVIOR_SENTENCE_SUBJECTS[sorted[0].name] ?? null;
 }
-function getMomentumPhase(totalCheckIns: number): { phase: string; next: string | null; remaining: number } {
-  if (totalCheckIns < 10) {
-    return { phase: "Activating", next: "Patterning", remaining: 10 - totalCheckIns };
-  } else if (totalCheckIns < 30) {
-    return { phase: "Patterning", next: "Resilient", remaining: 30 - totalCheckIns };
-  } else if (totalCheckIns < 60) {
-    return { phase: "Resilient", next: "Integrated", remaining: 60 - totalCheckIns };
-  } else if (totalCheckIns < 90) {
-    return { phase: "Integrated", next: "Momentum", remaining: 90 - totalCheckIns };
-  } else {
-    return { phase: "Momentum", next: null, remaining: 0 };
-  }
+const MOMENTUM_PHASES = PHASE_BOUNDARIES.map((p, i) => ({
+  ...p,
+  copy: [
+    "This is fragile. Every check-in is building the signal.",
+    "Early patterns are forming.",
+    "You're starting to repeat this.",
+    "This is getting easier to repeat.",
+    "This is getting harder to break.",
+    "You don't have to push as hard anymore.",
+    "Off days won't knock you off track.",
+    "This runs automatically now.",
+  ][i],
+}));
+
+function getMomentumPhase(totalCheckIns: number): {
+  phase: string;
+  copy: string;
+  phaseIndex: number;
+} {
+  const idx = getPhaseIndex(totalCheckIns);
+  const current = MOMENTUM_PHASES[idx];
+  return {
+    phase: current.name,
+    copy: current.copy,
+    phaseIndex: idx,
+  };
 }
 function getFocusBehaviorSentenceName(key: string): string {
   const sentenceNames: Record<string, string> = {
@@ -153,7 +170,7 @@ export default function DashboardPage() {
   const [adjustOptions, setAdjustOptions] = useState<'increase' | 'decrease'>('increase');
 const [pendingReward, setPendingReward] = useState<any | null>(null);
   const [checkinSuccess, setCheckinSuccess] = useState(false);
-
+  const [showPhaseSheet, setShowPhaseSheet] = useState(false);
   const [firstCheckinDate, setFirstCheckinDate] = useState<string | null>(null);
   const [readLearnSlugs, setReadLearnSlugs] = useState<string[]>([]);
   // Animated momentum score
@@ -1029,12 +1046,14 @@ await setDoc(promptRef, {
         {/* Momentum phase */}
         {(() => {
           const total = todayMomentum.totalRealCheckIns || 0;
-          const { phase, next, remaining } = getMomentumPhase(total);
+          const { phase, phaseIndex } = getMomentumPhase(total);
           return (
-            <p className="text-sm text-white/55 text-center mt-1">
+            <button
+              onClick={() => setShowPhaseSheet(true)}
+              className="w-full text-sm text-white/55 text-center mt-1 hover:text-white/75 transition-colors"
+            >
               <span className="font-semibold">{phase} Phase</span>
-              {next ? <span className="font-normal"> · {remaining} to {next}</span> : ""}
-            </p>
+            </button>
           );
         })()}
       </>
@@ -1052,6 +1071,13 @@ await setDoc(promptRef, {
     )}
   </div>
 </motion.div>
+{/* Phase bottom sheet */}
+<PhaseBottomSheet
+          isOpen={showPhaseSheet}
+          onClose={() => setShowPhaseSheet(false)}
+          currentPhaseIndex={getMomentumPhase(todayMomentum?.totalRealCheckIns || 0).phaseIndex}
+        />
+
        {/* 3. Daily Check-in */}
 {checkinSuccess ? (
   <CheckinSuccessAnimation

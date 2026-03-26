@@ -5,9 +5,18 @@ import { motion } from 'framer-motion';
 import { RewardResult } from '@/app/services/rewardEngine';
 import RewardRenderer from './RewardRenderer';
 
-export default function CheckinSuccessAnimation({ onComplete }: { onComplete: () => void }) {
+export default function CheckinSuccessAnimation({
+  onComplete,
+  momentumDelta,
+  phaseTransition,
+}: {
+  onComplete: () => void;
+  momentumDelta?: number;
+  phaseTransition?: { from: string; to: string } | null;
+}) {
   const [showParticles, setShowParticles] = useState(false);
   const [reward, setReward] = useState<RewardResult['payload'] | null>(null);
+  const [showPhaseCard, setShowPhaseCard] = useState(false);
 
   useEffect(() => {
     setShowParticles(true);
@@ -33,7 +42,18 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
     delay: Math.random() * 0.3,
     duration: 1.5 + Math.random() * 0.5,
   }));
-
+  const handleCelebrationComplete = () => {
+    if (phaseTransition) {
+      setShowPhaseCard(true);
+    } else {
+      onComplete();
+    }
+  };
+  const outcomeText =
+  momentumDelta === undefined ? null :
+  momentumDelta >= 2  ? "Moving forward." :
+  momentumDelta <= -2 ? "Slowed." :
+                        "Steady.";
   return (
     <>
       <motion.div
@@ -116,21 +136,27 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
             <h1 className="text-3xl font-bold text-white mb-3">
               Check-in complete.
             </h1>
-            {reward && reward.animation === "ring" ? (
-              <p className="text-white/70 text-lg mb-6">
-                {reward.text}
-              </p>
-            ) : (
-              <p className="text-white/70 text-lg mb-6">
-                Momentum has been updated.
-              </p>
+            <p className="text-white/70 text-lg mb-6">
+              {outcomeText ?? "Momentum updated."}
+            </p>
+
+            {phaseTransition && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6, duration: 0.4 }}
+                className="mb-6 px-4 py-3 rounded-xl border border-white/15 text-center"
+              >
+                <p className="text-white/50 text-xs uppercase tracking-widest mb-1">New Phase Unlocked</p>
+                <p className="text-white text-base font-semibold">{phaseTransition.to}</p>
+              </motion.div>
             )}
-          
+
             <motion.button
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.8, duration: 0.3 }}
-              onClick={onComplete}
+              onClick={handleCelebrationComplete}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-xl transition-colors"
             >
               Continue
@@ -138,9 +164,9 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
           </motion.div>
         )}
 {/* Render celebration animations for burst/confetti/fireworks/hero */}
-{reward && ["burst", "confetti", "fireworks", "hero"].includes(reward.animation) && (
-          <RewardRenderer reward={reward} onComplete={onComplete} />
-        )}
+{!showPhaseCard && reward && ["burst", "confetti", "fireworks", "hero"].includes(reward.animation) && (
+  <RewardRenderer reward={reward} onComplete={handleCelebrationComplete} />
+)}
        {/* Pulse rings - only show for ring animation */}
        {(!reward || reward.animation === "none" || reward.animation === "ring") && (
           <motion.div
@@ -163,6 +189,42 @@ export default function CheckinSuccessAnimation({ onComplete }: { onComplete: ()
           />
         )}
           </motion.div>
+{/* Phase transition card — shown after celebration completes */}
+{showPhaseCard && phaseTransition && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-slate-900 flex flex-col items-center justify-center p-8 z-50"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.4 }}
+            className="text-center max-w-sm"
+          >
+            <p className="text-white/50 text-xs uppercase tracking-widest mb-3">New Phase Unlocked!</p>
+            <h2 className="text-white text-4xl font-bold mb-3">{phaseTransition.to}</h2>
+            <p className="text-white/60 text-base mb-10">
+              {phaseTransition.to === "Activation"    && "Early patterns are forming."}
+              {phaseTransition.to === "Patterning"    && "You're starting to repeat this."}
+              {phaseTransition.to === "Integration"   && "This is getting easier to repeat."}
+              {phaseTransition.to === "Accumulation"  && "This is getting harder to break."}
+              {phaseTransition.to === "Consolidation" && "You don't have to push as hard anymore."}
+              {phaseTransition.to === "Resilience"    && "Off days won't knock you off track."}
+              {phaseTransition.to === "Identity"      && "This runs automatically now."}
+            </p>
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.3 }}
+              onClick={onComplete}
+              className="bg-white text-slate-900 font-semibold px-10 py-3 rounded-xl"
+            >
+              Continue
+            </motion.button>
+          </motion.div>
+        </motion.div>
+      )}
     </>
   );
 }

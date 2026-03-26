@@ -3,6 +3,7 @@ import { adminDb, adminAuth } from '@/app/firebase/admin';
 import { calculateNewtonianMomentum, calculateDailyScore } from '@/app/services/newtonianMomentum';
 import { resolveReward, isSolidDay, isEliteDay } from '@/app/services/rewardEngine';
 import { FieldValue } from 'firebase-admin/firestore';
+import { getPhaseIndex, MOMENTUM_PHASES } from '@/app/utils/momentumPhases';
 
 // Matches writeDailyMomentum applyRampCap exactly
 function applyRampCap(score: number, checkInCount: number): number {
@@ -25,6 +26,24 @@ function gradesToRatings(grades: { name: string; grade: number }[]): Record<stri
     }
     return result;
   }
+
+  async function awardBadgeIfNew(
+    email: string,
+    badgeId: string,
+    type: string,
+    extra?: Record<string, unknown>
+  ): Promise<boolean> {
+    const ref = adminDb.collection('users').doc(email).collection('badges').doc(badgeId);
+    const snap = await ref.get();
+    if (snap.exists) return false;
+    await ref.set({
+      type,
+      earnedAt: new Date().toISOString(),
+      ...extra,
+    });
+    return true;
+  }
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -175,11 +194,30 @@ visualState: 'solid' as const,
         .set({ firstCheckinDate: date, createdAt: new Date().toISOString() }, { merge: true });
     }
 
+    const prevPhaseIndex = getPhaseIndex(prevTotalRealCheckIns);
+    const newPhaseIndex  = getPhaseIndex(totalRealCheckIns);
+    const phaseTransition = newPhaseIndex > prevPhaseIndex
+      ? { from: MOMENTUM_PHASES[prevPhaseIndex].name, to: MOMENTUM_PHASES[newPhaseIndex].name }
+      : null;
+
+    // Award badges
+    if (phaseTransition) {
+      const badgeId = `phase_${phaseTransition.to.toLowerCase()}`;
+      await awardBadgeIfNew(email, badgeId, 'phase_transition', {
+        phaseName: phaseTransition.to,
+        fromPhase: phaseTransition.from,
+      });
+    }
+    if (totalRealCheckIns === 100) {
+      await awardBadgeIfNew(email, 'checkin_100', 'identity');
+    }
+
     return NextResponse.json({
         success: true,
         reward,
         momentumScore,
         momentumDelta: momentumScore - previousMomentum,
+        phaseTransition,
       });
   } catch (err) {
     console.error('[submit-checkin] Error:', err);

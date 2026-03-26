@@ -16,14 +16,12 @@ export default function RewardRenderer({
   reward: RewardPayload | null;
   onComplete?: () => void;
 }) {
-  const completedRef = useRef<string | null>(null);
-  const rewardKey = reward?.text ?? null;
-  
-  // Guard: only call onComplete once per reward identity
+  const completedRef = useRef(false);
+
+  // Guard: only call onComplete once
   const handleComplete = () => {
-    if (!rewardKey) return;
-    if (completedRef.current === rewardKey) return;
-    completedRef.current = rewardKey;
+    if (completedRef.current) return;
+    completedRef.current = true;
     onComplete?.();
   };
   
