@@ -429,8 +429,8 @@ if (todayMomentumSnap.exists()) {
       const momentumColRef = collection(db, "users", email, "momentum");
       const momentumSnaps = await getDocs(momentumColRef);
       const allMomentum = momentumSnaps.docs
+      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.id))
       .map(d => ({ ...d.data(), date: d.id }) as DailyMomentumDoc)
-      .filter(m => m.date)
       .sort((a, b) => a.date < b.date ? 1 : -1)
       .slice(0, 14);
       // Zone detection: 11 of last 14 real days at 75%+ momentum
