@@ -160,6 +160,8 @@ export default function DashboardPage() {
   const [weekFocusBehavior, setWeekFocusBehavior] = useState<string | null>(null);
   const [todayMomentum, setTodayMomentum] = useState<any>(null);
   const [recentMomentum, setRecentMomentum] = useState<DailyMomentumDoc[]>([]);
+  const [forceDrag, setForceDrag] = useState<{ type: 'driver' | 'drag'; behavior: string } | null>(null);
+  const [inTheZone, setInTheZone] = useState(false);
   const [commitment, setCommitment] = useState<any>(null);
   const [showCommitment, setShowCommitment] = useState(false);
   const [missedDays, setMissedDays] = useState(0);
@@ -372,6 +374,34 @@ if (loadedFocus) {
 
   setCompletedLast7Days(completed);
   setLevelUpEligible(completed >= 5 && daysSinceLastDecision >= 7);
+  // Force/Drag cause layer — spec: 3+ elite = driver, 3+ low = drag, single behavior only
+  const BEHAVIORS = ['nutrition_quality','portion_control','protein','hydration','sleep','mindset','movement'];
+  const realLast7 = momentumSnap.docs
+    .filter(d => d.data().checkinType === 'real')
+    .map(d => d.data().behaviorRatings as Record<string, string> | undefined)
+    .filter(Boolean) as Record<string, string>[];
+
+  if (realLast7.length >= 3) {
+    const driverBehaviors = BEHAVIORS.filter(b =>
+      realLast7.filter(r => r[b] === 'elite').length >= 3
+    );
+    const dragBehaviors = BEHAVIORS.filter(b =>
+      realLast7.filter(r => r[b] === 'not-great' || r[b] === 'off').length >= 3
+    );
+
+    const FORCE_DRAG_LABELS: Record<string, string> = {
+      movement: 'Bonus activity',
+    };
+    if (driverBehaviors.length === 1) {
+      const b = driverBehaviors[0];
+      setForceDrag({ type: 'driver', behavior: FORCE_DRAG_LABELS[b] ?? BEHAVIOR_LABELS[b] ?? b });
+    } else if (dragBehaviors.length === 1) {
+      const b = dragBehaviors[0];
+      setForceDrag({ type: 'drag', behavior: FORCE_DRAG_LABELS[b] ?? BEHAVIOR_LABELS[b] ?? b });
+    } else {
+      setForceDrag(null);
+    }
+  }
 }
 
 const commitRef = doc(db, "users", email, "momentum", "commitment");
@@ -403,6 +433,16 @@ if (todayMomentumSnap.exists()) {
       .filter(m => m.date)
       .sort((a, b) => a.date < b.date ? 1 : -1)
       .slice(0, 14);
+      // Zone detection: 11 of last 14 real days at 75%+ momentum
+      const last14Real = allMomentum
+        .filter(d => d.checkinType === 'real')
+        .slice(0, 14);
+      if (last14Real.length >= 14) {
+        const qualifyingDays = last14Real.filter(d => (d.momentumScore ?? 0) >= 75).length;
+        setInTheZone(qualifyingDays >= 11);
+      } else {
+        setInTheZone(false);
+      }
      // ===== NEW: Calculate consistency =====
 if (todayMomentumSnap.exists()) {
   const todayData = todayMomentumSnap.data();
@@ -861,55 +901,10 @@ await setDoc(promptRef, {
       {hasCompletedCheckin()
         ? weekFocusBehavior
           ? `You're focusing on ${getFocusBehaviorSentenceName(weekFocusBehavior)} this week.`
-          : "Momentum updated. Check your coaching for this week's focus."
+          : "Momentum updated."
         : "Ready to check in?"}
     </p>
   </div>
-
-  {/* Level-Up Prompt */}
-  {levelUpEligible && completedLast7Days >= 5 && (
-    <div className="mt-4 pt-4 border-t border-slate-700 animate-fadeIn">
-      <p className="text-white mb-2 font-semibold">
-        You've completed your exercise {completedLast7Days} out of 7 days.
-      </p>
-      <p className="text-white/80 mb-4 text-sm">
-        What will you commit to for the upcoming week?
-      </p>
-      
-      {!showAdjustOptions ? (
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={() => { setAdjustOptions('increase'); setShowAdjustOptions(true); }}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-3 transition"
-          >
-            Increase my commitment
-          </button>
-          
-          <button
-            onClick={handleKeepCurrent}
-            className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
-          >
-            Keep my current commitment
-          </button>
-          
-          <button
-            onClick={() => { setAdjustOptions('decrease'); setShowAdjustOptions(true); }}
-            className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg py-2 transition"
-          >
-            Decrease my commitment
-          </button>
-        </div>
-      ) : (
-        <LevelUpSlider
-          currentTarget={currentFocus?.target || 10}
-          lastProvenTarget={currentFocus?.lastProvenTarget || currentFocus?.target || 10}
-          direction={adjustOptions}
-          onSelect={handleAdjustLevel}
-          onBack={() => setShowAdjustOptions(false)}
-        />
-      )}
-    </div>
-  )}
 </motion.div>
 
 {/* Momentum Engine */}
@@ -948,8 +943,18 @@ await setDoc(promptRef, {
 
   <div className="relative">
   <div className="flex items-center justify-between mb-2">
-      <div>
-      <h2 className={`text-[24px] font-medium text-white/85 ${inter.className}`} style={{ letterSpacing: '0.05em' }}>Momentum</h2>
+  <div>
+        <h2 className={`text-[24px] font-medium text-white/85 ${inter.className}`} style={{ letterSpacing: '0.05em' }}>Momentum</h2>
+        {todayMomentum?.momentumDelta !== undefined && hasCompletedCheckin() && (
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-base">
+              {todayMomentum.momentumDelta > 0 ? '↗' : todayMomentum.momentumDelta < 0 ? '↘' : '→'}
+            </span>
+            <span className="text-white/50 text-sm">
+              {todayMomentum.momentumDelta > 0 ? `+${Math.round(todayMomentum.momentumDelta)}` : Math.round(todayMomentum.momentumDelta)}
+            </span>
+          </div>
+        )}
       </div>
       
       {/* Always show percentage even on Day 1 */}
@@ -1004,27 +1009,29 @@ await setDoc(promptRef, {
        <div className="flex items-center justify-between text-base font-medium mb-2">
           <div className="text-white/85">
           {(() => {
-             const topBehavior = getDominantBehaviorSubject(todayMomentum.behaviorGrades, "high");
-             const lowBehavior = getDominantBehaviorSubject(todayMomentum.behaviorGrades, "low");
-              if (todayMomentum.momentumDelta >= 5) {
-                return (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-base">↗</span>
-                    <span>{topBehavior ? `${topBehavior} is pushing momentum up.` : "Momentum is building."}</span>
-                  </div>
-                );
-              } else if (todayMomentum.momentumDelta <= -5) {
-                return (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-base">↘</span>
-                    <span>{lowBehavior ? `${lowBehavior} is pulling momentum down.` : "Momentum is cooling."}</span>
-                  </div>
-                );
-              } else {
-                return (
-                  <span>{topBehavior ? `${topBehavior} is keeping momentum steady.` : "Momentum is holding."}</span>
-                );
-              }
+            const topBehavior = getDominantBehaviorSubject(todayMomentum.behaviorGrades, "high");
+            const lowBehavior = getDominantBehaviorSubject(todayMomentum.behaviorGrades, "low");
+            if (todayMomentum.momentumDelta >= 5) {
+              return (
+                <span>{topBehavior ? `${topBehavior} is pushing momentum up.` : "Momentum is building."}</span>
+              );
+            } else if (todayMomentum.momentumDelta <= -5) {
+              return (
+                <span>{lowBehavior ? `${lowBehavior} is pulling momentum down.` : "Momentum is cooling."}</span>
+              );
+             } else if (forceDrag?.type === 'driver') {
+               return (
+                 <span>{forceDrag.behavior} is driving momentum this week.</span>
+               );
+             } else if (forceDrag?.type === 'drag') {
+               return (
+                 <span>{forceDrag.behavior} is creating drag this week.</span>
+               );
+             } else {
+               return (
+                 <span>{topBehavior ? `${topBehavior} is keeping momentum steady.` : "Momentum is holding."}</span>
+               );
+             }
             })()}
           </div>
 
@@ -1053,6 +1060,9 @@ await setDoc(promptRef, {
               className="w-full text-sm text-white/55 text-center mt-1 hover:text-white/75 transition-colors"
             >
               <span className="font-semibold">{phase} Phase</span>
+              {inTheZone && (
+                <span className="ml-2 text-orange-400 font-normal">· In The Zone</span>
+              )}
             </button>
           );
         })()}

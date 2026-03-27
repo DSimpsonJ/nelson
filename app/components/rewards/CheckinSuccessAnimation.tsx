@@ -49,11 +49,6 @@ export default function CheckinSuccessAnimation({
       onComplete();
     }
   };
-  const outcomeText =
-  momentumDelta === undefined ? null :
-  momentumDelta >= 2  ? "Moving forward." :
-  momentumDelta <= -2 ? "Slowed." :
-                        "Steady.";
   return (
     <>
       <motion.div
@@ -136,9 +131,6 @@ export default function CheckinSuccessAnimation({
             <h1 className="text-3xl font-bold text-white mb-3">
               Check-in complete.
             </h1>
-            <p className="text-white/70 text-lg mb-6">
-              {outcomeText ?? "Momentum updated."}
-            </p>
 
             {phaseTransition && (
               <motion.div
