@@ -102,9 +102,10 @@ Get the business real. Get compliance documents drafted. Close web app gaps.
 
 - ✅ Separate all Nelson expenses from personal
 
-- [ ] Set up Wave bookkeeping (free, connect Mercury — 10 minutes)
+- ✅ DUNS approval
 
-- [ ] Enroll in Apple Developer Program under entity ($99) — pending DUNS approval ~March 23
+- ✅ Enroll in Apple Developer Program under entity ($99) — pending 
+ 
 
 **Compliance**
 
@@ -128,7 +129,7 @@ Get the business real. Get compliance documents drafted. Close web app gaps.
 
 - ✅ All dead event types, dead state, dead imports removed
 
-**Exit Criteria: All met except Apple Developer enrollment (unblocks March 23).**
+**Exit Criteria: All met
 
 ## **Phase 2: Backend Hardening**
 
@@ -300,7 +301,7 @@ Gated on Apple Developer enrollment under Simpson Holdings LLC. DUNS expected ea
 
 First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
-- [ ] Enroll in Apple Developer Program under Simpson Holdings LLC
+- ✅ Enroll in Apple Developer Program under Simpson Holdings LLC
 
 - [ ] Update Xcode code signing from personal Apple ID to entity
 
@@ -366,7 +367,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - ✅ Section 15 (dispute resolution) filled — done March 20, 2026
 
-- [ ] Bookkeeping setup — Wave free tier no longer supports bank sync. Use spreadsheet until first revenue, then engage CPA for system recommendation.
+- [ ] Bookkeeping setup — Use spreadsheet until first revenue, then Quickbooks
 
 **Exit Criteria:**
 

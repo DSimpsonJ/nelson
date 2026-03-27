@@ -433,6 +433,7 @@ if (todayMomentumSnap.exists()) {
       .map(d => ({ ...d.data(), date: d.id }) as DailyMomentumDoc)
       .sort((a, b) => a.date < b.date ? 1 : -1)
       .slice(0, 14);
+      setRecentMomentum(allMomentum);
       // Zone detection: 11 of last 14 real days at 75%+ momentum
       const last14Real = allMomentum
         .filter(d => d.checkinType === 'real')
