@@ -7,7 +7,6 @@ export const FOCUS_BEHAVIOR_LABELS: Record<string, string> = {
   protein:           "Protein",
   hydration:         "Hydration",
   sleep:             "Sleep",
-  mindset:           "Mindset",
   movement:          "Movement",
 };
 
