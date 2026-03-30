@@ -202,17 +202,26 @@ visualState: 'solid' as const,
       ? { from: MOMENTUM_PHASES[prevPhaseIndex].name, to: MOMENTUM_PHASES[newPhaseIndex].name }
       : null;
 
-    // Award badges
-    if (phaseTransition) {
-      const badgeId = `phase_${phaseTransition.to.toLowerCase()}`;
-      await awardBadgeIfNew(email, badgeId, 'phase_transition', {
-        phaseName: phaseTransition.to,
-        fromPhase: phaseTransition.from,
-      });
-    }
-    if (totalRealCheckIns === 100) {
-      await awardBadgeIfNew(email, 'checkin_100', 'identity');
-    }
+   // Award badges
+   if (phaseTransition) {
+    const badgeId = `phase_${phaseTransition.to}`;
+    await awardBadgeIfNew(email, badgeId, 'phase_transition', {
+      phaseName: phaseTransition.to,
+      fromPhase: phaseTransition.from,
+    });
+  }
+  if (totalRealCheckIns === 10) {
+    await awardBadgeIfNew(email, 'checkin_10', 'milestone', { phaseName: '10' });
+  }
+  if (totalRealCheckIns === 25) {
+    await awardBadgeIfNew(email, 'checkin_25', 'milestone', { phaseName: '25' });
+  }
+  if (totalRealCheckIns === 50) {
+    await awardBadgeIfNew(email, 'checkin_50', 'milestone', { phaseName: '50' });
+  }
+  if (totalRealCheckIns === 100) {
+    await awardBadgeIfNew(email, 'checkin_100', 'identity');
+  }
 
     return NextResponse.json({
         success: true,
