@@ -190,6 +190,10 @@ visualState: 'solid' as const,
         .collection('users').doc(email)
         .collection('metadata').doc('accountInfo')
         .set({ firstCheckinDate: date, createdAt: new Date().toISOString() }, { merge: true });
+      await awardBadgeIfNew(email, 'phase_Initiation', 'phase_transition', {
+        phaseName: 'Initiation',
+        fromPhase: '',
+      });
     }
 
     const prevPhaseIndex = getPhaseIndex(prevTotalRealCheckIns);

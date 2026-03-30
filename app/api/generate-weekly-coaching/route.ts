@@ -45,7 +45,7 @@ import { detectDayOfWeekPatterns, DayOfWeekAnalysis } from '@/app/services/detec
 import { buildScopedSystemPrompt } from '@/app/services/buildScopedSystemPrompt';
 import { validateConstraintAlignment } from '@/app/services/validateConstraintAlignment';
 import { detectCelebrations, CelebrationResult } from '@/app/services/celebrationTriggers';
-import { buildEarlyUserPrompt, calculateEarlyBehaviorAverages } from '@/app/services/buildEarlyUserPrompt';
+import { buildEarlyUserPrompt, calculateEarlyBehaviorRatings } from '@/app/services/buildEarlyUserPrompt';
 
 // Import from your existing Firebase config
 import { adminDb } from '@/app/firebase/admin';
@@ -553,20 +553,20 @@ const prevCalibration = await getPreviousWeekCalibration(email, pattern.weekId);
         .get();
       const earlyWeekData = earlySnap.docs.map(d => d.data());
 
-      const earlyBehaviorAverages = calculateEarlyBehaviorAverages(earlyWeekData);
+      const earlyBehaviorAverages = calculateEarlyBehaviorRatings(earlyWeekData);
 
       // Use metadata for accountAgeDays — fallback to totalLifetimeCheckIns as proxy
       const accountAgeDays = earlyWeekData.length > 0
         ? (earlyWeekData[earlyWeekData.length - 1].accountAgeDays ?? pattern.totalLifetimeCheckIns)
         : pattern.totalLifetimeCheckIns;
 
-      const earlyPrompt = buildEarlyUserPrompt({
-        checkInsThisWeek: pattern.realCheckInsThisWeek,
-        totalLifetimeCheckIns: pattern.totalLifetimeCheckIns,
-        accountAgeDays,
-        behaviorAverages: earlyBehaviorAverages,
-        patternType: pattern.primaryPattern as 'insufficient_data' | 'building_foundation',
-      });
+        const earlyPrompt = buildEarlyUserPrompt({
+          checkInsThisWeek: pattern.realCheckInsThisWeek,
+          totalLifetimeCheckIns: pattern.totalLifetimeCheckIns,
+          accountAgeDays,
+          behaviorRatings: earlyBehaviorAverages,
+          patternType: pattern.primaryPattern as 'insufficient_data' | 'building_foundation',
+        });
       const earlyMessage = await anthropic.messages.create({
         model: MODEL_CONFIG.model,
         max_tokens: 600,
