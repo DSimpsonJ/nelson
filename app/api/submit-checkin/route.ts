@@ -223,13 +223,18 @@ visualState: 'solid' as const,
     await awardBadgeIfNew(email, 'checkin_100', 'identity');
   }
 
-    return NextResponse.json({
-        success: true,
-        reward,
-        momentumScore,
-        momentumDelta: momentumScore - previousMomentum,
-        phaseTransition,
-      });
+  const milestoneCount = [10, 25, 50, 100].includes(totalRealCheckIns)
+  ? totalRealCheckIns
+  : null;
+
+return NextResponse.json({
+    success: true,
+    reward,
+    momentumScore,
+    momentumDelta: momentumScore - previousMomentum,
+    phaseTransition,
+    milestoneCount,
+  });
   } catch (err) {
     console.error('[submit-checkin] Error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
