@@ -95,7 +95,7 @@ export default function HistoryPage() {
                     return {
                       i,
                       date: cur?.date,
-                      current: cur?.momentumScore ?? null,
+                      current: cur?.checkinType === 'real' ? (cur?.momentumScore ?? null) : null,
                       currentType: cur?.checkinType,
                     };
                   });
@@ -482,15 +482,14 @@ export default function HistoryPage() {
                               }`}
                           >
                             <div className="text-xs text-white/60 mb-1">{dayNum}</div>
-                            {dayDoc ? (
+                            {dayDoc?.checkinType === "real" ? (
                               <div className="text-sm font-semibold text-white">
                                 {dayDoc.momentumScore}%
                               </div>
+                            ) : dayDoc?.checkinType === "gap_fill" ? (
+                              <div className="text-xs text-white/40">Gap</div>
                             ) : (
                               <div className="text-xs text-white/30">—</div>
-                            )}
-                            {dayDoc?.checkinType === "gap_fill" && (
-                              <div className="text-xs text-white/40">Gap</div>
                             )}
                           </button>
                         </div>

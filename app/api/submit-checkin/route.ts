@@ -84,9 +84,7 @@ export async function POST(req: NextRequest) {
       .get();
       const prevData = prevSnap.exists ? prevSnap.data()! : null;
       const previousMomentum = prevData
-        ? (prevData.checkinType === 'gap_fill'
-            ? (prevData.momentumScore ?? 0)          // frozen value from gap-fill
-            : (prevData.rawMomentumScore ?? prevData.momentumScore ?? 0))  // real check-in
+        ? (prevData.momentumScore ?? 0)
         : 0;
       const currentStreak = prevData?.currentStreak ?? 0;
 
