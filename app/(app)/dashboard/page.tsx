@@ -112,14 +112,14 @@ function getDominantBehaviorSubject(
 const MOMENTUM_PHASES = PHASE_BOUNDARIES.map((p, i) => ({
   ...p,
   copy: [
-    "This is fragile. Every check-in is building the signal.",
-    "Early patterns are forming.",
-    "You're starting to repeat this.",
-    "This is getting easier to repeat.",
-    "This is getting harder to break.",
-    "You don't have to push as hard anymore.",
-    "Off days won't knock you off track.",
-    "This runs automatically now.",
+    "Starting is the hardest part. Every check-in builds the signal.",
+    "Early patterns are forming. This is becoming real.",
+    "You're starting to repeat this without forcing it.",
+    "This is getting easier to repeat. Less effort, more consistency.",
+    "Your momentum has mass now. This is harder to stop.",
+    "You don't have to push as hard anymore. This is starting to hold.",
+    "Off days won't knock you off track. This is durable.",
+    "This runs automatically now. This is who you are.",
   ][i],
 }));
 

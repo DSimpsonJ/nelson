@@ -124,7 +124,7 @@ export default function DashboardDevTools({
               onClick={async () => {
                 const email = getEmail();
                 if (!email) return;
-                const COUNT = 2;
+                const COUNT = 10;
                 try {
                   for (let i = COUNT; i >= 1; i--) {
                     const d = new Date();

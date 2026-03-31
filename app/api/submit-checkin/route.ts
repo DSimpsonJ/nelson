@@ -234,6 +234,7 @@ return NextResponse.json({
     momentumDelta: momentumScore - previousMomentum,
     phaseTransition,
     milestoneCount,
+    totalRealCheckIns,
   });
   } catch (err) {
     console.error('[submit-checkin] Error:', err);
