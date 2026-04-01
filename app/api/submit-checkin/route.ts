@@ -142,6 +142,7 @@ const totalRealCheckIns = prevTotalRealCheckIns + 1;
       hasEverHit80Momentum: userData.hasEverHit80Momentum ?? false,
       hasEverHit90Momentum: userData.hasEverHit90Momentum ?? false,
       hasEverHit100Momentum: userData.hasEverHit100Momentum ?? false,
+      hasEverHitZone: userData.hasEverHitZone ?? false,
       isEliteDay: isEliteDay(gradesToRatings(behaviorGrades), exerciseDeclared ?? false),
       isSolidDay: isSolidDay(gradesToRatings(behaviorGrades), exerciseDeclared ?? false),
       isSolidWeek: false,
@@ -174,6 +175,7 @@ visualState: 'solid' as const,
 
     // Update user doc
     const userUpdates: Record<string, unknown> = { lastCheckInDate: date };
+    if (reward.stateUpdates?.hasEverHitZone) userUpdates.hasEverHitZone = true;
     if (reward.stateUpdates?.hasEverHit80Momentum) userUpdates.hasEverHit80Momentum = true;
     if (reward.stateUpdates?.hasEverHit90Momentum) userUpdates.hasEverHit90Momentum = true;
     if (reward.stateUpdates?.hasEverHit100Momentum) userUpdates.hasEverHit100Momentum = true;

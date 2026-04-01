@@ -985,7 +985,7 @@ await setDoc(promptRef, {
       <>
         
        {/* Progress bar - refined warm palette */}
-       <div className="relative h-[10px] bg-white/[0.15] rounded-full overflow-hidden backdrop-blur-sm mb-2">
+       <div className="relative h-[10px] bg-white/[0.15] rounded-full backdrop-blur-sm mb-2">
        <motion.div
             initial={{ width: hasAnimated ? `${todayMomentum.momentumScore}%` : 0 }}
             animate={{ width: `${todayMomentum.momentumScore}%` }}
@@ -1003,6 +1003,18 @@ await setDoc(promptRef, {
                 ? 'bg-gradient-to-r from-orange-400/80 to-amber-400/80'
                 : 'bg-gradient-to-r from-orange-300/60 to-amber-300/60'
             }`}
+          />
+          {/* Zone threshold notch at 75% */}
+          <div
+            style={{
+              position: 'absolute',
+              left: '75%',
+              top: '-3px',
+              width: '2px',
+              height: '16px',
+              backgroundColor: 'rgba(255,255,255,0.35)',
+              borderRadius: '1px',
+            }}
           />
         </div>
         

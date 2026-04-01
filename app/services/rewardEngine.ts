@@ -18,20 +18,14 @@
 // ============================================================================
 
 export type RewardEventType =
-  // Acknowledgement
   | "check_in_logged"
-  
-  // Check-in milestones
   | "milestone_burst"
   | "milestone_confetti"
   | "milestone_fireworks"
-  
-  // Performance celebrations (first-time only)
+  | "first_zone_entry"
   | "first_80_momentum"
   | "first_90_momentum"
   | "first_100_momentum"
-  
-  // Performance celebrations (repeatable)
   | "elite_day"
   | "solid_day"
   | "solid_week";
@@ -58,6 +52,7 @@ export interface RewardContext {
   hasEverHit80Momentum: boolean;
   hasEverHit90Momentum: boolean;
   hasEverHit100Momentum: boolean;
+  hasEverHitZone: boolean;
   isEliteDay: boolean;
   isSolidDay: boolean;
   isSolidWeek: boolean;
@@ -70,6 +65,7 @@ export interface RewardResult {
     hasEverHit80Momentum?: true;
     hasEverHit90Momentum?: true;
     hasEverHit100Momentum?: true;
+    hasEverHitZone?: true;
   };
 }
 
@@ -201,8 +197,18 @@ const RESPONSE_CONFIG: Record<RewardEventType, {
     },
   },
   
-  // FIRST-TIME MOMENTUM MILESTONES
-  first_80_momentum: {
+ // ZONE ENTRY
+ first_zone_entry: {
+  class: "celebration",
+  animation: "confetti",
+  intensity: "large",
+  primaryText: "You've reached The Zone.",
+  secondaryText: "Stay above 75% for 11 of the next 14 days to earn your first Zone badge.",
+  shareable: false,
+},
+
+// FIRST-TIME MOMENTUM MILESTONES
+first_80_momentum: {
     class: "celebration",
     animation: "confetti",
     intensity: "large",
@@ -275,7 +281,8 @@ const PRIORITY: RewardEventType[] = [
   "milestone_confetti",
   
   // Milestone celebrations - burst
-  "solid_day",
+ "solid_day",
+  "first_zone_entry",
   "milestone_burst",
   
   // Acknowledgement (fallback)
@@ -360,6 +367,10 @@ function eligibleFirst100Momentum(ctx: RewardContext): boolean {
   return ctx.momentum >= 100 && !ctx.hasEverHit100Momentum;
 }
 
+function eligibleFirstZoneEntry(ctx: RewardContext): boolean {
+  return ctx.momentum >= 75 && !ctx.hasEverHitZone;
+}
+
 function eligibleEliteDay(ctx: RewardContext): boolean {
   return ctx.isEliteDay;
 }
@@ -387,6 +398,7 @@ function assertValidPayload(event: RewardEventType, config: typeof RESPONSE_CONF
     milestone_burst: ["burst"],
     milestone_confetti: ["confetti"],
     milestone_fireworks: ["fireworks"],
+    first_zone_entry: ["confetti"],
     first_80_momentum: ["confetti"],
     first_90_momentum: ["confetti"],
     first_100_momentum: ["fireworks"],
@@ -417,15 +429,13 @@ export function resolveReward(ctx: RewardContext): RewardResult {
     solid_week: eligibleSolidWeek(ctx),
     first_100_momentum: eligibleFirst100Momentum(ctx),
     milestone_fireworks: eligibleMilestoneFireworks(ctx),
-    
     first_90_momentum: eligibleFirst90Momentum(ctx),
     first_80_momentum: eligibleFirst80Momentum(ctx),
     elite_day: eligibleEliteDay(ctx),
     milestone_confetti: eligibleMilestoneConfetti(ctx),
-    
     solid_day: eligibleSolidDay(ctx),
+    first_zone_entry: eligibleFirstZoneEntry(ctx),
     milestone_burst: eligibleMilestoneBurst(ctx),
-    
     check_in_logged: eligibleCheckInLogged(),
   };
   
@@ -442,6 +452,9 @@ export function resolveReward(ctx: RewardContext): RewardResult {
       // Build state updates for first-time achievements
       const stateUpdates: RewardResult['stateUpdates'] = {};
       
+      if (event === "first_zone_entry") {
+        stateUpdates.hasEverHitZone = true;
+      }
       if (event === "first_80_momentum") {
         stateUpdates.hasEverHit80Momentum = true;
       }
