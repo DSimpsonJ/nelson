@@ -323,7 +323,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - [ ] Test full purchase flow in sandbox (IAP sandbox is always flaky — budget extra time)
 
-- [ ] Backfill trialStartDate for existing alpha users in Firestore before TestFlight invites go out — accounts with no trialStartDate hit the paywall immediately on first launch
+- ✅ Backfill trialStartDate for existing alpha users in Firestore before TestFlight invites go out — accounts with no trialStartDate hit the paywall immediately on first launch
 
 **Week 2 (Mar 30 – Apr 5): Notifications**
 

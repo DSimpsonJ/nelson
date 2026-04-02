@@ -54,7 +54,6 @@ export async function getCurrentFocusBehavior(
   const snap = await getDoc(userRef);
   if (!snap.exists()) return null;
   const data = snap.data();
-  if (data.focusBehaviorSetWeek !== currentWeekId) return null;
   return data.focusBehavior ?? null;
 }
 export function getCurrentWeekId(): string {

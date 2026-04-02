@@ -299,11 +299,7 @@ if (gapInfo.hadGap) {
         hasSeenWelcome = userData.hasSeenDashboardWelcome ?? false;
         setReadLearnSlugs(userData.readLearnSlugs ?? []);
 
-        const currentWeekId = getCurrentWeekId();
-        if (
-          userData.focusBehaviorSetWeek === currentWeekId &&
-          userData.focusBehavior
-        ) {
+        if (userData.focusBehavior) {
           setWeekFocusBehavior(userData.focusBehavior);
         }
       }
@@ -901,7 +897,7 @@ await setDoc(promptRef, {
     <p className="text-base text-white/60 text-center mt-1">
       {hasCompletedCheckin()
         ? weekFocusBehavior
-          ? `You're focusing on ${getFocusBehaviorSentenceName(weekFocusBehavior)} this week.`
+          ? `Your current focus is ${getFocusBehaviorSentenceName(weekFocusBehavior)}.`
           : "Momentum updated."
         : "Ready to check in?"}
     </p>
