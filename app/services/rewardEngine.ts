@@ -19,7 +19,6 @@
 
 export type RewardEventType =
   | "check_in_logged"
-  | "milestone_burst"
   | "milestone_confetti"
   | "milestone_fireworks"
   | "first_zone_entry"
@@ -125,20 +124,6 @@ const RESPONSE_CONFIG: Record<RewardEventType, {
       }
       return { primaryText: "All checked in.", secondaryText: "Momentum starts here." };
     },
-  },
-  
-  // CHECK-IN MILESTONES - BURST
-  milestone_burst: {
-    class: "positive",
-    animation: "burst",
-    intensity: "medium",
-    primaryText: "", // Dynamic
-    secondaryText: "Momentum is building.",
-    shareable: false,
-    dynamic: (ctx) => ({
-      primaryText: `That's ${ctx.totalRealCheckIns} check-ins!`,
-      secondaryText: "Momentum is building.",
-    }),
   },
   
   // CHECK-IN MILESTONES - CONFETTI
@@ -283,7 +268,6 @@ const PRIORITY: RewardEventType[] = [
   // Milestone celebrations - burst
  "solid_day",
   "first_zone_entry",
-  "milestone_burst",
   
   // Acknowledgement (fallback)
   "check_in_logged",
@@ -297,43 +281,31 @@ const PRIORITY: RewardEventType[] = [
 // MILESTONE MAP
 // ============================================================================
 
-const MILESTONE_MAP: Record<number, 'burst' | 'confetti' | 'fireworks'> = {
-  // Block 1 (1-25)
-  3: 'burst',
-  10: 'confetti',
-  15: 'burst',
-  20: 'confetti',
-  25: 'fireworks',
-  
-  // Block 2 (26-50)
-  30: 'burst',
-  35: 'burst',
-  40: 'confetti',
-  45: 'burst',
-  50: 'fireworks',
+const MILESTONE_MAP: Record<number, 'confetti' | 'fireworks'> = {
+  10:  'confetti',
+  20:  'confetti',
+  25:  'fireworks',
+  40:  'confetti',
+  50:  'fireworks',
+  75:  'fireworks',
+  100: 'fireworks',
 };
 
-function getCelebrationLevel(totalCheckIns: number): 'burst' | 'confetti' | 'fireworks' | null {
-  // Direct match in milestone map
+function getCelebrationLevel(totalCheckIns: number): 'confetti' | 'fireworks' | null {
+  // Direct match
   if (MILESTONE_MAP[totalCheckIns]) {
     return MILESTONE_MAP[totalCheckIns];
   }
-  
-  // Every 50 thereafter = fireworks (75, 100, 150, 200...)
-  if (totalCheckIns > 50 && totalCheckIns % 50 === 0) {
-    return 'fireworks';
+
+  // Post-100: every 50 alternates confetti/fireworks
+  // 125, 175, 225... = confetti
+  // 150, 200, 250... = fireworks
+  if (totalCheckIns > 100) {
+    const offset = totalCheckIns - 100;
+    if (offset % 50 === 0) return 'fireworks';      // 150, 200, 250...
+    if ((offset - 25) % 50 === 0) return 'confetti'; // 125, 175, 225...
   }
-  
-// Pattern repeats every 25 check-ins after first 50
-if (totalCheckIns > 50) {
-  const positionIn25 = ((totalCheckIns - 50) % 25);
-  if (positionIn25 === 0) return 'fireworks'; // 75, 125, 175, etc.
-  const equivalentCheckIn = 25 + positionIn25;
-  if (MILESTONE_MAP[equivalentCheckIn]) {
-    return MILESTONE_MAP[equivalentCheckIn];
-  }
-}
-  
+
   return null;
 }
 
@@ -342,10 +314,6 @@ if (totalCheckIns > 50) {
 // ============================================================================
 
 // Check-in milestones
-function eligibleMilestoneBurst(ctx: RewardContext): boolean {
-  return getCelebrationLevel(ctx.totalRealCheckIns) === 'burst';
-}
-
 function eligibleMilestoneConfetti(ctx: RewardContext): boolean {
   return getCelebrationLevel(ctx.totalRealCheckIns) === 'confetti';
 }
@@ -395,7 +363,6 @@ function eligibleCheckInLogged(): boolean {
 function assertValidPayload(event: RewardEventType, config: typeof RESPONSE_CONFIG[RewardEventType]): void {
   const validAnimations: Record<RewardEventType, PayloadAnimation[]> = {
     check_in_logged: ["ring"],
-    milestone_burst: ["burst"],
     milestone_confetti: ["confetti"],
     milestone_fireworks: ["fireworks"],
     first_zone_entry: ["confetti"],
@@ -435,7 +402,6 @@ export function resolveReward(ctx: RewardContext): RewardResult {
     milestone_confetti: eligibleMilestoneConfetti(ctx),
     solid_day: eligibleSolidDay(ctx),
     first_zone_entry: eligibleFirstZoneEntry(ctx),
-    milestone_burst: eligibleMilestoneBurst(ctx),
     check_in_logged: eligibleCheckInLogged(),
   };
   

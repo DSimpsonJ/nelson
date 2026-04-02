@@ -212,22 +212,29 @@ visualState: 'solid' as const,
       fromPhase: phaseTransition.from,
     });
   }
-  if (totalRealCheckIns === 10) {
-    await awardBadgeIfNew(email, 'checkin_10', 'milestone', { phaseName: '10' });
+  // Milestone badges: 10, 25, 50, 75, then every 50 after 100
+  const milestoneBadgeNumbers = [10, 25, 50, 75];
+  if (milestoneBadgeNumbers.includes(totalRealCheckIns)) {
+    await awardBadgeIfNew(email, `checkin_${totalRealCheckIns}`, 'milestone', {
+      phaseName: String(totalRealCheckIns),
+    });
   }
-  if (totalRealCheckIns === 25) {
-    await awardBadgeIfNew(email, 'checkin_25', 'milestone', { phaseName: '25' });
-  }
-  if (totalRealCheckIns === 50) {
-    await awardBadgeIfNew(email, 'checkin_50', 'milestone', { phaseName: '50' });
-  }
-  if (totalRealCheckIns === 100) {
-    await awardBadgeIfNew(email, 'checkin_100', 'identity');
+  if (totalRealCheckIns > 100) {
+    const offset = totalRealCheckIns - 100;
+    if (offset % 50 === 0 || (offset - 25) % 50 === 0) {
+      await awardBadgeIfNew(email, `checkin_${totalRealCheckIns}`, 'milestone', {
+        phaseName: String(totalRealCheckIns),
+      });
+    }
   }
 
-  const milestoneCount = [10, 25, 50, 100].includes(totalRealCheckIns)
-  ? totalRealCheckIns
-  : null;
+  const milestoneCount = [10, 25, 50, 75].includes(totalRealCheckIns) ||
+    (totalRealCheckIns > 100 && (
+      (totalRealCheckIns - 100) % 50 === 0 ||
+      ((totalRealCheckIns - 100) - 25) % 50 === 0
+    ))
+    ? totalRealCheckIns
+    : null;
 
 return NextResponse.json({
     success: true,
