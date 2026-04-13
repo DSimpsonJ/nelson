@@ -54,8 +54,7 @@ function getPreviousWeekId(): string {
  */
 async function getAllUserEmails(): Promise<string[]> {
   try {
-    const snapshot = await adminDb.collection('users').get();
-    
+    const snapshot = await adminDb.collection('users').get();    
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 14);
     const cutoffStr = cutoff.toLocaleDateString('en-CA'); // YYYY-MM-DD
@@ -188,6 +187,27 @@ export async function GET(request: NextRequest) {
   const duration = Date.now() - startTime;
 
   console.log(`[Cron] Completed: ${successCount} successes, ${failureCount} failures in ${duration}ms`);
+
+  // Write permanent run log to Firestore
+  try {
+    const runId = `${weekId}_${Date.now()}`;
+    await adminDb.collection('cronLogs').doc(runId).set({
+      weekId,
+      ranAt: new Date().toISOString(),
+      totalUsers: userEmails.length,
+      successCount,
+      failureCount,
+      durationMs: duration,
+      results: results.map(r => ({
+        email: r.email,
+        success: r.success,
+        error: r.error ?? null,
+      })),
+    });
+    console.log(`[Cron] Run log written: cronLogs/${runId}`);
+  } catch (logError) {
+    console.error('[Cron] Failed to write run log:', logError);
+  }
 
   return NextResponse.json({
     success: true,
