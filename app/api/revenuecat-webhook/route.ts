@@ -7,8 +7,7 @@ export async function POST(req: NextRequest) {
   try {
     // Verify the request is from RevenueCat
     const authHeader = req.headers.get('authorization');
-    console.log('[revenuecat-webhook] auth header received:', authHeader);
-    if (!authHeader || authHeader !== REVENUECAT_WEBHOOK_SECRET) {
+if (!authHeader || authHeader !== REVENUECAT_WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
