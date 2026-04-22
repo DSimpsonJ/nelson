@@ -303,27 +303,27 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - ✅ Enroll in Apple Developer Program under Simpson Holdings LLC
 
-- [ ] Update Xcode code signing from personal Apple ID to entity
+- ✅ Update Xcode code signing from personal Apple ID to entity
 
-- [ ] Create Founding Members product in App Store Connect ($60/year auto-renewing)
+- ✅ Create Founding Members product in App Store Connect ($60/year auto-renewing)
 
-- [ ] Implement StoreKit purchase flow (react-native-purchases recommended over expo-in-app-purchases)
+- ✅ Implement StoreKit purchase flow (react-native-purchases recommended over expo-in-app-purchases)
 
 - [ ] Build server-side receipt validation endpoint
 
-- [ ] Write entitlement to Firestore on validated receipt (users/{email}.isSubscriber or similar)
+- ✅ Write entitlement to Firestore on validated receipt (users/{email}.isSubscriber or similar)
 
 - [ ] Handle renewal events from Apple
 
 - [ ] Handle cancellation/expiry
 
-- ✅ Build paywall screen — built March 20, 2026. Hard gate, no dismiss. Founding Members pricing displayed. Subscribe and Restore buttons placeholder until StoreKit wired.
+- ✅ Build paywall screen — Subscribe and Restore buttons wired to RevenueCat (Restore untested)
 
 - [ ] Restore purchases flow (required by Apple — reviewers check for this) — placeholder exists, wire to StoreKit
 
 - [ ] Test full purchase flow in sandbox (IAP sandbox is always flaky — budget extra time)
 
-- ✅ Backfill trialStartDate for existing alpha users in Firestore before TestFlight invites go out — accounts with no trialStartDate hit the paywall immediately on first launch
+- ✅ Backfill trialStartDate — NOT NEEDED. Alpha users have isSubscriber: true, bypass trial entirely.
 
 **Week 2 (Mar 30 – Apr 5): Notifications**
 
@@ -453,7 +453,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 | Gap reconciliation bug surfaces post-TestFlight | Medium / Medium | End-to-end test March 19. Fix before TestFlight invite goes out. |
 | Monday cron fails first full run (March 23) | Low / Medium | Run python3 scripts/run-coaching.sh manually. Script has retry logic. |
 | Section 15 blank flagged by App Review | RESOLVED | Filled March 20, 2026. |
-| Existing alpha users hit paywall on first TestFlight launch | High / High | Backfill trialStartDate in Firestore for all alpha users before TestFlight invites go out. One-time manual fix per user. |
+| Existing alpha users hit paywall on first TestFlight launch | High / High | Backfill trialStartDate in Firestore for all alpha users before TestFlight invites go out. One-time manual fix per user. | Intel Mac cannot run Xcode 26 | High / High | EAS Build is the only path — all builds go through EAS from this point forward |
 
 # **Decisions Locked**
 
@@ -474,6 +474,8 @@ These are made. Not up for re-discussion unless something fundamental changes.
 | Momentum implementation | Single API path (/api/submit-checkin) — web, mobile, future Android |
 | IAP library | react-native-purchases (preferred over expo-in-app-purchases) |
 | Trial period | 14 days from first check-in. trialStartDate written by /api/submit-checkin on isFirstCheckin. Hard gate after expiry — no dismiss. |
+| Build toolchain | EAS Build (cloud) — no local Xcode archives |
+| IAP library | react-native-purchases via RevenueCat |
 
 # **What Good Looks Like at Each Milestone**
 
