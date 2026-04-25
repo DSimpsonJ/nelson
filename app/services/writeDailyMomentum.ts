@@ -400,6 +400,36 @@ const momentumResult = calculateNewtonianMomentum({
     );
     finalMomentumScore = cappedScore;
   }
+
+  // Re-entry cap — mirrors route.ts logic
+  // Applies for 7 real check-ins after a 7+ day hiatus
+  if (totalRealCheckIns > 9) {
+    const daysSinceLastRealCheckin = await getDaysSinceLastCheckin(input.email, input.date);
+    if (daysSinceLastRealCheckin >= 7) {
+      // Count consecutive real check-ins before today
+      let consecutiveRealCheckIns = 0;
+      const baseDate = new Date(input.date + 'T00:00:00');
+      for (let i = 1; i <= 14; i++) {
+        const lookback = new Date(baseDate);
+        lookback.setDate(lookback.getDate() - i);
+        const lookbackKey = lookback.toLocaleDateString('en-CA');
+        const lookbackSnap = await getDoc(doc(db, 'users', input.email, 'momentum', lookbackKey));
+        if (!lookbackSnap.exists()) break;
+        if (lookbackSnap.data()!.checkinType !== 'real') break;
+        consecutiveRealCheckIns++;
+      }
+
+      const returnCheckInNumber = consecutiveRealCheckIns + 1;
+      if (returnCheckInNumber <= 7) {
+        const dailyScore = calculateDailyScore(input.behaviorGrades);
+        const maxRise = (dailyScore / 100) * 8;
+        const cappedScore = Math.round((previousMomentum ?? 0) + maxRise);
+        if (finalMomentumScore > cappedScore) {
+          finalMomentumScore = cappedScore;
+        }
+      }
+    }
+  }
 // Calculate delta - use last REAL momentum, not gap day
 let previousRealMomentum = 0;
 if (yesterdaySnap.exists()) {
@@ -495,9 +525,14 @@ export async function writeDailyMomentum(
       const dayRef = doc(db, "users", input.email, "momentum", dateKey);
       const daySnap = await getDoc(dayRef);
       
-      // Skip gap-fill days - they don't participate in velocity calculation
-      if (daySnap.exists() && daySnap.data().checkinType !== "gap_fill" && daySnap.data().dailyScore !== undefined) {
-        last4Days.unshift(daySnap.data().dailyScore);
+      if (daySnap.exists()) {
+        if (daySnap.data().checkinType === "gap_fill") {
+          // Gap days contribute decayed momentum score, not daily score
+          // This prevents empty window padding with today's score on return from hiatus
+          last4Days.unshift(daySnap.data().momentumScore ?? 0);
+        } else if (daySnap.data().dailyScore !== undefined) {
+          last4Days.unshift(daySnap.data().dailyScore);
+        }
       }
     }
     

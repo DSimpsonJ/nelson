@@ -142,6 +142,11 @@ These Terms are governed by the laws of the State of Maryland, without regard to
 
 15.6 Governing Law. These Terms and any dispute arising from them will be governed by the laws of the State of Maryland, without regard to its conflict of law provisions.
 
+15.7 Jury Trial Waiver. TO THE EXTENT PERMITTED BY LAW, 
+YOU AND SIMPSON HOLDINGS LLC WAIVE ANY RIGHT TO A JURY 
+TRIAL IN CONNECTION WITH ANY DISPUTE ARISING FROM THESE 
+TERMS OR THE SERVICE.
+
 ---
 
 ## 16. Contact
