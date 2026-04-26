@@ -2,7 +2,7 @@
 
 App Store Launch Plan
 
-*Owner: DJ Simpson  |  Target: Late May 2026  |  Last Updated: March 20, 2026*
+*Owner: DJ Simpson  |  Target: May 6, 2026  |  Last Updated: April 26, 2026*
 
 # **The Finish Line**
 
@@ -32,7 +32,7 @@ App Store approved. Founding Members can purchase via IAP. Revenue flows cleanly
 
 - Standard pricing: $99/year or $9/month
 
-- Push notifications — daily check-in reminder only
+- Push notifications — morning check-in reminder + evening backup reminder (auto-cancels after check-in)
 
 - Privacy policy + Terms of Service (linked in-app)
 
@@ -293,7 +293,7 @@ Build the iOS app in Expo. Every screen. Real data. Feels like a native app.
 
 *Mar 23 – Apr 18, 2026 (4 weeks)*
 
-**Status: 🔄 In Progress**
+**Status: ✅ Complete**
 
 Gated on Apple Developer enrollment under Simpson Holdings LLC. DUNS expected early week of March 23.
 
@@ -309,19 +309,19 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - ✅ Implement StoreKit purchase flow (react-native-purchases recommended over expo-in-app-purchases)
 
-- [ ] Build server-side receipt validation endpoint
+- ✅ Build server-side receipt validation endpoint — handled via RevenueCat webhook
 
 - ✅ Write entitlement to Firestore on validated receipt (users/{email}.isSubscriber or similar)
 
-- [ ] Handle renewal events from Apple
+- ✅ Handle renewal events from Apple — RevenueCat webhook handles RENEWAL, UNCANCELLATION
 
-- [ ] Handle cancellation/expiry
+- ✅ Handle cancellation/expiry — RevenueCat webhook handles EXPIRATION → isSubscriber: false
 
 - ✅ Build paywall screen — Subscribe and Restore buttons wired to RevenueCat (Restore untested)
 
-- [ ] Restore purchases flow (required by Apple — reviewers check for this) — placeholder exists, wire to StoreKit
+- ✅ Restore purchases flow — wired to RevenueCat, confirmed working on device
 
-- [ ] Test full purchase flow in sandbox (IAP sandbox is always flaky — budget extra time)
+- ✅ Test full purchase flow in sandbox — confirmed working April 25, 2026
 
 - ✅ Backfill trialStartDate — NOT NEEDED. Alpha users have isSubscriber: true, bypass trial entirely.
 
@@ -329,7 +329,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - ✅ Install and configure expo-notifications — done March 20, 2026
 
-- [ ] Configure APNs in Apple Developer account — blocked until enrollment
+- ✅ Configure APNs in Apple Developer account — enrolled April 2026
 
 - ✅ Notification permission prompt on first dashboard load (hasSeenNotificationPrompt guard) — built March 20, 2026
 
@@ -337,33 +337,33 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - ✅ Daily check-in reminder — user picks preferred time, 7 rotating messages scheduled weekly — done March 20, 2026
 
-- [ ] Test APNs remote push delivery on real device — blocked until Apple Developer enrollment
+- [ ] Test APNs remote push delivery on real device — deferred post-launch
 
-- [ ] Replace local notification scheduling with server-side APNs push (enables notification suppression post-check-in)
+- [ ] Replace local notification scheduling with server-side APNs push — deferred post-launch. Evening reminder cancels locally after check-in as interim solution.
 
-- ✅ Copy: 7 Canon-compliant rotating messages locked — no motivational language
+- ✅ Copy: 7 Canon-compliant rotating messages locked for morning + 7 for evening — no motivational language
 
 **Week 3 (Apr 6–12): TestFlight**
 
-- [ ] Build and upload to TestFlight
+- ✅ Build and upload to TestFlight
 
-- [ ] Invite current shadow alpha users
+- ✅ Invite current shadow alpha users (14 users, all isSubscriber: true)
 
-- [ ] Fix real-device bugs — there will be some
+- ✅ Fix real-device bugs — multiple rounds fixed
 
 - [ ] Performance: check-in submission < 2 seconds, dashboard load < 1 second
 
 - [ ] Offline behavior: what happens when network fails mid-check-in? (at minimum: don't lose data)
 
-- [ ] Fix anything that blocks the core loop
+- ✅ Fix anything that blocks the core loop
 
 **Week 4 (Apr 13–18): Buffer + Phase 4 Cleanup**
 
-- [ ] Gap reconciliation end-to-end QA (test March 19, fix any issues found)
+- ✅ Gap reconciliation end-to-end QA — gap fill window bug fixed April 25, 2026
 
-- [ ] Monday cron QA — verify March 23 run succeeds for all users
+- ✅ Monday cron QA — cron confirmed running
 
-- [ ] writeDailyMomentum.ts — retained as reference (not called anywhere). Do not delete.
+- ✅ writeDailyMomentum.ts — retained as reference (not called anywhere). Do not delete.
 
 - ✅ Section 15 (dispute resolution) filled — done March 20, 2026
 
@@ -385,31 +385,31 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 *Apr 21 – May 9, 2026 (3 weeks)*
 
-**Status: ⬜ Not Started**
+**Status: 🔄 In Progress**
 
 **Week 1 (Apr 21–27): Release Candidate**
 
-- [ ] Feature freeze — bug fixes only from this point
+- ✅ Feature freeze — bug fixes only from this point
 
 - [ ] Final Canon audit: every piece of user-facing copy. Kill anything motivational, judgmental, or streak-worshippy.
 
-- [ ] App Store assets: screenshots (required iPhone sizes), app icon finalized
+- ✅ App Store assets: screenshots uploaded, app icon finalized (1024x1024, no alpha)
 
-- [ ] App Store listing copy: name, subtitle, description, keywords, support URL, privacy URL
+- ✅ App Store listing copy: name, subtitle, description, keywords, support URL, privacy URL
 
-- [ ] App Privacy disclosures in App Store Connect (data types, usage, tracking — be accurate)
+- ✅ App Privacy disclosures in App Store Connect — published
 
-- [ ] Crash reporting configured (Sentry or similar, privacy-aligned)
+- [ ] Crash reporting configured (Sentry or similar, privacy-aligned) — not implemented
 
-- [ ] Final deletion flow test
+- ✅ Final deletion flow test — confirmed working end-to-end
 
-- [ ] Final IAP sandbox test
+- ✅ Final IAP sandbox test — confirmed working April 25, 2026
 
 **Week 2 (Apr 28 – May 4): Submission**
 
-- [ ] Submit to App Review
+- ✅ Submit to App Review — Build 11 submitted April 25, 2026 (third submission)
 
-- [ ] Monitor review status daily
+- ✅ Monitor review status daily
 
 **Common first-time rejections to watch for:**
 
@@ -421,7 +421,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - Metadata mismatch (screenshots don't match the app)
 
-- [ ] If rejected: fix, rebuild, resubmit — budget 3–5 days per cycle
+- ✅ Rejection 1 fixed (login navigation bug). ✅ Rejection 2 fixed (Guideline 5.1.1(v) — demo mode built). Build 11 in review.
 
 **Week 3 (May 5–9): Buffer / Resubmit if Needed**
 
@@ -467,7 +467,7 @@ These are made. Not up for re-discussion unless something fundamental changes.
 | iOS monetization | IAP (StoreKit) from day one |
 | Founding Members pricing | $60/year, available 90 days post-launch, price lock for life. ⚠️ Revisit exact end date before launch. |
 | Web monetization | Stripe post-launch |
-| Notifications V1 | Daily check-in reminder only |
+| Notifications V1 | Morning check-in reminder + evening backup (auto-cancels post check-in). Both local, user-configurable. |
 | Lab/history | Full history in V1, advanced analytics deferred |
 | Ask Nelson | Deferred post-launch |
 | Entity | Simpson Holdings LLC, Maryland |
@@ -511,4 +511,4 @@ Every Monday, before starting work:
 
 - Has anything changed that needs to go into the System Brief?
 
-**Next review: Monday, March 23, 2026 — first day DUNS expected. Enroll in Apple Developer same day.**
+**Next review: Monday, April 27, 2026 — Build 11 in review. Monitor App Store status. Fix momentum re-entry cap bug before next build.**

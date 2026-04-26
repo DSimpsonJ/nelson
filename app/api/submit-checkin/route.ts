@@ -102,8 +102,11 @@ d => /^\d{4}-\d{2}-\d{2}$/.test(d.id) && d.data().checkinType === 'real'
 ).length;
 const totalRealCheckIns = prevTotalRealCheckIns + 1;
 
-// Calculate days since last real check-in for re-entry cap
-let daysSinceLastRealCheckin = 0;
+// Calculate consecutive real check-ins and whether user is in re-entry window
+// Walk back counting real check-ins until we hit a gap_fill or missing doc
+// If the sequence is broken by a gap_fill, user returned from hiatus
+let consecutiveRealStreak = 0;
+let foundHiatusGap = false;
 for (let i = 1; i <= 30; i++) {
   const lookback = new Date(baseDate);
   lookback.setDate(lookback.getDate() - i);
@@ -112,12 +115,18 @@ for (let i = 1; i <= 30; i++) {
     .collection('users').doc(email)
     .collection('momentum').doc(lookbackKey)
     .get();
-  if (lookbackSnap.exists && lookbackSnap.data()?.checkinType === 'real') {
-    daysSinceLastRealCheckin = i;
+  if (!lookbackSnap.exists) { foundHiatusGap = true; break; }
+  const ct = lookbackSnap.data()?.checkinType;
+  if (ct === 'real') {
+    consecutiveRealStreak++;
+  } else {
+    // Hit a gap_fill — this is where the hiatus was
+    foundHiatusGap = true;
     break;
   }
-  if (i === 30) daysSinceLastRealCheckin = 30;
 }
+// returnCheckInNumber: how many real check-ins since returning (including today)
+const returnCheckInNumber = consecutiveRealStreak + 1;
 
     // Calculate daily score
     const dailyScore = calculateDailyScore(behaviorGrades);
@@ -150,34 +159,11 @@ for (let i = 1; i <= 30; i++) {
     // Re-entry cap — applies for 7 real check-ins after a 7+ day hiatus
     // Rise is effort-scaled: (dailyScore / 100) × 8 max per day
     // Only applies to users past ramp cap (totalRealCheckIns > 9)
-    if (daysSinceLastRealCheckin >= 7 && totalRealCheckIns > 9) {
-      // Count consecutive real check-ins since returning from hiatus
-      // Walk back from yesterday counting real check-ins until we hit a gap
-      let consecutiveRealCheckIns = 0;
-      for (let i = 1; i <= 14; i++) {
-        const lookback = new Date(baseDate);
-        lookback.setDate(lookback.getDate() - i);
-        const lookbackKey = lookback.toLocaleDateString('en-CA');
-        const lookbackSnap = await adminDb
-          .collection('users').doc(email)
-          .collection('momentum').doc(lookbackKey)
-          .get();
-        if (!lookbackSnap.exists) break;
-        const data = lookbackSnap.data()!;
-        if (data.checkinType !== 'real') break;
-        consecutiveRealCheckIns++;
-      }
-
-      // consecutiveRealCheckIns is how many real check-ins exist before today
-      // Today is check-in number consecutiveRealCheckIns + 1 in the return sequence
-      const returnCheckInNumber = consecutiveRealCheckIns + 1;
-
-      if (returnCheckInNumber <= 7) {
-        const maxRise = (dailyScore / 100) * 8;
-        const cappedScore = Math.round(previousMomentum + maxRise);
-        if (momentumScore > cappedScore) {
-          momentumScore = cappedScore;
-        }
+    if (foundHiatusGap && returnCheckInNumber <= 7 && totalRealCheckIns > 9) {
+      const maxRise = (dailyScore / 100) * 8;
+      const cappedScore = Math.round(previousMomentum + maxRise);
+      if (momentumScore > cappedScore) {
+        momentumScore = cappedScore;
       }
     }
 
