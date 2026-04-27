@@ -29,7 +29,7 @@
 
 ---
 
-## 2. Calibration Overhaul
+## 2. Calibration Overhaul (This has been reworked in the app - mark as complete)
 
 **The problem:** The current 4 calibration questions (`force`, `drag`, `structure`, `goal`) are buried at the bottom of the coaching screen. Completion rate is likely near zero. More importantly, the answers are written to Firestore but never read by the coaching prompt — they have no effect on anything. It's dead data collection.
 

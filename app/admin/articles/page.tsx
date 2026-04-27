@@ -17,11 +17,14 @@ export default function ArticleAdminPage() {
   const [deleteSlug, setDeleteSlug] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("nelsonUser");
-    if (!stored) { window.location.href = "/login"; return; }
-    const user = JSON.parse(stored);
-    if (user.email !== "dsimpsonj@gmail.com") { window.location.href = "/dashboard"; return; }
-    setAuthorized(true);
+    const { getAuth, onAuthStateChanged } = require("firebase/auth");
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user: any) => {
+      if (!user) { window.location.href = "/login"; return; }
+      if (user.email !== "dsimpsonj@gmail.com") { window.location.href = "/dashboard"; return; }
+      setAuthorized(true);
+    });
+    return () => unsubscribe();
   }, []);
 
   if (!authorized) return null;
