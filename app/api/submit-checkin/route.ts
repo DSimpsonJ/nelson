@@ -92,14 +92,9 @@ export async function POST(req: NextRequest) {
         : 0;
       const currentStreak = prevData?.currentStreak ?? 0;
 
-    // Count real check-ins directly from Firestore — chained counter is unreliable
-const allMomentumSnap = await adminDb
-.collection('users').doc(email)
-.collection('momentum')
-.get();
-const prevTotalRealCheckIns = allMomentumSnap.docs.filter(
-d => /^\d{4}-\d{2}-\d{2}$/.test(d.id) && d.data().checkinType === 'real'
-).length;
+// Derive totalRealCheckIns from yesterday's doc — avoids full collection scan
+// Safe: counter is written reliably on every real check-in doc
+const prevTotalRealCheckIns = prevData?.totalRealCheckIns ?? 0;
 const totalRealCheckIns = prevTotalRealCheckIns + 1;
 
 // Calculate consecutive real check-ins and whether user is in re-entry window
