@@ -12,6 +12,7 @@ export type Article = {
   dayNumber?: number;
   publishedAt?: string;
   isPublished: boolean;
+  imageUrl?: string;
 };
 
 export async function GET(req: NextRequest) {

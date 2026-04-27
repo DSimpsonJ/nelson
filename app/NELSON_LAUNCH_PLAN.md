@@ -367,7 +367,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - ✅ Section 15 (dispute resolution) filled — done March 20, 2026
 
-- [ ] Bookkeeping setup — Use spreadsheet until first revenue, then Quickbooks
+- ✅ Bookkeeping setup — Use spreadsheet until first revenue, then Quickbooks
 
 **Exit Criteria:**
 
@@ -391,7 +391,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - ✅ Feature freeze — bug fixes only from this point
 
-- [ ] Final Canon audit: every piece of user-facing copy. Kill anything motivational, judgmental, or streak-worshippy.
+- ✅ Final Canon audit: every piece of user-facing copy. Kill anything motivational, judgmental, or streak-worshippy.
 
 - ✅ App Store assets: screenshots uploaded, app icon finalized (1024x1024, no alpha)
 
