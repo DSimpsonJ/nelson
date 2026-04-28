@@ -2,7 +2,7 @@
 
 App Store Launch Plan
 
-*Owner: DJ Simpson  |  Target: May 6, 2026  |  Last Updated: April 26, 2026*
+*Owner: DJ Simpson  |  Target: May 6, 2026  |  Last Updated: April 28, 2026*
 
 # **The Finish Line**
 
@@ -351,7 +351,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - ✅ Fix real-device bugs — multiple rounds fixed
 
-- [ ] Performance: check-in submission < 2 seconds, dashboard load < 1 second
+- ✅ Performance: check-in submission < 2 seconds, dashboard load < 1 second
 
 - [ ] Offline behavior: what happens when network fails mid-check-in? (at minimum: don't lose data)
 
@@ -399,7 +399,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - ✅ App Privacy disclosures in App Store Connect — published
 
-- [ ] Crash reporting configured (Sentry or similar, privacy-aligned) — not implemented
+- ✅ Crash reporting configured — @sentry/react-native installed, initialized in _layout.tsx, DSN set via EAS environment variable. Events not yet verified end-to-end.
 
 - ✅ Final deletion flow test — confirmed working end-to-end
 
@@ -421,7 +421,7 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 - Metadata mismatch (screenshots don't match the app)
 
-- ✅ Rejection 1 fixed (login navigation bug). ✅ Rejection 2 fixed (Guideline 5.1.1(v) — demo mode built). Build 11 in review.
+- ✅ Rejection 1 fixed (login navigation bug). ✅ Rejection 2 fixed (Guideline 5.1.1(v) — demo mode built). ✅ Rejection 3 — same 5.1.1(v). Appeal filed April 27, 2026. Awaiting response.
 
 **Week 3 (May 5–9): Buffer / Resubmit if Needed**
 

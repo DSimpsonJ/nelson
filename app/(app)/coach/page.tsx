@@ -317,16 +317,6 @@ if (current) {
 
 </motion.div>
 
-{/* Done button */}
-<motion.div variants={itemVariants} className="mb-8">
-          <button
-            onClick={handleExit}
-            className="w-full px-6 py-4 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/50 hover:border-slate-600/50 text-white font-medium rounded-xl transition-all"
-          >
-            {hasAnsweredReview ? "Back to Dashboard" : "Done"}
-          </button>
-        </motion.div>
-
 {historicalWeeks.length > 0 && (
           <motion.div variants={itemVariants} className="mt-12">
             <div className="text-sm font-semibold text-white/80 mb-4 uppercase tracking-wide">
@@ -339,6 +329,15 @@ if (current) {
             </div>
           </motion.div>
         )}
+
+        <motion.div variants={itemVariants} className="mt-8 mb-8">
+          <button
+            onClick={handleExit}
+            className="w-full px-6 py-4 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/50 hover:border-slate-600/50 text-white font-medium rounded-xl transition-all"
+          >
+            {hasAnsweredReview ? "Back to Dashboard" : "Done"}
+          </button>
+        </motion.div>
 
         <div className="h-8" />
       </div>

@@ -1,7 +1,7 @@
 # Nelson Mobile Build Reference
-**Version:** 1.6  
-**Last Updated:** March 27, 2026  
-**Supersedes:** NELSON_MOBILE_BUILD_REFERENCE_v1_5.docx
+**Version:** 1.7  
+**Last Updated:** April 28, 2026  
+**Supersedes:** NELSON_MOBILE_BUILD_REFERENCE_v1_6.docx
 
 ---
 
@@ -16,7 +16,7 @@
 - ISO 8601 week calculation, Monday = week start. Do not change.
 - `weightHistory` is the single source of truth for weight. `users/{email}.weight` is kept in sync for protein calculations only.
 - `learnService` is exposed via API endpoint (`/api/learn-articles`) — not ported to mobile. Returns `{ articles, readSlugs }`.
-- `totalRealCheckIns` is calculated via live Firestore doc count in `submit-checkin/route.ts` — not chained from previous doc. Do not revert to chained counter.
+- `totalRealCheckIns` reads from `prevData.totalRealCheckIns + 1` in `submit-checkin/route.ts` — NOT a live Firestore collection scan. The collection scan was removed April 25, 2026 for performance (eliminated 50+ reads per check-in). Do not revert to collection scan.
 - `writeDailyMomentum.ts` is dead code. Retained as reference only. Never call it.
 - Phase boundary logic lives in `app/utils/momentumPhases.ts` on the web. Mobile must replicate this logic — do not import from web. The source of truth for phase boundaries is that file; port the constants, not the import.
 
@@ -41,6 +41,9 @@
 | `lastCheckInDate` | string | YYYY-MM-DD, written on every check-in |
 | `focusBehavior` | string | Selected behavior key for current week (e.g. `sleep`, `hydration`). Written by weekly review flow. |
 | `focusBehaviorSetWeek` | string | ISO week ID when focus was set (e.g. `2026-W13`). Used to validate focus is current week before displaying. |
+| `eveningReminderEnabled` | boolean | Evening backup reminder on/off. Set to true by default when notifications are enabled. |
+| `eveningReminderHour` | number | 0-23. Defaults to 20 (8pm). |
+| `eveningReminderMinute` | number | 0-59. Defaults to 0. |
 
 ### `users/{email}/momentum/{YYYY-MM-DD}`
 
@@ -394,10 +397,12 @@ Runs client-side before every `submitCheckIn` call. Never routed through API.
 ## Notifications
 
 - `expo-notifications` installed (SDK 54). Local daily notifications scheduled on user-selected time.
-- 7 rotating Canon-compliant messages, scheduled weekly.
-- `NotificationPrompt` shows on first dashboard load (`hasSeenNotificationPrompt` guard).
-- Settings toggle wires to schedule/cancel local notifications.
-- APNs (remote push) deferred until Apple Developer enrollment — required for notification suppression post-check-in.
+- Morning reminder: user picks time. 7 rotating Canon-compliant messages, scheduled weekly.
+- Evening backup reminder: defaults to 8pm, enabled by default when user enables notifications. 7 separate Canon-compliant evening messages. Auto-cancels after successful check-in via `cancelTonightsEveningReminder()` called in `checkin.tsx` post-submit.
+- `NotificationPrompt` shows on first dashboard load (`hasSeenNotificationPrompt` guard). Prompt explains both reminders upfront.
+- Settings screen has independent toggles and time pickers for morning and evening reminders.
+- Evening cancel behavior: **not tested end-to-end** — wired but not confirmed working on device.
+- APNs (remote push) deferred post-launch. Local notifications are the V1 solution.
 
 ---
 
@@ -512,9 +517,9 @@ Mobile port: this flow lives on the web at `app/(app)/weekly-review/page.tsx`. P
 | Item | Notes |
 |---|---|
 | Pre-March 14 mobile check-ins missing `behaviorRatings` | Lab day detail modal shows empty behaviors for these docs. Not fixable retroactively. Web app check-ins unaffected. |
-| APNs remote push | Deferred until Apple Developer enrollment. Required for post-check-in notification suppression. |
+| APNs remote push | Deferred post-launch. Evening reminder cancels locally as interim solution. |
 | `Confetti.json` palette | Blue/orange not fully on-brand. Revisit before App Store submission. |
-| Paywall IAP wiring | Subscribe and Restore buttons are placeholders. Phase 4 Week 1 after Apple Developer enrollment. |
+| Paywall IAP wiring | Subscribe and Restore wired to RevenueCat. Sandbox purchase confirmed April 25, 2026. Restore confirmed working. |
 | Weight in The Lab | No weight display in Lab yet. Scope TBD — Phase 4. |
 | Inactive user paywall cutoff | Alpha users have `isSubscriber: true` (lifetime free). Future paywall cutoff date for other inactive users is TBD. |
 | Mobile port — Phase system, badges, Zone, Force/Drag | All features built in web session March 27, 2026. Port after web validation with alpha users. Separate session. Read this document in full before starting. |
@@ -524,3 +529,13 @@ Mobile port: this flow lives on the web at `app/(app)/weekly-review/page.tsx`. P
 | `momentumDelta` prop in `CheckinSuccessAnimation` | Wired but no longer used (outcome text removed). Clean up in pre-launch pass. |
 | Success screen outcome text | Removed — "Moving forward / Steady / Slowed" felt useless without more context. Revisit post-launch with retention data. |
 | Delta number display | Delta shows under "Momentum" header on dashboard. Visual placement marked for potential refinement with alpha feedback. |
+| Evening reminder cancel | `cancelTonightsEveningReminder()` wired in `checkin.tsx` after submit. Not tested end-to-end — verify on device. |
+| `expo-image` | Now used in `article.tsx` instead of React Native `Image`. Provides disk caching and blurhash placeholder support. |
+| `expo-speech` | Installed but removed from use. TTS deferred post-launch — device voice quality unacceptable. OpenAI TTS is the planned solution. |
+| `@sentry/react-native` | Installed and initialized in `app/_layout.tsx`. DSN set via EAS env var `EXPO_PUBLIC_SENTRY_DSN`. Events not yet verified end-to-end — trigger a deliberate error to confirm. |
+| Demo mode `(demo)/` route group | New unauthenticated guest flow. `DemoContext.tsx` holds resultScore in memory. No Firebase reads/writes anywhere in demo flow. Registered in root `_layout.tsx` as `headerShown: false`. |
+| `signup.tsx` deleted | Auth is now a single combined `login.tsx` with mode toggle (Sign in / Create account). Confirm password field animates in/out with Reanimated. |
+| Article `imageUrl` | Field added to Article type in `article.tsx` and `app/api/learn-articles/route.ts`. Hero image renders at top of article screen. |
+| Re-entry cap | After 7+ day hiatus, momentum rise capped at `(dailyScore/100) × 8` for first 7 real check-ins. Logic uses `foundHiatusGap` + `returnCheckInNumber` in `submit-checkin/route.ts`. Verified working April 26, 2026. |
+| Gap fill window fix | Gap fill docs now contribute `momentumScore` (decayed value) to weighted average window instead of being skipped. Prevents phantom score jumps on return from hiatus. Applied to both `submit-checkin/route.ts` (verified) and `writeDailyMomentum.ts` (applied, not verified). |
+| Font consistency | Login wordmark uses `fontWeight: '800'`. Rest of app uses `'700'`. Pass to align key headings deferred post-launch. |
