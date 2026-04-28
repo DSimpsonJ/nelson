@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
+import { auth, ensureAuthPersistence } from '@/app/firebase/config';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function ArticleAdminPage() {
   const [authorized, setAuthorized] = useState(false);
@@ -17,14 +19,14 @@ export default function ArticleAdminPage() {
   const [deleteSlug, setDeleteSlug] = useState("");
 
   useEffect(() => {
-    const { getAuth, onAuthStateChanged } = require("firebase/auth");
-    const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user: any) => {
+    ensureAuthPersistence().then(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) { window.location.href = "/login"; return; }
       if (user.email !== "dsimpsonj@gmail.com") { window.location.href = "/dashboard"; return; }
       setAuthorized(true);
     });
     return () => unsubscribe();
+    });
   }, []);
 
   if (!authorized) return null;
