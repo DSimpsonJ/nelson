@@ -59,9 +59,10 @@ export async function GET(req: NextRequest) {
           (1000 * 60 * 60 * 24)
       ) + 1;
 
-    // 4. Get readLearnSlugs from user doc
+    // 4. Get readLearnSlugs and seenLearnSlugs from user doc
     const userSnap = await adminDb.collection('users').doc(email).get();
     const readSlugs: string[] = userSnap.data()?.readLearnSlugs ?? [];
+    const seenSlugs: string[] = userSnap.data()?.seenLearnSlugs ?? [];
 
     // 5. Fetch all published articles
     const articlesSnap = await adminDb
@@ -80,7 +81,7 @@ export async function GET(req: NextRequest) {
       )
       .sort((a, b) => (a.dayNumber ?? 0) - (b.dayNumber ?? 0));
 
-    return NextResponse.json({ articles: eligible, readSlugs });
+      return NextResponse.json({ articles: eligible, readSlugs, seenSlugs });
   } catch (err) {
     console.error('[learn-articles] Error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
