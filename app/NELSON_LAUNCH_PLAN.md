@@ -425,21 +425,51 @@ First task on March 23: enroll in Apple Developer Program ($99). Do not wait.
 
 **Week 3 (May 5–9): Buffer / Resubmit if Needed**
 
-- [ ] Respond to any App Review rejection within 24 hours
+- ✅ Respond to any App Review rejection within 24 hours
 
-- [ ] Fix, rebuild, resubmit
+- ✅ Fix, rebuild, resubmit
 
-- [ ] Target App Store approval by May 9, 2026
+- ✅ Target App Store approval by May 9, 2026
 
 **Exit Criteria:**
 
-- App Store approved
+- ✅ App Store approved
 
-- Founding Members can purchase
+- ✅ Founding Members can purchase
 
 - Revenue flows to Mercury business bank account
 
 *When App Store approval lands, execute NELSON_LAUNCH_WEEK_PLAN.md. Target launch day: Tuesday.*
+
+Phase 6: Post-Launch
+May 2026 onwards
+Status: 🔄 Active
+Immediate (May 2026)
+
+- [ ] Build 12 approved and live (1.0.1 -- nav bar fix, Learn improvements, forgot password, notification toggle fix, exercise commitment fix)
+- [ ] Facebook launch post -- personal, from the heart, drives first real downloads
+- [ ] Identify distribution channels beyond social (newsletters, communities, podcasts)
+- [ ] Verify Sentry end-to-end -- trigger a test error, confirm it lands in Sentry dashboard
+- [ ] Google Sign-In -- Build 13 target
+- [ ] Markdown rendering for articles -- Build 13 or 14
+- [ ] In-app bug reporting / feedback -- lightweight, Build 13
+
+Short Term (June-July 2026)
+
+ - [ ] APNs server-side push -- replace local notification scheduling, fixes reinstall/new device scenarios
+ - [ ] Offline check-in behavior -- don't lose data on network failure mid-submission
+ - [ ] Android -- separate project, separate timeline, starts after iOS is stable
+ - [ ] Stripe web purchase channel -- web app monetization, post-iOS stability
+ - [ ] App Store keyword optimization -- update keyword field once 1.0.1 is live
+ - [ ] First revenue milestone -- document it
+ - [ ] Founding Members end date -- August 7, 2026. Calendar reminder set. RevenueCat offering swap + App Store Connect clearance.
+
+Medium Term (Q3 2026)
+
+ - [ ] Ask Nelson -- daily Q&A powered by Claude. User asks a question, Nelson answers using their own check-in history as context. This is the most natural AI expansion and directly uses collected data.
+ - [ ] Pattern insights -- weekly or monthly summary that goes deeper than coaching. "Over the last 30 days, your sleep ratings are consistently lower on days following low hydration." That's your data advantage nobody else has.
+ - [ ] Accountability partner -- share momentum (not scores, not streaks) with one person. Opt-in, Canon-compliant.
+ - [ ] Legal entity trademark filing -- deferred from V1, do it before you have real revenue at risk
 
 # **Risks and Mitigations**
 
