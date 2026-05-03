@@ -24,13 +24,13 @@
     "firebase": "^12.4.0",
     "firebase-admin": "^13.7.0",
     "framer-motion": "^12.23.24",
+    "loops": "^6.3.0",
     "lucide-react": "^0.561.0",
     "next": "15.2.8",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-type-animation": "^3.2.0",
     "recharts": "^3.3.0",
-    "resend": "^6.12.2",
     "styled-jsx": "^5.1.7"
   },
   "devDependencies": {

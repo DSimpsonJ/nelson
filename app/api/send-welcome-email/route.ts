@@ -1,5 +1,5 @@
 import { adminAuth } from '@/app/firebase/admin';
-import { sendWelcomeEmail } from '@/app/services/emailService';
+import { triggerWelcomeEmail } from '@/app/services/loopsService';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -18,11 +18,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { firstName } = body;
 
-    await sendWelcomeEmail(decoded.email, firstName);
+    await triggerWelcomeEmail(decoded.email, firstName);
 
     return NextResponse.json({ success: true });
-} catch (err: any) {
+  } catch (err: any) {
     console.error('[send-welcome-email] Error:', err?.message || err);
-    return NextResponse.json({ error: err?.message || 'Failed to send email' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

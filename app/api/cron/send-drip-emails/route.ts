@@ -6,10 +6,11 @@
 
 import { adminDb } from '@/app/firebase/admin';
 import {
-  sendConversionEmail,
-  sendPrePaywallEmail,
-  sendReengagementEmail,
-} from '@/app/services/emailService';
+    triggerConversionEmail,
+    triggerPrePaywallEmail,
+    triggerReengagementEmail,
+    triggerWelcomeEmail,
+  } from '@/app/services/loopsService';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
   }
 
   const today = new Date().toLocaleDateString('en-CA');
-  const results = { prePaywall: 0, conversion: 0, reengagement: 0, errors: 0 };
+  const results = { welcome: 0, prePaywall: 0, conversion: 0, reengagement: 0, errors: 0 };
 
   try {
     const usersSnap = await adminDb.collection('users').get();
@@ -49,16 +50,20 @@ export async function GET(request: NextRequest) {
         ) + 1;
 
         // Day 13 -- pre-paywall warmup
-        if (accountAgeDays === 13) {
-          await sendPrePaywallEmail(email, firstName);
-          results.prePaywall++;
-        }
-
-        // Day 14 -- conversion
-        if (accountAgeDays === 14) {
-          await sendConversionEmail(email, firstName);
-          results.conversion++;
-        }
+        if (accountAgeDays === 1) {
+            await triggerWelcomeEmail(email, firstName);
+            results.welcome++;
+          }
+  
+          if (accountAgeDays === 13) {
+            await triggerPrePaywallEmail(email, firstName);
+            results.prePaywall++;
+          }
+  
+          if (accountAgeDays === 14) {
+            await triggerConversionEmail(email, firstName);
+            results.conversion++;
+          }
 
         // Re-engagement -- 3 days no check-in
         if (accountAgeDays > 7) {
@@ -85,7 +90,7 @@ export async function GET(request: NextRequest) {
               : 999;
 
             if (daysSinceLast >= 7) {
-              await sendReengagementEmail(email, firstName);
+                await triggerReengagementEmail(email, firstName);
               await adminDb.collection('users').doc(email).update({
                 lastReengagementEmail: today,
               });
