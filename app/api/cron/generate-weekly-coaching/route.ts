@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
   console.log(`[Cron] Generating coaching for week: ${weekId}`);
 
   // 3. Get base URL for API calls
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nelson-nu.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://thenelson.app';
   console.log(`[Cron] Using base URL: ${baseUrl}`);
 
   // 4. Fetch all users

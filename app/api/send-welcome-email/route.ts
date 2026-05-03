@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
     await sendWelcomeEmail(decoded.email, firstName);
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error('[send-welcome-email] Error:', err);
-    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
+} catch (err: any) {
+    console.error('[send-welcome-email] Error:', err?.message || err);
+    return NextResponse.json({ error: err?.message || 'Failed to send email' }, { status: 500 });
   }
 }

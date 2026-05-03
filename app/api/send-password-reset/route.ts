@@ -19,9 +19,8 @@ export async function POST(request: NextRequest) {
     await sendPasswordResetEmail(email, resetLink);
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    // Don't reveal whether email exists
-    console.error('[send-password-reset] Error:', err);
-    return NextResponse.json({ success: true });
+} catch (err: any) {
+    console.error('[send-password-reset] Error:', err?.message || err);
+    return NextResponse.json({ error: err?.message || 'Failed' }, { status: 500 });
   }
 }
