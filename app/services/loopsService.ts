@@ -73,15 +73,6 @@ export async function triggerWelcomeEmail(
   await sendLoopsEvent(email, 'signup', { firstName: firstName ?? '' });
 }
 
-export async function triggerPasswordReset(
-  email: string,
-  resetLink: string
-): Promise<void> {
-  await sendLoopsEvent(email, 'password_reset_requested', undefined, {
-    resetLink,
-  });
-}
-
 export async function triggerPrePaywallEmail(
   email: string,
   firstName?: string

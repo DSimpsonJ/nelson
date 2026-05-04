@@ -1,6 +1,8 @@
 import { adminAuth } from '@/app/firebase/admin';
-import { triggerPasswordReset } from '@/app/services/loopsService';
+import { LoopsClient } from 'loops';
 import { NextRequest, NextResponse } from 'next/server';
+
+const loops = new LoopsClient(process.env.LOOPS_API_KEY!);
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +17,13 @@ export async function POST(request: NextRequest) {
       url: 'https://thenelson.app/login',
     });
 
-    await triggerPasswordReset(email, resetLink);
+    await loops.sendTransactionalEmail({
+      transactionalId: 'cmorbhfs200ag0i3nzy77bhoq',
+      email,
+      dataVariables: {
+        resetLink,
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
