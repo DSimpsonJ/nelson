@@ -64,8 +64,39 @@ await setDoc(doc(db, "users", form.email), {
         JSON.stringify({ email: form.email })
       );
     
-      // ✅ Redirect to welcome screen
-      router.push("/onboarding");
+      // ✅ Register contact in Loops + trigger signup event
+try {
+  await fetch("https://app.loops.so/api/v1/contacts/create", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${process.env.NEXT_PUBLIC_LOOPS_API_KEY}`,
+    },
+    body: JSON.stringify({
+      email: form.email,
+      firstName: form.firstName,
+      lastName: form.lastName,
+      source: "web",
+    }),
+  });
+
+  await fetch("https://app.loops.so/api/v1/events/send", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${process.env.NEXT_PUBLIC_LOOPS_API_KEY}`,
+    },
+    body: JSON.stringify({
+      email: form.email,
+      eventName: "signup",
+    }),
+  });
+} catch {
+  // Non-blocking
+}
+
+// ✅ Redirect to welcome screen
+router.push("/onboarding");
     } catch (err: any) {
       setError(err.message || "Signup failed. Please try again.");
     } finally {
