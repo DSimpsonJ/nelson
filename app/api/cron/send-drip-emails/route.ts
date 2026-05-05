@@ -65,19 +65,19 @@ export async function GET(request: NextRequest) {
             results.conversion++;
           }
 
-        // Re-engagement -- 3 days no check-in
-        if (accountAgeDays > 7) {
-          const threeDaysAgo = new Date(today + 'T00:00:00');
-          threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-          const threeDaysAgoKey = threeDaysAgo.toLocaleDateString('en-CA');
-
-          const recentSnap = await adminDb
-            .collection('users').doc(email)
-            .collection('momentum')
-            .where('date', '>=', threeDaysAgoKey)
-            .where('checkinCompleted', '==', true)
-            .limit(1)
-            .get();
+        // Re-engagement -- 2 days no check-in
+        if (accountAgeDays > 3) {
+            const twoDaysAgo = new Date(today + 'T00:00:00');
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+            const twoDaysAgoKey = twoDaysAgo.toLocaleDateString('en-CA');
+  
+            const recentSnap = await adminDb
+              .collection('users').doc(email)
+              .collection('momentum')
+              .where('date', '>=', twoDaysAgoKey)
+              .where('checkinCompleted', '==', true)
+              .limit(1)
+              .get();
 
           if (recentSnap.empty) {
             // Check we haven't already sent re-engagement recently

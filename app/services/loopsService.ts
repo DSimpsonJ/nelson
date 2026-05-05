@@ -88,8 +88,8 @@ export async function triggerConversionEmail(
 }
 
 export async function triggerReengagementEmail(
-  email: string,
-  firstName?: string
-): Promise<void> {
-  await sendLoopsEvent(email, 'inactive_3_days', { firstName: firstName ?? '' });
-}
+    email: string,
+    firstName?: string
+  ): Promise<void> {
+    await sendLoopsEvent(email, 'inactive_2_days', { firstName: firstName ?? '' });
+  }
