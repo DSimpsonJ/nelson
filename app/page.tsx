@@ -8,6 +8,7 @@ export const metadata: Metadata = {
     description: 'Streaks break. Momentum doesn\'t.',
     url: 'https://thenelson.app',
     siteName: 'Nelson',
+    images: ['https://firebasestorage.googleapis.com/v0/b/nelson-7e349.firebasestorage.app/o/hero-image.png?alt=media&token=aafcd754-b0fe-48a4-9924-b13a99d0813b'],
   },
 };
 
@@ -60,13 +61,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section style={{
-        paddingTop: '60px',
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
-        {/* Hero image */}
+      <section style={{ paddingTop: '60px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{
           width: '100%',
           height: '60vh',
@@ -76,14 +71,7 @@ export default function LandingPage() {
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }} />
-
-        {/* Hero text */}
-        <div style={{
-          maxWidth: '680px',
-          margin: '0 auto',
-          padding: '64px 32px 80px',
-          textAlign: 'center',
-        }}>
+        <div style={{ maxWidth: '680px', margin: '0 auto', padding: '64px 32px 80px', textAlign: 'center' }}>
           <h1 style={{
             fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
             fontSize: 'clamp(42px, 8vw, 72px)',
@@ -105,12 +93,7 @@ export default function LandingPage() {
           }}>
             Streaks break. Momentum doesn&apos;t.
           </p>
-          <p style={{
-            fontSize: '18px',
-            lineHeight: 1.7,
-            color: '#4B5563',
-            margin: '0 0 40px',
-          }}>
+          <p style={{ fontSize: '18px', lineHeight: 1.7, color: '#4B5563', margin: '0 0 40px' }}>
             Nelson tracks the momentum you build from your actual behavior, day by day.
             One missed day doesn&apos;t erase everything. You just keep going.
           </p>
@@ -142,214 +125,95 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Streak vs Momentum */}
+      {/* Streak vs Momentum graphic */}
       <section style={{
         backgroundColor: '#F9FAFB',
         borderTop: '1px solid #F1F1F1',
         borderBottom: '1px solid #F1F1F1',
-        padding: '80px 32px',
+        padding: '64px 32px',
       }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-          <p style={{
-            fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-            fontSize: '11px',
-            fontWeight: 700,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-            color: '#9CA3AF',
-            marginBottom: '32px',
-            textAlign: 'center',
-          }}>
-            The difference
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {/* Streak model */}
-            <div style={{
-              backgroundColor: '#FEF2F2',
-              border: '1px solid #FECACA',
-              borderRadius: '12px',
-              padding: '28px 32px',
-            }}>
-              <p style={{
-                fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-                fontSize: '11px',
-                fontWeight: 700,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: '#EF4444',
-                margin: '0 0 12px',
-              }}>
-                Streak model
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                {['✓', '✓', '✓', '✕'].map((mark, i) => (
-                  <span key={i} style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '50%',
-                    backgroundColor: mark === '✓' ? '#DCFCE7' : '#FEE2E2',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '18px',
-                    color: mark === '✓' ? '#16A34A' : '#EF4444',
-                    fontFamily: 'sans-serif',
-                  }}>
-                    {mark}
-                  </span>
-                ))}
-                <span style={{
-                  fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-                  fontSize: '14px',
-                  color: '#9CA3AF',
-                  margin: '0 4px',
-                }}>→</span>
-                <span style={{
-                  fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-                  fontSize: '28px',
-                  fontWeight: 800,
-                  color: '#EF4444',
-                  letterSpacing: '-0.03em',
-                }}>
-                  ZERO
-                </span>
-              </div>
-              <p style={{
-                fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-                fontSize: '13px',
-                color: '#9CA3AF',
-                margin: '12px 0 0',
-              }}>
-                One miss resets everything. Start over.
-              </p>
-            </div>
-
-            {/* Momentum model */}
-            <div style={{
-              backgroundColor: '#FFFBEB',
-              border: '1px solid #FDE68A',
-              borderRadius: '12px',
-              padding: '28px 32px',
-            }}>
-              <p style={{
-                fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-                fontSize: '11px',
-                fontWeight: 700,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: '#D97706',
-                margin: '0 0 12px',
-              }}>
-                Momentum model
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                {['✓', '✓', '✓', '–'].map((mark, i) => (
-                  <span key={i} style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '50%',
-                    backgroundColor: mark === '✓' ? '#DCFCE7' : '#FEF3C7',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '18px',
-                    color: mark === '✓' ? '#16A34A' : '#D97706',
-                    fontFamily: 'sans-serif',
-                  }}>
-                    {mark}
-                  </span>
-                ))}
-                <span style={{
-                  fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-                  fontSize: '14px',
-                  color: '#9CA3AF',
-                  margin: '0 4px',
-                }}>→</span>
-                <span style={{
-                  fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: '#F59E0B',
-                }}>
-                  momentum continues
-                </span>
-              </div>
-              <p style={{
-                fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-                fontSize: '13px',
-                color: '#9CA3AF',
-                margin: '12px 0 0',
-              }}>
-                Pick up where you left off. Never start over again.
-              </p>
-            </div>
-          </div>
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <img
+            src="https://firebasestorage.googleapis.com/v0/b/nelson-7e349.firebasestorage.app/o/streak-vs-momentum.png?alt=media&token=bb2369c0-884f-4c73-8e5e-e28bb38d6c7f"
+            alt="Streaks reset to zero after one miss. Momentum continues."
+            style={{ width: '100%', height: 'auto', display: 'block' }}
+          />
         </div>
       </section>
 
       {/* How it works */}
       <section style={{ padding: '80px 32px' }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-          <p style={{
-            fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-            fontSize: '11px',
-            fontWeight: 700,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-            color: '#9CA3AF',
-            marginBottom: '32px',
-            textAlign: 'center',
-          }}>
-            How it works
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-            {[
-              { label: 'Check in.', body: '7 behaviors. Honest ratings. About a minute. Rate what actually happened, not what you wish happened.' },
-              { label: 'Learn.', body: 'One short article from the Learn section. One idea you can apply today. Another minute.' },
-              { label: 'Build.', body: 'Every Monday, Nelson reviews your week and sends one focused coaching observation. The pattern shows up over time.' },
-            ].map((item, i) => (
-              <div key={i} style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-                <div style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: '#F59E0B',
-                  marginTop: '8px',
-                  flexShrink: 0,
-                }} />
-                <div>
-                  <p style={{
-                    fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
-                    fontSize: '18px',
-                    fontWeight: 700,
-                    color: '#111827',
-                    margin: '0 0 6px',
-                  }}>
-                    {item.label}
-                  </p>
-                  <p style={{
-                    fontSize: '16px',
-                    lineHeight: 1.7,
-                    color: '#4B5563',
-                    margin: 0,
-                  }}>
-                    {item.body}
-                  </p>
+        <div style={{
+          maxWidth: '960px',
+          margin: '0 auto',
+          display: 'flex',
+          gap: '64px',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ flex: '1', minWidth: '280px' }}>
+            <img
+              src="https://firebasestorage.googleapis.com/v0/b/nelson-7e349.firebasestorage.app/o/hero-image-2.png?alt=media&token=d5881197-659f-45a3-bf17-bc34bc265555"
+              alt="Building momentum day by day"
+              style={{
+                width: '100%',
+                height: '420px',
+                objectFit: 'cover',
+                borderRadius: '12px',
+                display: 'block',
+              }}
+            />
+          </div>
+          <div style={{ flex: '1', minWidth: '280px' }}>
+            <p style={{
+              fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: '#9CA3AF',
+              marginBottom: '32px',
+            }}>
+              How it works
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              {[
+                { label: 'Check in.', body: '7 behaviors. Honest ratings. About a minute. Rate what actually happened, not what you wish happened.' },
+                { label: 'Learn.', body: 'One short article from the Learn section. One idea you can apply today. Another minute.' },
+                { label: 'Build.', body: 'Every Monday, Nelson reviews your week and sends one focused coaching observation. The pattern shows up over time.' },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: '#F59E0B',
+                    marginTop: '8px',
+                    flexShrink: 0,
+                  }} />
+                  <div>
+                    <p style={{
+                      fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
+                      fontSize: '18px',
+                      fontWeight: 700,
+                      color: '#111827',
+                      margin: '0 0 6px',
+                    }}>
+                      {item.label}
+                    </p>
+                    <p style={{ fontSize: '16px', lineHeight: 1.7, color: '#4B5563', margin: 0 }}>
+                      {item.body}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* Screenshots */}
-      <section style={{
-        backgroundColor: '#0A0F1A',
-        padding: '80px 32px',
-        overflow: 'hidden',
-      }}>
+      <section style={{ backgroundColor: '#0A0F1A', padding: '80px 32px', overflow: 'hidden' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
           <p style={{
             fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
@@ -394,11 +258,7 @@ export default function LandingPage() {
       </section>
 
       {/* Bottom CTA */}
-      <section style={{
-        padding: '100px 32px',
-        textAlign: 'center',
-        borderTop: '1px solid #F1F1F1',
-      }}>
+      <section style={{ padding: '100px 32px', textAlign: 'center', borderTop: '1px solid #F1F1F1' }}>
         <div style={{ maxWidth: '560px', margin: '0 auto' }}>
           <h2 style={{
             fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
@@ -411,12 +271,7 @@ export default function LandingPage() {
           }}>
             Never start over again.
           </h2>
-          <p style={{
-            fontSize: '18px',
-            lineHeight: 1.7,
-            color: '#4B5563',
-            margin: '0 0 40px',
-          }}>
+          <p style={{ fontSize: '18px', lineHeight: 1.7, color: '#4B5563', margin: '0 0 40px' }}>
             Built for people who have restarted too many times. Free 14-day trial.
           </p>
           <a
@@ -440,18 +295,14 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer style={{
-        borderTop: '1px solid #F1F1F1',
-        padding: '32px',
-        textAlign: 'center',
-      }}>
+      <footer style={{ borderTop: '1px solid #F1F1F1', padding: '32px', textAlign: 'center' }}>
         <p style={{
           fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
           fontSize: '13px',
           color: '#9CA3AF',
           margin: '0 0 8px',
         }}>
-          Nelson — thenelson.app — hello@thenelson.app
+          Nelson — thenelson.app — support@thenelson.app
         </p>
         <p style={{
           fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif",
