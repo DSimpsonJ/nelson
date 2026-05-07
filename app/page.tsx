@@ -130,13 +130,13 @@ export default function LandingPage() {
         backgroundColor: '#F9FAFB',
         borderTop: '1px solid #F1F1F1',
         borderBottom: '1px solid #F1F1F1',
-        padding: '64px 32px',
+        padding: '40px 24px',
       }}>
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-          <img
-            src="https://firebasestorage.googleapis.com/v0/b/nelson-7e349.firebasestorage.app/o/streak-vs-momentum.png?alt=media&token=bb2369c0-884f-4c73-8e5e-e28bb38d6c7f"
+        <img
+            src="https://firebasestorage.googleapis.com/v0/b/nelson-7e349.firebasestorage.app/o/streak-vs-momentum-mobile.png?alt=media&token=6690bd54-1a98-42f5-89c2-7fd1fa658d7f"
             alt="Streaks reset to zero after one miss. Momentum continues."
-            style={{ width: '100%', height: 'auto', display: 'block' }}
+            style={{ width: '100%', height: 'auto', display: 'block', minHeight: '200px' }}
           />
         </div>
       </section>
