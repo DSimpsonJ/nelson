@@ -21,13 +21,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const today = new Date().toLocaleDateString('en-CA');
-  const results = { welcome: 0, prePaywall: 0, conversion: 0, reengagement: 0, errors: 0 };
+  // Respond immediately so cron-job.org doesn't time out
+  // Vercel continues processing in the background
+  (async () => {
+    const today = new Date().toLocaleDateString('en-CA');
+    const results = { welcome: 0, prePaywall: 0, conversion: 0, reengagement: 0, errors: 0 };
 
-  try {
-    const usersSnap = await adminDb.collection('users').get();
+    try {
+      const usersSnap = await adminDb.collection('users').get();
 
-    for (const userDoc of usersSnap.docs) {
+      for (const userDoc of usersSnap.docs) {
       const email = userDoc.id;
       const data = userDoc.data();
       const firstName = data.firstName || data.name || undefined;
@@ -108,9 +111,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, results });
+    console.log('[drip-emails] Completed:', results);
   } catch (err) {
     console.error('[drip-emails] Fatal error:', err);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
+})();
+
+return NextResponse.json({ success: true, message: 'Drip email processing started' });
 }

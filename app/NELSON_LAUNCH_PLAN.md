@@ -446,13 +446,13 @@ May 2026 onwards
 Status: 🔄 Active
 Immediate (May 2026)
 
-- [ ] Build 12 approved and live (1.0.1 -- nav bar fix, Learn improvements, forgot password, notification toggle fix, exercise commitment fix)
-- [ ] Facebook launch post -- personal, from the heart, drives first real downloads
+- ✅ Build 12 approved and live (1.0.4)
+- ✅ Facebook launch post -- personal, from the heart, drives first real downloads
 - [ ] Identify distribution channels beyond social (newsletters, communities, podcasts)
 - [ ] Verify Sentry end-to-end -- trigger a test error, confirm it lands in Sentry dashboard
 - [ ] Google Sign-In -- Build 13 target
 - [ ] Markdown rendering for articles -- Build 13 or 14
-- [ ] In-app bug reporting / feedback -- lightweight, Build 13
+- ✅ In-app bug reporting / feedback -- lightweight, Build 13 (Contact us action sheet in 1.0.4)
 
 Short Term (June-July 2026)
 
@@ -460,7 +460,7 @@ Short Term (June-July 2026)
  - [ ] Offline check-in behavior -- don't lose data on network failure mid-submission
  - [ ] Android -- separate project, separate timeline, starts after iOS is stable
  - [ ] Stripe web purchase channel -- web app monetization, post-iOS stability
- - [ ] App Store keyword optimization -- update keyword field once 1.0.1 is live
+- ✅ App Store keyword optimization -- update keyword field once 1.0.1 is live
  - [ ] First revenue milestone -- document it
  - [ ] Founding Members end date -- August 7, 2026. Calendar reminder set. RevenueCat offering swap + App Store Connect clearance.
 
