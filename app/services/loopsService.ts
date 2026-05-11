@@ -106,3 +106,16 @@ export async function triggerReengagementEmail(
   ): Promise<void> {
     await sendLoopsEvent(email, 'inactive_escalation_2', { firstName: firstName ?? '' });
   }
+  export async function triggerEscalation3Email(
+    email: string,
+    firstName?: string
+  ): Promise<void> {
+    await sendLoopsEvent(email, 'inactive_escalation_3', { firstName: firstName ?? '' });
+  }
+  
+  export async function triggerEscalation4Email(
+    email: string,
+    firstName?: string
+  ): Promise<void> {
+    await sendLoopsEvent(email, 'inactive_escalation_4', { firstName: firstName ?? '' });
+  }
