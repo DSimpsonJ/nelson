@@ -9,10 +9,13 @@ import {
   triggerConversionEmail,
   triggerEscalation1Email,
   triggerEscalation2Email,
+  triggerEscalation3Email,
+  triggerEscalation4Email,
   triggerPrePaywallEmail,
   triggerReengagementEmail,
   triggerWelcomeEmail,
 } from '@/app/services/loopsService';
+import { grantProEntitlement } from '@/app/services/revenuecatService';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -27,7 +30,7 @@ export async function GET(request: NextRequest) {
   // Vercel continues processing in the background
   (async () => {
     const today = new Date().toLocaleDateString('en-CA');
-    const results = { welcome: 0, prePaywall: 0, conversion: 0, reengagement: 0, escalation1: 0, escalation2: 0, errors: 0 };
+    const results = { welcome: 0, prePaywall: 0, conversion: 0, reengagement: 0, escalation1: 0, escalation2: 0, escalation3: 0, escalation4: 0, errors: 0 };
 
     try {
       const usersSnap = await adminDb.collection('users').get();
@@ -102,22 +105,8 @@ export async function GET(request: NextRequest) {
               results.reengagement++;
             }
 
-            // Escalation 1 -- fires only after welcome sequence ends (day 14+)
-            // Requires 7+ days inactive and never sent before (or sent 30+ days ago)
+            // Only escalate after welcome sequence ends (day 14+)
             if (accountAgeDays > 13) {
-              const sevenDaysAgo = new Date(today + 'T00:00:00');
-              sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-              const sevenDaysAgoKey = sevenDaysAgo.toLocaleDateString('en-CA');
-
-              const lastEscalation1 = data.lastEscalation1Email;
-              const daysSinceEscalation1 = lastEscalation1
-                ? Math.floor(
-                    (new Date(today).getTime() - new Date(lastEscalation1).getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  )
-                : 999;
-
-              // Last check-in must be 7+ days ago
               const lastCI = data.lastCheckInDate;
               const daysSinceCI = lastCI
                 ? Math.floor(
@@ -126,52 +115,62 @@ export async function GET(request: NextRequest) {
                   )
                 : 999;
 
-              if (daysSinceCI >= 7 && daysSinceEscalation1 >= 30) {
+              const lastEscalation1 = data.lastEscalation1Email;
+              const lastEscalation2 = data.lastEscalation2Email;
+              const lastEscalation3 = data.lastEscalation3Email;
+              const lastEscalation4 = data.lastEscalation4Email;
+
+              const daysSinceE1 = lastEscalation1
+                ? Math.floor((new Date(today).getTime() - new Date(lastEscalation1).getTime()) / 86400000)
+                : 999;
+              const daysSinceE2 = lastEscalation2
+                ? Math.floor((new Date(today).getTime() - new Date(lastEscalation2).getTime()) / 86400000)
+                : 999;
+              const daysSinceE3 = lastEscalation3
+                ? Math.floor((new Date(today).getTime() - new Date(lastEscalation3).getTime()) / 86400000)
+                : 999;
+              const daysSinceE4 = lastEscalation4
+                ? Math.floor((new Date(today).getTime() - new Date(lastEscalation4).getTime()) / 86400000)
+                : 999;
+
+              // Escalation 1: 7+ days inactive, never sent (or 30+ days ago)
+              if (daysSinceCI >= 7 && daysSinceE1 >= 30) {
+                await grantProEntitlement(email, 'weekly');
                 await triggerEscalation1Email(email, firstName);
                 await adminDb.collection('users').doc(email).update({
                   lastEscalation1Email: today,
                 });
                 results.escalation1++;
               }
-            }
 
-            // Escalation 2 -- final attempt, 14+ days inactive, after welcome sequence
-            if (accountAgeDays > 13) {
-              const lastEscalation2 = data.lastEscalation2Email;
-              const daysSinceEscalation2 = lastEscalation2
-                ? Math.floor(
-                    (new Date(today).getTime() - new Date(lastEscalation2).getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  )
-                : 999;
-
-              const lastCI = data.lastCheckInDate;
-              const daysSinceCI = lastCI
-                ? Math.floor(
-                    (new Date(today).getTime() - new Date(lastCI + 'T00:00:00').getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  )
-                : 999;
-
-              // Only fires if escalation 1 was already sent (at least 7 days ago)
-              const lastEscalation1 = data.lastEscalation1Email;
-              const daysSinceEscalation1 = lastEscalation1
-                ? Math.floor(
-                    (new Date(today).getTime() - new Date(lastEscalation1).getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  )
-                : 999;
-
-              if (
-                daysSinceCI >= 14 &&
-                daysSinceEscalation2 >= 30 &&
-                daysSinceEscalation1 >= 7
-              ) {
+              // Escalation 2: 14+ days inactive, E1 sent 7+ days ago
+              else if (daysSinceCI >= 14 && daysSinceE1 < 999 && daysSinceE2 >= 30) {
+                await grantProEntitlement(email, 'weekly');
                 await triggerEscalation2Email(email, firstName);
                 await adminDb.collection('users').doc(email).update({
                   lastEscalation2Email: today,
                 });
                 results.escalation2++;
+              }
+
+              // Escalation 3: 21+ days inactive, E2 sent 7+ days ago
+              else if (daysSinceCI >= 21 && daysSinceE2 < 999 && daysSinceE3 >= 30) {
+                await grantProEntitlement(email, 'weekly');
+                await triggerEscalation3Email(email, firstName);
+                await adminDb.collection('users').doc(email).update({
+                  lastEscalation3Email: today,
+                });
+                results.escalation3++;
+              }
+
+              // Escalation 4: 30+ days inactive, E3 sent 7+ days ago, final attempt
+              else if (daysSinceCI >= 30 && daysSinceE3 < 999 && daysSinceE4 >= 60) {
+                await grantProEntitlement(email, 'monthly');
+                await triggerEscalation4Email(email, firstName);
+                await adminDb.collection('users').doc(email).update({
+                  lastEscalation4Email: today,
+                });
+                results.escalation4++;
               }
             }
           }
