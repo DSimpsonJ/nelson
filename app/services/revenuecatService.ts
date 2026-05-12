@@ -3,9 +3,9 @@ const REVENUECAT_PROJECT_ID = '409788ef';
 const ENTITLEMENT_ID = 'nelson_pro';
 
 export async function grantProEntitlement(
-  email: string,
-  duration: 'weekly' | 'monthly'
-): Promise<void> {
+    email: string,
+    duration: 'weekly' | 'two_week' | 'monthly'
+  ): Promise<void> {
   const url = `https://api.revenuecat.com/v2/projects/${REVENUECAT_PROJECT_ID}/customers/${encodeURIComponent(email)}/actions/grant_entitlement`;
 
   const response = await fetch(url, {
