@@ -1,11 +1,12 @@
 const REVENUECAT_SECRET_KEY = process.env.REVENUECAT_SECRET_KEY!;
+const REVENUECAT_PROJECT_ID = '409788ef';
 const ENTITLEMENT_ID = 'nelson_pro';
 
 export async function grantProEntitlement(
-  email: string,
-  duration: 'weekly' | 'monthly'
-): Promise<void> {
-  const url = `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(email)}/entitlements/${ENTITLEMENT_ID}/promotional`;
+    email: string,
+    duration: 'weekly' | 'two_week' | 'monthly'
+  ): Promise<void> {
+  const url = `https://api.revenuecat.com/v2/projects/${REVENUECAT_PROJECT_ID}/customers/${encodeURIComponent(email)}/actions/grant_entitlement`;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -13,7 +14,10 @@ export async function grantProEntitlement(
       'Authorization': `Bearer ${REVENUECAT_SECRET_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ duration }),
+    body: JSON.stringify({
+      entitlement_identifier: ENTITLEMENT_ID,
+      duration,
+    }),
   });
 
   if (!response.ok) {
