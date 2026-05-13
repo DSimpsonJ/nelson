@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
             (new Date(today).getTime() - new Date(firstCheckinDate).getTime()) /
             (1000 * 60 * 60 * 24)
           ) + 1;
+          console.log(`[drip-debug] ${email} | accountAgeDays: ${accountAgeDays} | lastCheckInDate: ${data.lastCheckInDate} | firstCheckinDate: ${firstCheckinDate}`);
 
           // Welcome email -- day 1
           if (accountAgeDays === 1) {
