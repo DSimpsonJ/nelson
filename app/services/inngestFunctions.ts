@@ -196,7 +196,7 @@ export const dripUser = inngest.createFunction(
 export const coaching = inngest.createFunction(
   {
     id: 'coaching-orchestrator',
-    triggers: [{ cron: '0 13 * * 1' }], // 8am EST Monday = 13:00 UTC
+    triggers: [{ cron: '0 8 * * 1' }], // 8am EST Monday = 13:00 UTC
   },
   async ({ step }) => {
     const cutoff = new Date();
