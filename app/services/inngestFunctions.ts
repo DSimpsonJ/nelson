@@ -44,8 +44,8 @@ export const drip = inngest.createFunction(
 export const dripUser = inngest.createFunction(
   {
     id: 'drip-email-user',
-    triggers: [{ event: 'drip/process.user' }],
-    concurrency: { limit: 10 },
+  triggers: [{ event: 'drip/process.user' }],
+  concurrency: { limit: 5 },
   },
   async ({ event, step }) => {
     const email = event.data.email as string;
