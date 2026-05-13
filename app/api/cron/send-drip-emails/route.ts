@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
 
                 // Escalation 3: 21+ days inactive, E2 sent 7+ days ago -- 2 free weeks
                 else if (daysSinceCI >= 21 && daysSinceE2 < 999 && daysSinceE3 >= 30) {
-                  await grantProEntitlement(email, 'two_week');
+                  await grantProEntitlement(email, 'monthly');
                   await triggerEscalation3Email(email, firstName);
                   await adminDb.collection('users').doc(email).update({
                     lastEscalation3Email: today,
